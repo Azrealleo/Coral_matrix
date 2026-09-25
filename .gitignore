@@ -1,0 +1,3 @@
+# Local backups of the original repositories' Git metadata.
+.upstream-git/
+

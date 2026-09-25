@@ -1,0 +1,100 @@
+CAPI=2:
+# Copyright 2026 Google LLC
+# Copyright 2023 Vivante Corporation
+# Copyright lowRISC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "google:ip:ispyocto:0.1"
+description: "ispyocto wrapper"
+filesets:
+  files_rtl:
+    depend:
+      - lowrisc:tlul:headers
+      - lowrisc:prim:subreg
+      - com.google.coralnpu:fpga:coralnpu_soc_pkg:0.1
+      - coralnpuv2:ip:coralnpu_tlul:0.1
+      - vsi:ip:ispyocto:0.1
+    files:
+      - rtl/ahb_pkg.sv
+      - rtl/axi_pkg.sv
+      - rtl/isp_wrapper_reg_pkg.sv
+      - rtl/isp_wrapper_reg_top.sv
+      - rtl/isp_wrapper.sv
+      - rtl/tlul2ahblite.v
+      - rtl/ahblite_enc.v
+      - rtl/tlul_dec.v
+      # Included in files_rtl because top-level SoC simulation wrappers (chip_verilator.sv) instantiate it.
+      - rtl/cam_signal_generator.sv
+    file_type: systemVerilogSource
+
+  files_tb:
+    depend:
+      - lowrisc:tlul:headers
+      - lowrisc:tlul:trans_intg
+      - lowrisc:prim:subreg
+      - com.google.coralnpu:fpga:coralnpu_soc_pkg:0.1
+    files:
+      - rtl/isp_config.svh: {is_include_file: true}
+      - rtl/isp_wrapper_tb.sv
+    file_type: systemVerilogSource
+
+  files_verilator_waiver:
+    depend:
+      - lowrisc:lint:common
+    files:
+      - lint/ispyocto.vlt
+    file_type: vlt
+
+parameters:
+  SYNTHESIS:
+    datatype: bool
+    default: false
+    paramtype: vlogdefine
+
+  CAM_MODEL:
+    datatype: bool
+    default: false
+    paramtype: vlogdefine
+
+targets:
+  default: &default_target
+    filesets:
+      - tool_verilator ? (files_verilator_waiver)
+      - files_rtl
+    toplevel: isp_wrapper
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    parameters:
+      - SYNTHESIS=true
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+
+  # Simulation target using the internal Test Pattern Generator (TPG).
+  # This is the default mode.
+  sim: &sim_target
+    default_tool: verilator
+    filesets:
+      - tool_verilator ? (files_verilator_waiver)
+      - files_rtl
+      - files_tb
+    toplevel: isp_wrapper_tb
+    tools:
+      verilator:
+        mode: binary
+        verilator_options:
+          - '--timing'
+          - '--trace-fst'
+          - '-Wall'
+          - '-Wno-fatal'
+
+  # Simulation target using the DPI Camera Model.
+  # This mode defines CAM_MODEL=true to switch the testbench and ISP config.
+  sim_cam:
+    <<: *sim_target
+    parameters:
+      - CAM_MODEL=true

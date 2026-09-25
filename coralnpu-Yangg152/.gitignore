@@ -1,0 +1,22 @@
+bazel-*
+# Robot
+log.html
+report.html
+robot_output.xml
+# VCS generated things
+novas.fsdb
+ucli.key
+internal
+*vcst*
+novas*
+*csrc*
+# Build artifacts for UVM
+tests/uvm/rtl
+tests/uvm/sim_work
+tests/uvm/vc_hdrs.h
+# python
+__pycache__
+#toolchain
+toolchain/build_scripts/
+synth-vivado/
+1*
