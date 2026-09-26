@@ -51,11 +51,13 @@ rvv_backend_mxu_unit u_dut (
 initial clk = 0;
 always #(CLK_PERIOD/2) clk = ~clk;
 
+`ifdef MXU_ENABLE_FSDB
 initial begin
     $fsdbDumpfile("mxu_wave.fsdb");
     $fsdbDumpvars(0, mxu_tb, "+all");
     $fsdbDumpMDA;
 end
+`endif
 
 integer watchdog;
 initial begin
