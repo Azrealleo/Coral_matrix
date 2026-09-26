@@ -66,8 +66,7 @@ initial begin
         @(posedge clk);
         watchdog = watchdog + 1;
         if (watchdog > 500000) begin
-            $display("[TIMEOUT] Simulation exceeded watchdog limit!");
-            $finish;
+            $fatal(1, "[TIMEOUT] Simulation exceeded watchdog limit!");
         end
     end
 end
@@ -333,7 +332,7 @@ initial begin
     do_mma;
     do_mstore_and_check(3);
 
-    $display("======== TEST4: unsigned Tk=16 ========");
+    $display("======== TEST4: nonnegative int8 Tk=16 ========");
     $readmemh("cases/tc4_unsigned_weight.hex", weight_mem);
     $readmemh("cases/tc4_unsigned_act.hex",    act_mem);
     $readmemh("cases/tc4_unsigned_golden.hex", golden_mem);
@@ -344,14 +343,30 @@ initial begin
     do_mma;
     do_mstore_and_check(4);
 
+`ifdef MXU_TEST_TRUE_UNSIGNED
+    $display("======== TEST5: true unsigned Tk=16 ========");
+    $readmemh("cases/tc5_unsigned_high_weight.hex", weight_mem);
+    $readmemh("cases/tc5_unsigned_high_act.hex",    act_mem);
+    $readmemh("cases/tc5_unsigned_high_golden.hex", golden_mem);
+    cfg_signed = 0;
+    do_mcfg(8'd16);
+    do_mzero;
+    do_mload_w(16);
+    do_mload_a(calc_a_beats(16));
+    do_mma;
+    do_mstore_and_check(5);
+`endif
+
     $display("");
     $display("============ SUMMARY ============");
     $display("  PASS: %0d", total_pass);
     $display("  FAIL: %0d", total_fail);
     if (total_fail == 0)
         $display("  *** ALL TESTS PASSED ***");
-    else
+    else begin
         $display("  *** SOME TESTS FAILED ***");
+        $fatal(1, "MXU golden-result mismatch");
+    end
     $display("=================================");
 
     #100;

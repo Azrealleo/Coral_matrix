@@ -101,4 +101,10 @@ act4 = np.random.randint(0, 127, size=(16, Tk), dtype=np.int8)
 wt4  = np.random.randint(0, 127, size=(Tk, 16), dtype=np.int8)
 gen_case('tc4_unsigned', Tk, act4, wt4)
 
+# Optional diagnostic: values above 127 distinguish uint8 from int8 math.
+# The original tc4 values are <=126 and cannot exercise that distinction.
+act5 = np.full((16, Tk), 200, dtype=np.uint8)
+wt5  = np.full((Tk, 16), 3, dtype=np.uint8)
+gen_case('tc5_unsigned_high', Tk, act5, wt5)
+
 print('\n[golden] All test cases generated.')
