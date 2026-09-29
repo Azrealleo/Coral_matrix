@@ -441,7 +441,7 @@ Keep revision, source hashes, manifest, compile log and all run logs. Five
 local synthetic checks cover scalar references, signs/shapes, exact HEX
 roundtrip/config encoding, no-overwrite behavior, official-reference hash
 agreement, deterministic batch hashes and strict summary parsing. Shell syntax
-was checked with Git Bash. These are **not** the yet-to-run RTL pressure tests.
+was checked with Git Bash. These are **not** RTL pressure tests themselves.
 They still do not cover partial K/tiles, ready/valid backpressure, mid-operation
 reset, continuous accumulation across different loaded matrices, overflow
 semantics, all opcodes or synthesis/signoff.
@@ -456,18 +456,36 @@ alternating extrema passed under the existing fork schedule. The script
 and suite were introduced at `4f03352`; the actual server revision and full
 compile/run logs have not been independently reviewed here.
 
-The server batch fingerprints still need to be matched with the official
-test's summary. The Ubuntu summary attempt stopped at the missing NumPy
-import, before reading its log: this is neither evidence of an RTL failure
-nor proof that all 32 official stress cases passed. Do not record a paired
-signed-stress pass until the official completion marker and all hashes match.
-The server does not need another simulation merely to extract its existing
-fingerprints:
+### Paired signed pressure result reported on 2026-09-30
 
-```bash
-grep '^\[SIGNED_STRESS_MANIFEST\]' \
-  /data/home2/lqq/Desktop/mxu_runs/Yangg152_signed_stress.f9j80n/vectors.log
-```
+After fixing the terminal NumPy dependency, the user supplied all eight
+`[GOOGLE_SIGNED_STRESS_SUMMARY]` rows and the eight server manifest rows.
+The current official summarizer requires the completion marker, all 32
+unique testcase records, correct element counts and logical vector hashes
+before emitting any rows. Each batch hash matched its server counterpart:
+
+| Batch | Identical SHA256 on both hosts |
+| --- | --- |
+| positive_positive | `58d8d2697423a1782f17fae699f02a344abf777625ebc9d9bbbd75f6a4136245` |
+| positive_negative | `291a0f7171d4057f1bfb43065cafd6b334ce28ebfcad4dbca77890c55e068f09` |
+| negative_positive | `ab36dfccc926b0c3ee5b6fd8b24b932c8d3e62e98fca054a1dfd0735ad8cbbfb` |
+| negative_negative | `db9d79e4c5d16503d739c40a58395455b7cc224ad3c19f93f5d0a9880853d824` |
+| signed_edges | `8260cbea8dd6576c2eab67143e4bcb28af513506bb8f6cdb281fccce142bde41` |
+| random_seed137 | `ec4d6d1feceb63a1b616065d63150cb8d2c579ca399179a94028914e16c3772b` |
+| all_minus128 | `fc271b0bfeaeaee5789e6b3f562e79c8685ab6439577531dda41fdc432a83ec9` |
+| alternating_extremes | `c06a5c82b88e62355df290f74248e22b67494d5f4fa98af4177487b3f57f0d15` |
+
+This closes the paired functional check for the 32 shared testcase instances:
+8192 INT32 elements passed **per design** (16384 across the two runs), with
+identical logical operands/goldens. The repeated fourth baseline is not eight
+different matrices. This is a user-reported RTL result, not a Windows RTL run;
+the full host logs and actual revisions have not been independently reviewed.
+It does not validate all signed workloads or remove the coverage gaps above.
+
+The next independent diagnostic covers arbitrary K and input/output stalls;
+see `README-mxu-boundary.md`. Its local exporter/harness checks are complete,
+but neither new RTL target has been compiled/simulated on Windows or reported
+by the user yet. Do not count those diagnostics as passed.
 
 ## Remaining comparison work
 
@@ -493,8 +511,8 @@ according to the supplied results. The selective-visibility observer has
 passed according to the supplied summaries. The reused-operand burst test
 has also passed according
 to the user's four validated summaries. The shared signed pressure suite has
-passed on EDA152 according to the supplied 32-case result. The official
-stress log and cross-host batch fingerprints still need validation; its
-standalone summarizer's missing NumPy dependency is documented above.
+passed on both hosts according to the supplied 32-case results and eight
+identical cross-host batch fingerprints. Its standalone summarizer's initial
+missing NumPy dependency is documented above and is now resolved.
 `check_google_matrix_vectors.py` checks vector equality and scalar references
 only; it is not hardware validation.

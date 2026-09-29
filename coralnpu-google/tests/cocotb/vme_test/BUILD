@@ -259,3 +259,30 @@ cocotb_test_suite(
     },
     verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
 )
+
+py_library(
+    name = "vme_matrix_boundary_vectors",
+    srcs = ["vme_matrix_boundary_vectors.py"],
+    deps = [requirement("numpy")],
+)
+
+cocotb_test_suite(
+    name = "vme_matrix_boundary",
+    simulators = ["verilator"],
+    testcases = ["vme_matrix_k_boundary_test"],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "VmeCoreMiniAxi",
+        "seed": "42",
+        "test_module": ["vme_matrix_boundary_bench.py"],
+        "deps": [
+            ":vme_matrix_perf_support",
+            ":vme_matrix_boundary_vectors",
+            "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [":vme_matrix_perf_program"],
+        "size": "medium",
+    },
+    verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
+)
