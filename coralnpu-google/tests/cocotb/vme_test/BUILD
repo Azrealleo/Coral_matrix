@@ -145,3 +145,32 @@ coralnpu_v2_binary(
     name = "vme_mstatus_ms_test",
     srcs = ["vme_mstatus_ms_test.cc"],
 )
+
+# Verification-only full-tile benchmark; reuses the existing compiled model.
+cocotb_test_suite(
+    name = "vme_matrix_perf",
+    simulators = ["verilator"],
+    testcases = [
+        "vme_matrix_signed_diagnostic_test",
+        "vme_matrix_common_perf_test",
+    ],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "VmeCoreMiniAxi",
+        "seed": "42",
+        "test_module": ["vme_matrix_perf_bench.py"],
+        "deps": [
+            "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [":vme_matrix_perf_program"],
+        "size": "medium",
+    },
+    verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
+)
+
+coralnpu_v2_binary(
+    name = "vme_matrix_perf_program",
+    srcs = ["vme_matrix_perf_program.cc"],
+    hdrs = ["vme_test_utils.h"],
+)

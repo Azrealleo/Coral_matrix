@@ -53,8 +53,8 @@ extra wait edge in the testbench's `do_mma` task.
 | `mma_mac_per_cycle` | Useful MACs / MMA latency; not sustained multi-tile throughput |
 
 The inspected FSM predicts MMA latency K+3, i.e. 19/67/259 cycles for
-K=16/64/256. This is a **static prediction**, not a measured result; the probe
-warns if the observed value differs so its boundaries/source can be checked.
+K=16/64/256. The EDA152 run reported below matches this prediction; the probe
+warns if a future observed value differs so its boundaries/source can be checked.
 
 Input/output spans include testbench-inserted bubbles. In particular the
 existing testbench issues a fresh MSTORE command for each 128-bit result beat.
@@ -62,7 +62,82 @@ These spans characterize that schedule, not an optimized host driver or an
 ideal one-beat-per-cycle design. `CLK_PERIOD=10` is just a testbench setting;
 it does not demonstrate that synthesized hardware reaches 100 MHz.
 
-## Next comparison stage
+## EDA152 baseline reported on 2026-09-29
+
+User-provided log excerpt, source commit
+`519ac9b25e8d0c5e3eff44103fc32fcb1095a21c`, monitor version 1.
+Run directory: `/data/home2/lqq/Desktop/mxu_runs/Yangg152_perf.7x8re7`.
+All four cases passed (256/256 output beats). Full compile/run logs have not
+been independently reviewed on Windows.
+
+| K | Load span | MMA latency | Readback span | First input to last output | Config to last output | MMA MAC/cycle |
+| --- | --- | --- | --- | --- | --- | --- |
+| 16 | 34 | 19 | 128 | 186 | 192 | 215.579 |
+| 64 | 130 | 67 | 128 | 330 | 336 | 244.537 |
+| 256 | 514 | 259 | 128 | 906 | 912 | 253.035 |
+
+All spans/latencies above are hardware clock counts with the counter definitions
+above, not simulator seconds. The nonnegative K=16 case repeats the first row.
+The mean MAC rate over the input-to-output span is 22.022, 49.648, 72.336,
+respectively. MMA latency approaches 256 MAC/cycle as K grows; this is neither
+an area-normalized efficiency result nor a sustained multi-tile throughput result.
+
+## Official same-vector workload (Ubuntu VM)
+
+New verification-only files in `coralnpu-google/tests/cocotb/vme_test/`:
+`vme_matrix_perf_program.cc` and `vme_matrix_perf_bench.py`. No RTL is modified.
+They reuse the cached `VmeCoreMiniAxi` Verilator model. First check negative-B
+arithmetic and Tk=1/2/3/4, int8 extrema and all four sign quadrants (9 cases).
+Then execute the four existing fork vector sets, each three times from reset.
+The Python RNG, draw order and int8 dtype exactly match `golden.py`.
+
+In the Ubuntu VM, keep the working proxy environment active:
+
+```bash
+conda activate coral-matrix
+cd "$HOME/桌面/Coral_matrix"
+git pull --ff-only origin main
+python verification/check_google_matrix_vectors.py
+cd coralnpu-google
+```
+
+Stop if any of those steps fails. Then run the diagnostic first:
+
+```bash
+bazel test --jobs=2 --repo_env=CORALNPU_MAKE_JOBS=2 \
+  --cache_test_results=no --test_output=all \
+  //tests/cocotb/vme_test:vme_matrix_perf_vme_matrix_signed_diagnostic_test
+```
+
+Only after it passes, run the baseline:
+
+```bash
+bazel test --jobs=2 --repo_env=CORALNPU_MAKE_JOBS=2 \
+  --cache_test_results=no --test_output=all \
+  //tests/cocotb/vme_test:vme_matrix_perf_vme_matrix_common_perf_test
+```
+
+Preserve the Git revision and Bazel test logs. Expect 9 diagnostic or 12 common
+`[GOOGLE_MATRIX_PERF]` JSON records plus the corresponding `[GOOGLE_MATRIX_CHECK]`
+success line. Every record is printed only after all 256 elements match NumPy.
+Failures are not performance results. An altfmt/Tk CSR readback is checked too,
+but arithmetic matching, not CSR readback, is the correctness gate.
+
+Timing field `launch_wait_to_halt_cycles` uses the existing fixture: count
+`io_aclk` cycles from return of `execute_from()` until `io_halted` is observed.
+It includes remaining program startup, tile zero/configuration, eight vector
+loads per matrix instruction, loop/control/dispatch, matrix execution,
+16 tile-row moves/stores and shutdown. AXI upload of inputs, Python transpose
+and host result download are **outside** this timing. It is not an optimized
+software kernel. Tk<4 diagnostics deliberately load all four slots to check
+masking; do not use them to rank optimized Tk modes.
+
+This is a same-workload functional/core-schedule baseline, **not** a matched
+standalone-engine performance comparison. Do not divide its cycles by the
+fork's MMA-only cycles and declare a winner. Engine counters and a comparable
+system interface/driver benchmark are still required.
+
+## Remaining comparison work
 
 Use common vectors and complete 16x16xK workloads on both designs, count
 compute and transfer phases with clearly matched endpoints, include negative
@@ -78,5 +153,8 @@ arithmetic correctness.
 
 The observer was checked against the current source and the special first-beat
 protocol. The shell script passed `bash -n` using the existing Git Bash.
-A compatible simulator was not available on the Windows host, so
-VCS compilation and observed counts still need the EDA152 run above.
+A compatible simulator was not available on the Windows host. EDA152 has now
+run the fork observer successfully according to the user-provided excerpt.
+The new official workload still needs RISC-V compilation and RTL simulation
+in the Ubuntu VM. `check_google_matrix_vectors.py` checks vector equality and
+scalar references only; it is not hardware validation.
