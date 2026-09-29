@@ -1,0 +1,27 @@
+`verilator_config
+// Same top-level visibility as the ordinary model. No global --public option.
+public -module "{HDL_TOPLEVEL}" -var "io_*"
+public -module "{HDL_TOPLEVEL}" -var "clock"
+public -module "{HDL_TOPLEVEL}" -var "clk"
+public -module "{HDL_TOPLEVEL}" -var "reset"
+public -module "{HDL_TOPLEVEL}" -var "rst"
+public -module "{HDL_TOPLEVEL}" -var "rst_ni"
+
+// Simulation visibility only. The Python observer never writes these signals.
+public -module "zvt_pe_array*" -var "clk"
+public -module "zvt_pe_array*" -var "rst_n"
+public -module "zvt_pe_array*" -var "flush"
+public -module "zvt_pe_array*" -var "busy"
+public -module "zvt_pe_array*" -var "cnt"
+public -module "zvt_pe_array*" -var "canStart"
+public -module "zvt_pe_array*" -var "hitRaw"
+public -module "zvt_pe_array*" -var "blkCmdVld"
+public -module "zvt_pe_array*" -var "blkCmdRdy"
+public -module "zvt_pe_array*" -var "peCmdVld"
+public -module "zvt_pe_array*" -var "peCmdRdy"
+public -module "zvt_pe_array*" -var "peRtVld"
+public -module "zvt_pe_array*" -var "writeEn"
+public -module "zvt_pe_array*" -var "writeMtIdx"
+public -module "zvt_pe_array*" -var "writeSubIdx"
+public -module "zvt_pe_array*" -var "writePc"
+public -module "zvt" -var "writeEn"

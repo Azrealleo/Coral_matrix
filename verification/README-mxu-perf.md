@@ -137,6 +137,109 @@ standalone-engine performance comparison. Do not divide its cycles by the
 fork's MMA-only cycles and declare a winner. Engine counters and a comparable
 system interface/driver benchmark are still required.
 
+## Official core baseline reported after commit 2113cf3
+
+The signed diagnostic target passed, followed by all four common cases x three
+repeats. The user supplied the 12 `[GOOGLE_MATRIX_PERF]` records: all repeats
+were identical and all four vector fingerprints matched the local static check.
+This is a user-reported RTL result, not a Windows simulation run.
+
+| K | Official launch-wait-to-halt cycles | MAC / that cycle window |
+| --- | --- | --- |
+| 16 | 432 | 9.481481 |
+| 64 | 722 | 22.692521 |
+| 256 | 1876 | 34.933902 |
+
+The nonnegative K=16 case repeats the first row. Negative-B and Tk=4 arithmetic
+are now confirmed **for the executed cases/configuration**, not all ISA modes.
+
+## Official array observer (Ubuntu VM, new model)
+
+The ordinary compiled model exposes top-level ports, not the array's internal
+signals. The new `vme_matrix_engine_model` uses the same generated SV and compile
+defines, plus a **selective visibility-only** `zvt_perf.vlt.tpl`. The original
+model and its cache are untouched; the new model requires one initial compile.
+No function RTL or RISC-V program is changed. Do not run `bazel clean`.
+
+```bash
+conda activate coral-matrix
+cd "$HOME/桌面/Coral_matrix"
+git pull --ff-only origin main
+python verification/check_google_array_counter.py
+cd coralnpu-google
+bazel test --jobs=2 --repo_env=CORALNPU_MAKE_JOBS=2 \
+  --cache_test_results=no --test_output=all \
+  //tests/cocotb/vme_test:vme_matrix_engine_vme_matrix_engine_profile_test
+```
+
+Stop on any error. After the target passes, extract four compact summaries:
+
+```bash
+python ../verification/summarize_google_array.py \
+  bazel-testlogs/tests/cocotb/vme_test/vme_matrix_engine_vme_matrix_engine_profile_test/test.log
+```
+
+Preserve the full test log. The summarizer requires all 12 array records, matched
+fingerprints and identical repeats before printing any summaries. Missing VPI
+signals, unsupported geometry, protocol inconsistencies or missing writes fail
+the test; no fallback estimate is emitted.
+
+### Observer boundaries and guards
+
+Scope is limited to the tested VLEN128, tile 0, M=N=16, signed-A INT8, Tk=4
+workload. One matrix instruction performs 1024 MACs and writes 1024 bytes of
+INT32 tile results. It issues four M strips to block 0 and propagates through
+four quadrant blocks. `peCmdRdy` consumes the queued command on the **last**
+strip, so that handshake alone is not its execution-start boundary.
+
+The observer captures settled signals at the array's falling clock edge and
+accounts for them at the following rising edge. This avoids Verilator's
+post-evaluation RisingEdge sampling counting the next edge's work. The observed
+array has only rising-edge sequential logic; this method is not a generic
+asynchronous-interface monitor.
+
+Start = first `blkCmdVld[0] && blkCmdRdy[0]` issue with `cnt=0`.
+End = rising edge committing the last of 1024 **unique** enabled tile bytes for
+that instruction, after all four blocks complete. The monitor checks each
+block's 256-byte coverage, full INT32 word masks, consistent instruction PC,
+final-strip retire, and equality of the PE write enables and the `zvt_ctrl`
+write enables actually sent to MT. It rejects reset after work starts and
+flush while a measured matrix command is in flight; idle flush is ignored.
+All cycles are elapsed clock **intervals** (end-start), not inclusive spans.
+
+| Field | Meaning |
+| --- | --- |
+| `command_latency_cycles` | First strip to that instruction's last committed Tile write |
+| `command_start_intervals` | Difference between successive instruction start edges under the existing program |
+| `array_schedule_elapsed_cycles` | First instruction start to the workload's final Tile write; includes gaps between supplied commands |
+| `command_active_union_elapsed_cycles` | Union of command-in-flight intervals, avoiding double counting overlapped pipelines |
+| `no_command_inflight_elapsed_cycles` | Array window minus that union; scheduling gaps with no measured command in flight |
+| `no_full_command_offered_cycles` | Cycles without all four PE-command lanes offered; includes final pipeline drain and controller/upstream effects |
+| `raw_wait_cycles` | A full offer is blocked by the array's `hitRaw` condition |
+| `full_offer_no_strip_no_raw_cycles` | Full offer, no RAW condition, no block-0 issue |
+| `array_busy_cycles_in_window` | Observed array `busy` cycles inside the elapsed window |
+
+In-flight/busy cycles are **not** PE utilization, energy efficiency or ideal
+compute-only throughput. No-offer cycles do not by themselves prove the CPU is
+the cause. Start intervals are the delivered intervals of this program, not
+the array's minimum sustainable initiation interval. That needs a subsequent
+preloaded/reused-operand command-stream test.
+
+The target also verifies all original golden results, requires the original
+432/722/1876/432 core cycles, and compares internal traces across three resets.
+If visibility changes core cycles, investigate rather than silently rebasing.
+The official per-instruction Tk=4 latency cannot be substituted for the whole
+K=16/64/256 workload or directly ranked against the fork's single MMA command.
+
+### Local observer checks
+
+`check_google_array_counter.py` runs 11 **synthetic** unit tests, including
+overlapping commands, input gaps, all three K values, offset invariance, and
+rejection of lost/duplicate/suppressed writes, incorrect PC, partial INT32
+writes, early consume/retire, reset/flush and incorrect command count.
+These checks validate accounting, **not** VPI discovery or RTL behavior.
+The new observer/model has not yet been compiled or simulated on Windows.
+
 ## Remaining comparison work
 
 Use common vectors and complete 16x16xK workloads on both designs, count
@@ -155,6 +258,7 @@ The observer was checked against the current source and the special first-beat
 protocol. The shell script passed `bash -n` using the existing Git Bash.
 A compatible simulator was not available on the Windows host. EDA152 has now
 run the fork observer successfully according to the user-provided excerpt.
-The new official workload still needs RISC-V compilation and RTL simulation
-in the Ubuntu VM. `check_google_matrix_vectors.py` checks vector equality and
-scalar references only; it is not hardware validation.
+The official common workload and signed diagnostics have passed on the VM
+according to the supplied results. The new selective-visibility observer still
+needs VM compilation and simulation. `check_google_matrix_vectors.py` checks
+vector equality and scalar references only; it is not hardware validation.

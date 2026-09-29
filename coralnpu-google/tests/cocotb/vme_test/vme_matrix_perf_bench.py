@@ -67,7 +67,7 @@ def _vector_hash(a, b):
     return hashlib.sha256(a.tobytes() + b.tobytes() + _reference(a, b).tobytes()).hexdigest()
 
 
-async def _run_case(fixture, elf, case, repeat=0):
+async def _run_case(fixture, elf, case, repeat=0, observer=None):
     name, a, b, tk, signed_b = case
     k = a.shape[1]
     assert a.shape == (TE, k) and b.shape == (k, TE)
@@ -86,7 +86,13 @@ async def _run_case(fixture, elf, case, repeat=0):
     await fixture.write_word("perf_k", k)
     await fixture.write_word("perf_tk", tk)
     await fixture.write_word("perf_signed_b", int(signed_b))
-    cycles = await fixture.run_to_halt(timeout_cycles=200000)
+    if observer is not None:
+        observer.start()
+    try:
+        cycles = await fixture.run_to_halt(timeout_cycles=200000)
+    finally:
+        if observer is not None:
+            observer.stop()
     assert not fixture.fault(), f"{name}: core fault"
     assert int(await fixture.read_word("perf_status")) == 1, f"{name}: program did not complete"
     mtype = int(await fixture.read_word("perf_mtype"))

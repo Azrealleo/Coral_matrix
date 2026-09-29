@@ -13,13 +13,15 @@
 # limitations under the License.
 
 load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
-load("//rules:coco_tb.bzl", "cocotb_test_suite")
+load("@rules_python//python:defs.bzl", "py_library")
+load("//rules:coco_tb.bzl", "cocotb_test_suite", "verilator_cocotb_model")
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
 load(
     "//tests/cocotb:build_defs.bzl",
     "VCS_BUILD_ARGS",
     "VCS_DEFINES",
     "VCS_TEST_ARGS",
+    "VERILATOR_BUILD_ARGS",
 )
 
 VME_TEST_TESTCASES = [
@@ -173,4 +175,53 @@ coralnpu_v2_binary(
     name = "vme_matrix_perf_program",
     srcs = ["vme_matrix_perf_program.cc"],
     hdrs = ["vme_test_utils.h"],
+)
+
+py_library(
+    name = "vme_matrix_engine_probe",
+    srcs = ["vme_matrix_engine_counter.py", "vme_matrix_engine_probe.py"],
+    deps = [requirement("cocotb")],
+)
+
+py_library(
+    name = "vme_matrix_perf_support",
+    srcs = ["vme_matrix_perf_bench.py"],
+    deps = [
+        "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+        "@bazel_tools//tools/python/runfiles",
+        requirement("cocotb"),
+        requirement("numpy"),
+    ],
+)
+
+# Separate visibility-only model: original regressions keep their model/cache.
+verilator_cocotb_model(
+    name = "vme_matrix_engine_model",
+    cflags = VERILATOR_BUILD_ARGS + ["-DZVT_ON"],
+    hdl_toplevel = "VmeCoreMiniAxi",
+    trace = False,
+    verilog_source = "//hdl/chisel/src/coralnpu:VmeCoreMiniAxi.sv",
+    vlt_tpl = "zvt_perf.vlt.tpl",
+    deps = ["//hdl/verilog:sram_backdoor"],
+)
+
+cocotb_test_suite(
+    name = "vme_matrix_engine",
+    simulators = ["verilator"],
+    testcases = ["vme_matrix_engine_profile_test"],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "VmeCoreMiniAxi",
+        "seed": "42",
+        "test_module": ["vme_matrix_engine_bench.py"],
+        "deps": [
+            ":vme_matrix_engine_probe",
+            ":vme_matrix_perf_support",
+            "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [":vme_matrix_perf_program"],
+        "size": "medium",
+    },
+    verilator_model = ":vme_matrix_engine_model",
 )
