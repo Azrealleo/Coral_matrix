@@ -366,7 +366,7 @@ small finite-window difference as a definitive winner. Nor may 611 full-core
 fixture cycles be compared with 906 fork input/output-span cycles as a fair
 system speedup: operand reuse and counted transfers are different.
 
-## Shared signed arithmetic pressure tests (next runs)
+## Shared signed arithmetic pressure tests
 
 `vme_matrix_stress_vectors.py` defines eight batches: positive/positive,
 positive/negative, negative/positive, negative/negative, signed boundary
@@ -383,6 +383,20 @@ eight `[SIGNED_STRESS_MANIFEST]` rows with the VM's eight summary hashes.
 The fourth nonnegative matrix is repeated in each batch as a baseline.
 
 First, in the Ubuntu VM:
+
+The standalone check/summarizer uses the terminal's Conda Python, not Bazel's
+managed Python/wheel dependencies. The user encountered `ModuleNotFoundError:
+No module named 'numpy'` before summary parsing. Install NumPy into the named
+environment if needed (2.3.4 matches this checkout's Bazel wheel), then verify:
+
+```bash
+conda install -n coral-matrix -c conda-forge "numpy=2.3.4"
+conda run -n coral-matrix python -c 'import numpy; print(numpy.__version__)'
+```
+
+If the RTL test already passed, do not rerun it just to repair the summarizer.
+Use `conda run -n coral-matrix python` for standalone scripts if the activated
+shell's `python` does not resolve to the intended environment.
 
 ```bash
 conda activate coral-matrix
@@ -432,6 +446,29 @@ They still do not cover partial K/tiles, ready/valid backpressure, mid-operation
 reset, continuous accumulation across different loaded matrices, overflow
 semantics, all opcodes or synthesis/signoff.
 
+### EDA152 signed pressure result reported on 2026-09-30
+
+The user supplied all eight `[YANGG_SIGNED_STRESS]` PASS rows and the final
+`batches=8 cases=32 checked_elements=8192 passed` marker. Reported directory:
+`/data/home2/lqq/Desktop/mxu_runs/Yangg152_signed_stress.f9j80n`.
+All four sign combinations, signed edges, random seed 137, all -128 and
+alternating extrema passed under the existing fork schedule. The script
+and suite were introduced at `4f03352`; the actual server revision and full
+compile/run logs have not been independently reviewed here.
+
+The server batch fingerprints still need to be matched with the official
+test's summary. The Ubuntu summary attempt stopped at the missing NumPy
+import, before reading its log: this is neither evidence of an RTL failure
+nor proof that all 32 official stress cases passed. Do not record a paired
+signed-stress pass until the official completion marker and all hashes match.
+The server does not need another simulation merely to extract its existing
+fingerprints:
+
+```bash
+grep '^\[SIGNED_STRESS_MANIFEST\]' \
+  /data/home2/lqq/Desktop/mxu_runs/Yangg152_signed_stress.f9j80n/vectors.log
+```
+
 ## Remaining comparison work
 
 Use common vectors and complete 16x16xK workloads on both designs, count
@@ -455,7 +492,9 @@ The official common workload and signed diagnostics have passed on the VM
 according to the supplied results. The selective-visibility observer has
 passed according to the supplied summaries. The reused-operand burst test
 has also passed according
-to the user's four validated summaries. The new shared signed pressure suite
-has only local checks so far; both Linux RTL runs are pending.
+to the user's four validated summaries. The shared signed pressure suite has
+passed on EDA152 according to the supplied 32-case result. The official
+stress log and cross-host batch fingerprints still need validation; its
+standalone summarizer's missing NumPy dependency is documented above.
 `check_google_matrix_vectors.py` checks vector equality and scalar references
 only; it is not hardware validation.
