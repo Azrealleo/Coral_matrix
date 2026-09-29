@@ -231,3 +231,31 @@ coralnpu_v2_binary(
     srcs = ["vme_matrix_burst_program.cc"],
     hdrs = ["vme_test_utils.h"],
 )
+
+py_library(
+    name = "vme_matrix_stress_vectors",
+    srcs = ["vme_matrix_stress_vectors.py"],
+    deps = [requirement("numpy")],
+)
+
+# Shared arithmetic regression, not a new performance boundary/model.
+cocotb_test_suite(
+    name = "vme_matrix_signed_stress",
+    simulators = ["verilator"],
+    testcases = ["vme_matrix_signed_stress_test"],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "VmeCoreMiniAxi",
+        "seed": "42",
+        "test_module": ["vme_matrix_signed_stress_bench.py"],
+        "deps": [
+            ":vme_matrix_perf_support",
+            ":vme_matrix_stress_vectors",
+            "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [":vme_matrix_perf_program"],
+        "size": "medium",
+    },
+    verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
+)

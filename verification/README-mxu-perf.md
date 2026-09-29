@@ -222,8 +222,8 @@ All cycles are elapsed clock **intervals** (end-start), not inclusive spans.
 In-flight/busy cycles are **not** PE utilization, energy efficiency or ideal
 compute-only throughput. No-offer cycles do not by themselves prove the CPU is
 the cause. Start intervals are the delivered intervals of this program, not
-the array's minimum sustainable initiation interval. That needs a subsequent
-preloaded/reused-operand command-stream test.
+the array's minimum sustainable initiation interval. The preloaded/reused-
+operand command-stream test below measures a denser same-Tile schedule.
 
 The target also verifies all original golden results, requires the original
 432/722/1876/432 core cycles, and compares internal traces across three resets.
@@ -267,7 +267,7 @@ and final drain: it does not isolate a CPU bottleneck. In particular, a
 12-cycle command latency does **not** imply one command can start only every
 12 cycles, and `1024/12` is not a demonstrated peak MAC rate.
 
-## Official preloaded instruction-stream test (next VM run)
+## Official preloaded instruction-stream test
 
 This is a **separate synthetic workload**, not the earlier random common GEMM.
 The new `vme_matrix_burst_program.cc` loads one 16x4 A and one 4x16 B chunk
@@ -320,12 +320,117 @@ part of the result, rather than assumed to be zero/four cycles.
 scalar references, mocked upload/golden/observer handling, rejection of a wrong
 result before logging performance, unchanged common-vector hashes, and strict
 summary parsing/rejection. These checks do **not** compile the RISC-V program
-or simulate RTL. The burst target still needs the Ubuntu VM run.
+or simulate RTL. The Ubuntu VM result supplied by the user is recorded below.
 
 The result will characterize this reused-operand command stream through the
 existing core/dispatch path. It is not automatically the array's intrinsic
 peak, a general-GEMM end-to-end rate, or a same-interface comparison against
 Yangg152. Fmax, area and power comparisons still require matched synthesis.
+
+### Preloaded stream result reported on 2026-09-29
+
+The user supplied four summaries from the burst log. The current summarizer
+requires its completion marker, all 12 records, matched hashes, consecutive
+instruction PCs and identical repeats before emitting any rows. The test
+checks all output elements and complete per-command write coverage before
+logging array performance. This is a user-reported RTL result; the complete
+log and actual VM revision have not been independently reviewed on Windows.
+The supplied test was introduced at commit `ffb6b35`.
+
+| K | Matrix commands | Command latency | Start interval | Array window | MAC / window cycle | Full-core fixture cycles |
+| --- | --- | --- | --- | --- | --- | --- |
+| 16 | 4 | 12 | 4 | 24 | 170.666667 | 371 |
+| 64 | 16 | 12 | 4 | 72 | 227.555556 | 419 |
+| 256 | 64 | 12 | 4 | 264 | 248.242424 | 611 |
+
+The nonnegative K=16 case repeats the first row. No-command-in-flight, RAW-wait
+and full-offer/no-strip/no-RAW counts are zero. The 8 no-offer intervals in
+each window are the final pipeline tail after the last command's four strips,
+not gaps between successive starts. Busy is window minus one, using the same
+edge/half-open-window convention as the original observer.
+
+`window = 4 * (K/4 - 1) + 12 = K + 8`. Consecutive same-Tile accumulation
+overlaps correctly for these inputs, with a demonstrated 4-cycle start
+interval. Each Tk=4 instruction performs 1024 MACs, so this cadence corresponds
+to 256 useful MAC/cycle in steady state; the measured finite-window averages
+remain those in the table and include fill/drain. The four M strips per
+instruction issue without bubbles in this tested configuration.
+
+The earlier 24-cycle delivered interval was not an intrinsic 24-cycle array
+restriction. This experiment changed the input schedule **and** the vectors
+to repeated chunks, so it is not a measured optimization of arbitrary random
+GEMM. The reported fork MMA rates (215.579/244.537/253.035) and this stream's
+array rates are in the same throughput class, approaching 256 MAC/cycle.
+Their different boundaries, interfaces and input patterns prevent using the
+small finite-window difference as a definitive winner. Nor may 611 full-core
+fixture cycles be compared with 906 fork input/output-span cycles as a fair
+system speedup: operand reuse and counted transfers are different.
+
+## Shared signed arithmetic pressure tests (next runs)
+
+`vme_matrix_stress_vectors.py` defines eight batches: positive/positive,
+positive/negative, negative/positive, negative/negative, signed boundary
+patterns, a fixed full-range random seed, all -128, and alternating -128/127.
+Each batch contains K=16/64/256 signed cases and one nonnegative K=16 case:
+32 full 16x16 matrices, 8192 checked INT32 elements per design. The nonnegative
+case remains within 0..127; it is **not** proof of full uint8 support.
+
+Both runners use the identical logical A/B and widened golden C. The fork
+exporter maps them onto the unchanged `mxu_tb`'s existing four filenames,
+stream order and K=256 configuration encoding. Batch SHA256 is computed from
+the four logical A/B/C fingerprints in testcase order; compare the server's
+eight `[SIGNED_STRESS_MANIFEST]` rows with the VM's eight summary hashes.
+The fourth nonnegative matrix is repeated in each batch as a baseline.
+
+First, in the Ubuntu VM:
+
+```bash
+conda activate coral-matrix
+cd "$HOME/桌面/Coral_matrix"
+git pull --ff-only origin main
+python verification/check_signed_stress.py
+cd coralnpu-google
+bazel test --jobs=2 --repo_env=CORALNPU_MAKE_JOBS=2 \
+  --cache_test_results=no --test_output=all \
+  //tests/cocotb/vme_test:vme_matrix_signed_stress_vme_matrix_signed_stress_test
+```
+
+Only after it passes, summarize:
+
+```bash
+python ../verification/summarize_signed_stress.py \
+  bazel-testlogs/tests/cocotb/vme_test/vme_matrix_signed_stress_vme_matrix_signed_stress_test/test.log
+```
+
+This reuses the ordinary cached Verilator model and original full-workload
+ELF. No new RTL or RISC-V program is needed. It checks arithmetic/configuration
+and resets between cases, not the burst schedule or matched system performance.
+
+Then, in EDA152 (keep the SSH proxy tunnel active for Git):
+
+```bash
+cd /home2/lqq/Desktop/Coral_matrix
+git pull --ff-only origin main
+bash verification/run_yangg152_signed_stress.sh \
+  /home2/lqq/Desktop/Coral_matrix /home2/lqq/Desktop/mxu_runs
+```
+
+Stop on any step's failure. The server script creates a fresh run directory,
+generates HEX plus `manifest.json`, compiles the unchanged fork RTL/testbench
+once, then executes eight fresh processes. Each run has a 120-second timeout,
+requires four 64/64 passing output-beat rows and PASS=256/FAIL=0, and rejects
+runtime warnings/errors. Review compile warnings separately. It does not enable
+the known failing true-uint8 diagnostic or FSDB. Existing results are preserved.
+The final marker is `[YANGG_SIGNED_STRESS_CHECK] ... checked_elements=8192 passed`.
+
+Keep revision, source hashes, manifest, compile log and all run logs. Five
+local synthetic checks cover scalar references, signs/shapes, exact HEX
+roundtrip/config encoding, no-overwrite behavior, official-reference hash
+agreement, deterministic batch hashes and strict summary parsing. Shell syntax
+was checked with Git Bash. These are **not** the yet-to-run RTL pressure tests.
+They still do not cover partial K/tiles, ready/valid backpressure, mid-operation
+reset, continuous accumulation across different loaded matrices, overflow
+semantics, all opcodes or synthesis/signoff.
 
 ## Remaining comparison work
 
@@ -335,8 +440,9 @@ B operands, and then synthesize the relevant blocks using the same process
 library and constraints. Keep hardware cycle counts separate from simulator
 wall-clock runtime. The old official test-program comments about `altfmt`
 being unwritable and Tk being only two bits contradict the current RTL:
-negative-B arithmetic and Tk=4 require explicit tests before support is
-reported. Neither test comments nor configuration readback alone establish
+the executed diagnostics and burst cases confirm negative-B arithmetic and
+Tk=4 for their tested configurations. Broader modes still require explicit
+coverage. Neither test comments nor configuration readback alone establish
 arithmetic correctness.
 
 ## Local validation status
@@ -346,8 +452,10 @@ protocol. The shell script passed `bash -n` using the existing Git Bash.
 A compatible simulator was not available on the Windows host. EDA152 has now
 run the fork observer successfully according to the user-provided excerpt.
 The official common workload and signed diagnostics have passed on the VM
-according to the supplied results. The new selective-visibility observer still
-needed VM compilation at its initial commit and has now passed according to
-the supplied summaries. The new reused-operand burst test is not yet simulated.
+according to the supplied results. The selective-visibility observer has
+passed according to the supplied summaries. The reused-operand burst test
+has also passed according
+to the user's four validated summaries. The new shared signed pressure suite
+has only local checks so far; both Linux RTL runs are pending.
 `check_google_matrix_vectors.py` checks vector equality and scalar references
 only; it is not hardware validation.
