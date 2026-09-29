@@ -238,7 +238,94 @@ overlapping commands, input gaps, all three K values, offset invariance, and
 rejection of lost/duplicate/suppressed writes, incorrect PC, partial INT32
 writes, early consume/retire, reset/flush and incorrect command count.
 These checks validate accounting, **not** VPI discovery or RTL behavior.
-The new observer/model has not yet been compiled or simulated on Windows.
+The observer/model has not been compiled or simulated on Windows; the Ubuntu
+VM result supplied by the user is recorded below.
+
+### Official array baseline reported on 2026-09-29
+
+The user supplied four summaries from the `vme_matrix_engine_profile_test`
+log after the target passed. The summarizer validated all 12 records, vector
+fingerprints and identical repeats. The original core-cycle baseline was
+preserved. Full simulation logs have not been independently reviewed here.
+
+| K | Matrix commands | Per-command latency | Delivered start interval | Array schedule window | MAC / window cycle | No-command-in-flight intervals |
+| --- | --- | --- | --- | --- | --- | --- |
+| 16 | 4 | 12 | 24 | 84 | 48.761905 | 36 |
+| 64 | 16 | 12 | 24 | 372 | 44.043011 | 180 |
+| 256 | 64 | 12 | 24 | 1524 | 43.002625 | 756 |
+
+The nonnegative K=16 case is identical. RAW-wait and full-offer/no-strip/no-RAW
+counts are zero in all cases. Active-command unions are 48/192/768 intervals;
+busy counts are 47/191/767 because the first issue edge is initially idle and
+the observer uses a half-open elapsed window. These are not inconsistent.
+
+The measured starts/ends give `window = 24 * (K/4 - 1) + 12 = 6*K - 12`.
+For K=256, 756/1524 (49.61%) of the array window has no matrix command in flight.
+This shows a sparse delivered schedule, not the minimum sustainable array
+initiation interval. The no-offer count includes controller/upstream behavior
+and final drain: it does not isolate a CPU bottleneck. In particular, a
+12-cycle command latency does **not** imply one command can start only every
+12 cycles, and `1024/12` is not a demonstrated peak MAC rate.
+
+## Official preloaded instruction-stream test (next VM run)
+
+This is a **separate synthetic workload**, not the earlier random common GEMM.
+The new `vme_matrix_burst_program.cc` loads one 16x4 A and one 4x16 B chunk
+only once. Assembly `.rept` emits 4/16/64 consecutive matrix instructions,
+all accumulating Tile 0. No loads or loop branches occur between them.
+The harness also checks the observed instruction PCs advance by four bytes.
+Logical A/B repeat that same chunk along K; full golden results are the
+chunk product multiplied by the command count. The operand fingerprints are
+different from the common benchmark and must not be mixed with it.
+
+Signed cases cover K=16/64/256 with both negative and positive operands,
+including -128/127. A nonnegative K=16 case checks the altfmt=0 setting.
+All 256 output elements must match a widened reference; each case runs three
+times from reset. The existing observer checks complete unique MT writes and
+command protocol even when commands overlap. A mismatch/protocol failure is
+not a usable performance result. This tests same-Tile accumulation dependencies
+under dense input, not arbitrary tiles, general GEMM data movement or signoff.
+
+In the Ubuntu VM (keep the existing proxy environment active):
+
+```bash
+conda activate coral-matrix
+cd "$HOME/桌面/Coral_matrix"
+git pull --ff-only origin main
+git rev-parse --short HEAD
+python verification/check_google_burst.py
+python verification/check_google_array_counter.py
+cd coralnpu-google
+bazel test --jobs=2 --repo_env=CORALNPU_MAKE_JOBS=2 \
+  --cache_test_results=no --test_output=all \
+  //tests/cocotb/vme_test:vme_matrix_engine_vme_matrix_engine_burst_test
+```
+
+Stop if any step fails. This reuses the already compiled selective-visibility
+Verilator model; only the new program/test needs building. Do not clean Bazel.
+After the target passes:
+
+```bash
+python ../verification/summarize_google_array.py --burst \
+  bazel-testlogs/tests/cocotb/vme_test/vme_matrix_engine_vme_matrix_engine_burst_test/test.log
+```
+
+Keep the full log and repository revision. The summarizer requires the burst
+completion marker, all 12 records, correct hashes/schedule/command count/write
+coverage/consecutive PCs, and identical repeats. It prints four compact rows.
+No fixed throughput is required: measured RAW waits and command intervals are
+part of the result, rather than assumed to be zero/four cycles.
+
+`check_google_burst.py` has six local-only tests: reused-chunk guards, independent
+scalar references, mocked upload/golden/observer handling, rejection of a wrong
+result before logging performance, unchanged common-vector hashes, and strict
+summary parsing/rejection. These checks do **not** compile the RISC-V program
+or simulate RTL. The burst target still needs the Ubuntu VM run.
+
+The result will characterize this reused-operand command stream through the
+existing core/dispatch path. It is not automatically the array's intrinsic
+peak, a general-GEMM end-to-end rate, or a same-interface comparison against
+Yangg152. Fmax, area and power comparisons still require matched synthesis.
 
 ## Remaining comparison work
 
@@ -260,5 +347,7 @@ A compatible simulator was not available on the Windows host. EDA152 has now
 run the fork observer successfully according to the user-provided excerpt.
 The official common workload and signed diagnostics have passed on the VM
 according to the supplied results. The new selective-visibility observer still
-needs VM compilation and simulation. `check_google_matrix_vectors.py` checks
-vector equality and scalar references only; it is not hardware validation.
+needed VM compilation at its initial commit and has now passed according to
+the supplied summaries. The new reused-operand burst test is not yet simulated.
+`check_google_matrix_vectors.py` checks vector equality and scalar references
+only; it is not hardware validation.

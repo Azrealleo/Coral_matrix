@@ -185,7 +185,7 @@ py_library(
 
 py_library(
     name = "vme_matrix_perf_support",
-    srcs = ["vme_matrix_perf_bench.py"],
+    srcs = ["vme_matrix_perf_bench.py", "vme_matrix_burst_vectors.py"],
     deps = [
         "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
         "@bazel_tools//tools/python/runfiles",
@@ -208,7 +208,7 @@ verilator_cocotb_model(
 cocotb_test_suite(
     name = "vme_matrix_engine",
     simulators = ["verilator"],
-    testcases = ["vme_matrix_engine_profile_test"],
+    testcases = ["vme_matrix_engine_profile_test", "vme_matrix_engine_burst_test"],
     tests_kwargs = {
         "waves": False,
         "hdl_toplevel": "VmeCoreMiniAxi",
@@ -220,8 +220,14 @@ cocotb_test_suite(
             "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
             "@bazel_tools//tools/python/runfiles",
         ],
-        "data": [":vme_matrix_perf_program"],
+        "data": [":vme_matrix_perf_program", ":vme_matrix_burst_program"],
         "size": "medium",
     },
     verilator_model = ":vme_matrix_engine_model",
+)
+
+coralnpu_v2_binary(
+    name = "vme_matrix_burst_program",
+    srcs = ["vme_matrix_burst_program.cc"],
+    hdrs = ["vme_test_utils.h"],
 )

@@ -67,7 +67,7 @@ def _vector_hash(a, b):
     return hashlib.sha256(a.tobytes() + b.tobytes() + _reference(a, b).tobytes()).hexdigest()
 
 
-async def _run_case(fixture, elf, case, repeat=0, observer=None):
+async def _run_case(fixture, elf, case, repeat=0, observer=None, input_schedule=None):
     name, a, b, tk, signed_b = case
     k = a.shape[1]
     assert a.shape == (TE, k) and b.shape == (k, TE)
@@ -111,16 +111,18 @@ async def _run_case(fixture, elf, case, repeat=0, observer=None):
         "launch_wait_to_halt_cycles": cycles, "useful_macs": TE * TE * k,
         "mac_per_launch_wait_cycle": round(TE * TE * k / cycles, 6),
     }
+    if input_schedule is not None:
+        record["input_schedule"] = input_schedule
     cocotb.log.info("[GOOGLE_MATRIX_PERF] " + json.dumps(record, sort_keys=True))
     return cycles
 
 
-def _elf_path():
+def _elf_path(program="vme_matrix_perf_program"):
     path = runfiles.Create().Rlocation(
-        "coralnpu_hw/tests/cocotb/vme_test/vme_matrix_perf_program.elf"
+        f"coralnpu_hw/tests/cocotb/vme_test/{program}.elf"
     )
     if not path:
-        raise ValueError("Missing vme_matrix_perf_program.elf")
+        raise ValueError(f"Missing {program}.elf")
     return path
 
 
