@@ -1,8 +1,9 @@
 # Common K-boundary and MXU stall diagnostics
 
 Verification additions only: no functional RTL, original `mxu_tb`, existing
-RISC-V program or existing simulator model is changed. These new RTL tests
-have **not yet been run** on the VM/server. Local checks are described below.
+RISC-V program or existing simulator model is changed. The user has now
+reported results from both hosts; the exact observations and limitations are
+recorded below. Local checks are described separately.
 The paired 32-case signed pressure pass is recorded in `README-mxu-perf.md`.
 
 ## Scope and assumptions
@@ -50,17 +51,24 @@ failure means that feature is unsupported; whether it violates the design
 contract must be settled before calling it an integration bug. This is a
 unit-level check, not an integrated wrapper/ROB stall test.
 
-## Source concerns to reproduce, not confirmed RTL results
+## Source mechanisms corresponding to the observed failures
 
 In `coralnpu-Yangg152/hdl/mxu/rvv_backend_mxu_unit.sv`:
 
 - MCFG uses `cfg_Tk[7:4]` for activation chunks when K>=16, rather than
   `ceil(K/16)`. For example K=17 selects one chunk per row, while the
-  exporter sends two. Row mapping and unwritten activation columns need
-  testing. K=256 has its own special 16-chunk encoding.
+  exporter sends two. The counter then advances to the next row too early;
+  after 16 such beats its four-bit row index wraps, overwriting early chunks
+  while K>=17 activation entries are never written. This explains the observed
+  all-X results in four-state VCS for non-16-aligned K>16. K=256 has its own
+  special 16-chunk encoding. This is a source-level causal explanation, not
+  an internal-waveform trace of the reported run.
 - `result_ready` is declared but unused. MSTORE pulses valid, advances the
-  output index and reports done regardless of consumer readiness. Under
-  the ready/valid assumption above this predicts an output-stall failure.
+  output index and reports done regardless of consumer readiness. The K=16
+  unit-level output-stall run reports valid/data not held under the ordinary
+  ready/valid assumption. The wrapper forwards downstream ready to this input
+  but also derives its own writeback valid from delayed RS pop, without using
+  that ready signal. Integrated ROB behavior still needs a separate test.
 
 The inspected integrated unit copy in `hdl/verilog/rvv/design` is identical;
 the wrapper passes a downstream readiness signal to the unit. The actual
@@ -68,6 +76,39 @@ integrated ROB contract and legal-K restrictions still need confirmation.
 If legal K is restricted to multiples of 16, or output readiness is guaranteed,
 record those restrictions explicitly rather than silently broadening the
 design's advertised contract. Do not patch RTL merely to make diagnostics pass.
+
+## Host results reported on 2026-09-30
+
+The Ubuntu summarizer accepted 21 `[GOOGLE_K_BOUNDARY]` records, all 5376
+output checks, the completion marker, Tk=1 configuration and the expected
+vector-set SHA256 `b71ab7aecb33652c0d7fcda2887e10db948e35fc482b03ef8d28bb374afd888a`.
+This is a user-reported Verilator full-core result for these cases only; the
+actual VM revision and full log were not independently inspected on Windows.
+
+The user supplied the 43 EDA152 `[MXU_K_RUN]` lines and final
+`runs=43 pass=24 fail=19` from
+`/data/home2/lqq/Desktop/mxu_runs/Yangg152_boundary.8KOTaG`. Every reported
+no-stall K was run twice, with and without continuation-beat gaps:
+
+| Tested K | Both input schedules | Observation |
+| --- | --- | --- |
+| 1, 2, 3, 4, 7, 15, 16, 32, 64, 128, 240, 256 | PASS (24 runs) | 64/64 matching output beats in each |
+| 17, 31, 33, 63, 65, 127, 129, 241, 255 | FAIL (18 runs) | 64 output handshakes but 0/64 matched beats; sampled data all X in the displayed beats |
+
+One separate K=16 `output_stall=1` run failed with
+`[MXU_OUTPUT_STALL_FAIL] valid/data not held while ready=0`; it did not reach
+the 64-beat result summary. The six aligned controls passed, including their
+input-gap variants. The 19 failures are real diagnostic failures, not script
+timeouts or passes. Input gaps alone did not change the pass/fail pattern.
+The final script exit is expected to be nonzero because it detected them.
+
+These observations are consistent with the two source mechanisms above, but
+the server manifest/revision, complete compile/run logs and internal waveform
+were not supplied. The new TB checked the standalone unit, not the integrated
+wrapper/ROB handshake. Do not conclude that every untested K fails, that the
+official unit supports optimized Tk=4 tails, or that either design is ready
+for tapeout. Resolve the legal-K and output-readiness contracts before
+classifying restrictions versus implementation defects or changing RTL.
 
 ## Run on the Ubuntu VM
 
@@ -143,8 +184,8 @@ host harness's upload/reference checks using a fake fixture, including wrong
 output rejection; and strict summary parsing/rejection. Git Bash checked
 shell syntax. New Python files and BUILD syntax were parsed locally.
 
-These checks do not compile the new SV TB, run RTL, verify VCS scheduling,
-or prove the new Bazel target works. The six controls and actual VM test are
-the next gates. Mid-operation reset, mixed-Tk tails, partial M/N, continuous
+These checks did not themselves compile the new SV TB or run RTL. The
+user-reported six controls and VM run are recorded above; full logs still need
+review. Mid-operation reset, mixed-Tk tails, partial M/N, continuous
 multi-tile workloads, long accumulation/overflow, four-state/X checks of the
 official RTL, integrated protocol verification and matched PPA/signoff remain.

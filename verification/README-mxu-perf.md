@@ -482,16 +482,19 @@ different matrices. This is a user-reported RTL result, not a Windows RTL run;
 the full host logs and actual revisions have not been independently reviewed.
 It does not validate all signed workloads or remove the coverage gaps above.
 
-The next independent diagnostic covers arbitrary K and input/output stalls;
-see `README-mxu-boundary.md`. Its local exporter/harness checks are complete,
-but neither new RTL target has been compiled/simulated on Windows or reported
-by the user yet. Do not count those diagnostics as passed.
+The independent diagnostic covers selected arbitrary K and input/output
+stalls; see `README-mxu-boundary.md`. Both host results have now been reported:
+the official Tk=1 full-core suite passed 21 K values; the fork unit failed
+nine tested non-16-aligned K>16 values under both input schedules and one
+K=16 output-stall case. Its other 24 no-stall runs passed. These are not
+matched performance measurements or complete signoff results.
 
 ## Remaining comparison work
 
-Use common vectors and complete 16x16xK workloads on both designs, count
-compute and transfer phases with clearly matched endpoints, include negative
-B operands, and then synthesize the relevant blocks using the same process
+The shared functional work now includes negative B, signed extrema and
+selected arbitrary K. Resolve the fork's K/handshake contract and failures,
+then count compute and transfer phases with clearly matched endpoints and
+synthesize the relevant blocks using the same process
 library and constraints. Keep hardware cycle counts separate from simulator
 wall-clock runtime. The old official test-program comments about `altfmt`
 being unwritable and Tk being only two bits contradict the current RTL:
@@ -514,5 +517,8 @@ to the user's four validated summaries. The shared signed pressure suite has
 passed on both hosts according to the supplied 32-case results and eight
 identical cross-host batch fingerprints. Its standalone summarizer's initial
 missing NumPy dependency is documented above and is now resolved.
+The reported new boundary suite passes all 21 official Tk=1 cases, while the
+fork fails nine non-16-aligned K values under both input schedules and a
+separate output-stall test; see `README-mxu-boundary.md` for the exact scope.
 `check_google_matrix_vectors.py` checks vector equality and scalar references
 only; it is not hardware validation.
