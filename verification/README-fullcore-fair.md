@@ -16,7 +16,10 @@ uses the repository's existing MXU instruction encodings and its real wrapper;
 non-aligned K is explicitly zero-padded to 16. Official Tk=4 reuses the
 existing parameterized ELF, with no official RTL change. The fork's pinned, patched TFLite
 Micro archive now replaces the author's hard-coded `/home/yang` local checkout
-in WORKSPACE; functional RTL and production software are untouched.
+in WORKSPACE. The fork's `rules_java` is pinned to the 9.6.1 archive already
+used by the successfully built official checkout because the older fork pin
+lacks `java:rules_java_deps.bzl`; functional RTL and production software are
+untouched.
 
 The same logical A/B/C fingerprint set must equal
 `87085fb87e02f0b4d28c7de2aa256e55df836807842fe899538367211c72fbda`.
