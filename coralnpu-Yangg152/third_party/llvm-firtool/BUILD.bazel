@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-exports_files(glob(["org.chipsalliance/llvm-firtool/linux-x64/bin/**"]))
+exports_files(glob(["org.chipsalliance/llvm-firtool/linux-x64/bin/**"], allow_empty = True))
 
 package(default_visibility = ["//visibility:public"])
 
