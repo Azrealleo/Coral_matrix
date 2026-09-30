@@ -33,11 +33,11 @@ py_library(
 )
 filegroup(
     name = "verilator_srcs",
-    srcs = glob(["cocotb/share/lib/verilator/*.cpp"]),
+    srcs = glob(["cocotb/share/lib/verilator/*.cpp"], allow_empty = True),
 )
 filegroup(
     name = "verilator_libs",
-    srcs = glob(["cocotb/libs/*.so"]),
+    srcs = glob(["cocotb/libs/*.so"], allow_empty = True),
 )
 """.format(pypi_name = pypi_name, pypi_version = pypi_version, deps = deps)
 
