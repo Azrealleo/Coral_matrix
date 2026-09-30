@@ -1,0 +1,11 @@
+diff --git a/cocotb/cocotb_wrapper.py b/cocotb/cocotb_wrapper.py
+--- a/cocotb/cocotb_wrapper.py
++++ b/cocotb/cocotb_wrapper.py
+@@ -200,3 +200,6 @@
+         test_flags['build_dir'] = sim_build
+-        test_flags['extra_env']['LD_LIBRARY_PATH'] = "{}:{}".format(r.Rlocation("coralnpu_hw/external/coralnpu_pip_deps_cocotb/cocotb/libs"), os.environ.get("LD_LIBRARY_PATH", ""))
++        vpi_lib = r.Rlocation("coralnpu_pip_deps_cocotb/cocotb/libs/libcocotbvpi_verilator.so", source_repo="")
++        if not vpi_lib or not os.path.isfile(vpi_lib):
++            raise FileNotFoundError("cocotb VPI library missing from Bazel runfiles: {}".format(vpi_lib))
++        test_flags['extra_env']['LD_LIBRARY_PATH'] = "{}:{}".format(os.path.dirname(vpi_lib), os.environ.get("LD_LIBRARY_PATH", ""))
+         os.environ.pop('LD_LIBRARY_PATH', None)
