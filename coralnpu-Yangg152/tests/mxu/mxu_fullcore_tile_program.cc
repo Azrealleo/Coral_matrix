@@ -14,6 +14,26 @@ uint32_t bench_out[kTile * kTile]
     __attribute__((section(".data"), aligned(16))) = {};
 volatile uint32_t bench_k_hw __attribute__((section(".data"))) = 16;
 volatile uint32_t bench_status __attribute__((section(".data"))) = 0;
+volatile uint32_t bench_fault_mepc __attribute__((section(".data"))) = 0;
+volatile uint32_t bench_fault_mcause __attribute__((section(".data"))) = 0;
+volatile uint32_t bench_fault_mtval __attribute__((section(".data"))) = 0;
+}
+
+// Diagnostic override of the CRT's weak handler. Save the first exception
+// before its EBREAK overwrites mcause and mtval with the handler's own fault.
+extern "C" __attribute__((naked, used)) void coralnpu_exception_handler() {
+  asm volatile(
+      "csrr t0, mepc\n\t"
+      "la t1, bench_fault_mepc\n\t"
+      "sw t0, 0(t1)\n\t"
+      "csrr t0, mcause\n\t"
+      "la t1, bench_fault_mcause\n\t"
+      "sw t0, 0(t1)\n\t"
+      "csrr t0, mtval\n\t"
+      "la t1, bench_fault_mtval\n\t"
+      "sw t0, 0(t1)\n\t"
+      "ebreak\n\t"
+      "1: j 1b");
 }
 
 static inline __attribute__((always_inline)) void Configure(uint32_t k) {
