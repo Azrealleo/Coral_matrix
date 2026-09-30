@@ -39,6 +39,17 @@ async def mxu_fullcore_tile_test(dut):
             await fixture.write("bench_out", np.full(256, 0xDEADBEEF, dtype="<u4"))
             await fixture.write_word("bench_k_hw", k_hw)
             cycles = await fixture.run_to_halt(timeout_cycles=200000)
+            if fixture.fault():
+                status = int.from_bytes(bytes(await fixture.read_word("bench_status")), "little")
+                # CoreAxiCSR maps CsrOutIO mepc/mtval/mcause to 0x104/0x108/0x10c.
+                mepc, mtval, mcause = [
+                    int.from_bytes(bytes(await fixture.core_mini_axi.read_csr(addr)), "little")
+                    for addr in (0x104, 0x108, 0x10c)
+                ]
+                cocotb.log.error(
+                    "[YANGG_FULLCORE_FAULT] case=%s repeat=%d cycles=%d "
+                    "bench_status=%d mepc=0x%08x mtval=0x%08x mcause=0x%08x",
+                    name, repeat, cycles, status, mepc, mtval, mcause)
             assert not fixture.fault(), name + ": core fault"
             status_bytes = await fixture.read_word("bench_status")
             assert int.from_bytes(bytes(status_bytes), "little") == 1, name + ": program incomplete"
