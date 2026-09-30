@@ -92,6 +92,10 @@ int main() {
     bench_status = 2;
     return 0;
   }
+  // The RVV front end resets with vill=1. Establish a legal vector state
+  // before dispatching MXU commands, including MCFG and MZERO.
+  asm volatile("vsetvli zero, %0, e8, m1, ta, ma"
+               :: "r"(kTile) : "memory");
   Configure(k);
   Zero();
   for (uint32_t row = 0; row < kTile; ++row) {
