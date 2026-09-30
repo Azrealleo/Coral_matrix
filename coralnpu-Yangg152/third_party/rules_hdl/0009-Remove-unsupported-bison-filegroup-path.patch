@@ -1,0 +1,11 @@
+diff --git a/dependency_support/org_gnu_bison/bundled.BUILD.bazel b/dependency_support/org_gnu_bison/bundled.BUILD.bazel
+--- a/dependency_support/org_gnu_bison/bundled.BUILD.bazel
++++ b/dependency_support/org_gnu_bison/bundled.BUILD.bazel
+@@ -37,7 +37,6 @@
+ filegroup(
+     name = "bison_runtime_data",
+     srcs = glob(["data/**/*"]),
+     output_licenses = ["unencumbered"],
+-    path = "data",
+     visibility = ["//visibility:public"],
+ )
