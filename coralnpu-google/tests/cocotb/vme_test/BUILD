@@ -316,3 +316,38 @@ cocotb_test_suite(
     },
     verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
 )
+
+coralnpu_v2_binary(
+    name = "vme_matrix_layer_program",
+    srcs = ["vme_matrix_layer_program.cc"],
+    hdrs = ["vme_test_utils.h"],
+)
+
+py_library(
+    name = "vme_matrix_layer_vectors",
+    srcs = ["vme_matrix_layer_vectors.py"],
+    deps = [requirement("numpy")],
+)
+
+# Accumulate K>256 in a single program launch per tile; M/N tiles use separate
+# launches. This is not a complete convolution or matched-system benchmark.
+cocotb_test_suite(
+    name = "vme_matrix_layer",
+    simulators = ["verilator"],
+    testcases = ["vme_matrix_layer_test"],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "VmeCoreMiniAxi",
+        "seed": "42",
+        "test_module": ["vme_matrix_layer_bench.py"],
+        "deps": [
+            ":vme_matrix_perf_support",
+            ":vme_matrix_layer_vectors",
+            "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [":vme_matrix_layer_program"],
+        "size": "medium",
+    },
+    verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
+)

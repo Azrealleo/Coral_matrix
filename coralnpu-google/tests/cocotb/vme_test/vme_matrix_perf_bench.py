@@ -67,16 +67,17 @@ def _vector_hash(a, b):
     return hashlib.sha256(a.tobytes() + b.tobytes() + _reference(a, b).tobytes()).hexdigest()
 
 
-async def _run_case(fixture, elf, case, repeat=0, observer=None, input_schedule=None):
+async def _run_case(fixture, elf, case, repeat=0, observer=None, input_schedule=None,
+                    max_k=MAX_K):
     name, a, b, tk, signed_b = case
     k = a.shape[1]
     assert a.shape == (TE, k) and b.shape == (k, TE)
-    assert 0 < k <= MAX_K and 1 <= tk <= 4 and k % tk == 0
+    assert 0 < k <= max_k and 1 <= tk <= 4 and k % tk == 0
     assert signed_b or np.all(b >= 0)
     await fixture.load_elf_and_lookup_symbols(elf, SYMBOLS, optional=False)
     # Nonzero padding also catches arithmetic using masked-off row slots.
-    packed_a = np.full((MAX_K + 4, TE), 37, dtype=np.int8)
-    packed_b = np.full((MAX_K + 4, TE), 53, dtype=np.int8)
+    packed_a = np.full((max_k + 4, TE), 37, dtype=np.int8)
+    packed_b = np.full((max_k + 4, TE), 53, dtype=np.int8)
     packed_a[:k] = a.T
     packed_b[:k] = b
     await fixture.write("perf_a", packed_a.view(np.uint8).reshape(-1))
