@@ -1,12 +1,7 @@
 diff --git a/cocotb/cocotb.bzl b/cocotb/cocotb.bzl
 --- a/cocotb/cocotb.bzl
 +++ b/cocotb/cocotb.bzl
-@@ -132,7 +132,7 @@
-     seed_args = " --seed {}".format(ctx.attr.seed) if ctx.attr.seed != "" else ""
- 
+@@ -134,2 +134,2 @@
      test_module_args = _pymodules_to_argstring(ctx.files.test_module, "test_module")
 -    python_interpreter = ctx.toolchains["@rules_python//python:toolchain_type"].py3_runtime.interpreter.path
 +    python_interpreter = ctx.toolchains["@rules_python//python:toolchain_type"].py3_runtime.interpreter.short_path
- 
-     command = (
-         "PATH={}:$PATH ".format(_get_path_to_set(ctx)) +
