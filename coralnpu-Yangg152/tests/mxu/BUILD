@@ -63,7 +63,7 @@ cocotb_test_suite(
         "data": ["mxu_conv_test.elf"],
     },
     vcs_build_args = VCS_BUILD_ARGS,
-    vcs_data = glob(["**/*.elf"]) + [
+    vcs_data = glob(["**/*.elf"], allow_empty = True) + [
         "//tests/cocotb:coverage_exclude.cfg",
     ],
     vcs_defines = VCS_DEFINES,

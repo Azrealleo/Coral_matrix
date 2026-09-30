@@ -28,7 +28,7 @@ load("//tests/cocotb:wfi_targets.bzl", "get_wfi_slot_targets")
 
 package(default_visibility = ["//visibility:public"])
 
-COCOTB_TEST_BINARY_TARGETS = glob(["**/*.elf"]) + glob(["**/*.o"]) + [
+COCOTB_TEST_BINARY_TARGETS = glob(["**/*.elf"], allow_empty = True) + glob(["**/*.o"], allow_empty = True) + [
     ":align_test.elf",
     ":frm_test.elf",
     ":float_csr_interlock_test.elf",
