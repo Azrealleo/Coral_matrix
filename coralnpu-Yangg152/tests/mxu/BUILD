@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_library")
 load("//rules:coco_tb.bzl", "cocotb_test_suite", "verilator_cocotb_model")
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
 load("//rules:utils.bzl", "generate_cc_arrays")
@@ -69,4 +70,37 @@ cocotb_test_suite(
     vcs_test_args = VCS_TEST_ARGS,
     vcs_verilog_sources = ["//hdl/chisel/src/coralnpu:rvv_core_mini_highmem_axi_cc_library_verilog"],
     verilator_model = "//tests/cocotb:rvv_core_mini_highmem_axi_model",
+)
+
+# Common seven signed-INT8 logical tiles, now through the fork's real RVV core
+# and MXU wrapper. The program is distinct from the existing TFLM conv test.
+coralnpu_v2_binary(
+    name = "mxu_fullcore_tile_program",
+    srcs = ["mxu_fullcore_tile_program.cc"],
+)
+
+py_library(
+    name = "mxu_fullcore_tile_vectors",
+    srcs = ["mxu_fullcore_tile_vectors.py"],
+    deps = [requirement("numpy")],
+)
+
+cocotb_test_suite(
+    name = "mxu_fullcore_tile",
+    simulators = ["verilator"],
+    testcases = ["mxu_fullcore_tile_test"],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "RvvCoreMiniAxi",
+        "seed": "42",
+        "test_module": ["mxu_fullcore_tile_bench.py"],
+        "deps": [
+            ":mxu_fullcore_tile_vectors",
+            "//coralnpu_test_utils:sim_test_fixture",
+            "@rules_python//python/runfiles",
+        ],
+        "data": [":mxu_fullcore_tile_program"],
+        "size": "medium",
+    },
+    verilator_model = "//tests/cocotb:rvv_core_mini_axi_model",
 )
