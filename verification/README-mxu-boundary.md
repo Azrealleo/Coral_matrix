@@ -90,6 +90,11 @@ The user supplied the 43 EDA152 `[MXU_K_RUN]` lines and final
 `/data/home2/lqq/Desktop/mxu_runs/Yangg152_boundary.8KOTaG`. Every reported
 no-stall K was run twice, with and without continuation-beat gaps:
 
+The subsequently supplied `[MXU_BOUNDARY_MANIFEST]` reports `cases=21` and
+the same vector-set SHA256 as the Ubuntu summary above. Thus the two hosts
+used the same logical A/B/expected-C test set according to both exporters;
+the fork failures cannot be attributed to differing vector-set versions.
+
 | Tested K | Both input schedules | Observation |
 | --- | --- | --- |
 | 1, 2, 3, 4, 7, 15, 16, 32, 64, 128, 240, 256 | PASS (24 runs) | 64/64 matching output beats in each |
@@ -103,7 +108,7 @@ timeouts or passes. Input gaps alone did not change the pass/fail pattern.
 The final script exit is expected to be nonzero because it detected them.
 
 These observations are consistent with the two source mechanisms above, but
-the server manifest/revision, complete compile/run logs and internal waveform
+the actual server revision, complete compile/run logs and internal waveform
 were not supplied. The new TB checked the standalone unit, not the integrated
 wrapper/ROB handshake. Do not conclude that every untested K fails, that the
 official unit supports optimized Tk=4 tails, or that either design is ready
