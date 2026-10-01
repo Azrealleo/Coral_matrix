@@ -20,6 +20,17 @@ MODEL_SHAPES = (
     ("tail_m16_n9_k241", 16, 9, 241),
 )
 
+SPEED_SWEEP_SHAPES = (
+    tuple((f"k_sweep_m16_n16_k{k}", 16, 16, k)
+          for k in (1, 4, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65,
+                    127, 128, 129, 255, 256))
+    + (("tail_m01_n01_k64", 1, 1, 64),
+       ("tail_m01_n16_k64", 1, 16, 64),
+       ("tail_m16_n01_k64", 16, 1, 64),
+       ("tail_m08_n08_k64", 8, 8, 64),
+       ("tail_m15_n15_k64", 15, 15, 64))
+)
+
 
 def reference(a, b):
     wide = a.astype(np.int64) @ b.astype(np.int64)
@@ -34,6 +45,18 @@ def logical_hash(a, b):
 def model_cases():
     cases = []
     for name, m, n, k in MODEL_SHAPES:
+        row, depth = np.indices((m, k))
+        bdepth, column = np.indices((k, n))
+        a = (((19 * row + 7 * depth + 3) % 256) - 128).astype(np.int8)
+        b = (((11 * bdepth + 13 * column + 5) % 256) - 128).astype(np.int8)
+        cases.append((name, a, b))
+    return cases
+
+
+def speed_sweep_cases():
+    cases = []
+    for name, m, n, k in SPEED_SWEEP_SHAPES:
+        assert 1 <= m <= 16 and 1 <= n <= 16 and 1 <= k <= 256
         row, depth = np.indices((m, k))
         bdepth, column = np.indices((k, n))
         a = (((19 * row + 7 * depth + 3) % 256) - 128).astype(np.int8)

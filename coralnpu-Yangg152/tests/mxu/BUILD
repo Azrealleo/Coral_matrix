@@ -104,3 +104,25 @@ cocotb_test_suite(
     },
     verilator_model = "//tests/cocotb:rvv_core_mini_axi_model",
 )
+
+# Same logical performance sweep as the official Tk=4 test, using the
+# fork's existing full-core MXU binary and physical 16x16 tile interface.
+cocotb_test_suite(
+    name = "mxu_fullcore_speed_sweep",
+    simulators = ["verilator"],
+    testcases = ["mxu_fullcore_speed_sweep_test"],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "RvvCoreMiniAxi",
+        "seed": "42",
+        "test_module": ["mxu_fullcore_speed_sweep_bench.py"],
+        "deps": [
+            ":mxu_fullcore_tile_vectors",
+            "//coralnpu_test_utils:sim_test_fixture",
+            "@rules_python//python/runfiles",
+        ],
+        "data": [":mxu_fullcore_tile_program"],
+        "size": "medium",
+    },
+    verilator_model = "//tests/cocotb:rvv_core_mini_axi_model",
+)

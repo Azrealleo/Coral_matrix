@@ -340,6 +340,29 @@ cocotb_test_suite(
     verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
 )
 
+# Expanded same-endpoint Tk=4 performance sweep: reduction-depth boundaries
+# and partial M/N tiles, with all 256 physical INT32 outputs checked.
+cocotb_test_suite(
+    name = "vme_matrix_speed_sweep",
+    simulators = ["verilator"],
+    testcases = ["vme_matrix_speed_sweep_test"],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "VmeCoreMiniAxi",
+        "seed": "42",
+        "test_module": ["vme_matrix_speed_sweep_bench.py"],
+        "deps": [
+            ":vme_matrix_perf_support",
+            ":vme_matrix_model_tile_vectors",
+            "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [":vme_matrix_perf_program"],
+        "size": "medium",
+    },
+    verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
+)
+
 coralnpu_v2_binary(
     name = "vme_matrix_layer_program",
     srcs = ["vme_matrix_layer_program.cc"],
