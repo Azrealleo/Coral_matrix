@@ -21,6 +21,11 @@ used by the successfully built official checkout because the older fork pin
 lacks `java:rules_java_deps.bzl`; functional RTL and production software are
 untouched.
 
+The fork's RVV front end resets with `vill=1`. Its benchmark program executes
+`vsetvli` before the first MXU instruction to establish legal vector state;
+without this setup the full core traps at `MZERO`. This is a verification
+driver precondition, not an MXU RTL change.
+
 The same logical A/B/C fingerprint set must equal
 `87085fb87e02f0b4d28c7de2aa256e55df836807842fe899538367211c72fbda`.
 Local `check_fullcore_fair.py` verifies byte-for-byte shared vectors, fork

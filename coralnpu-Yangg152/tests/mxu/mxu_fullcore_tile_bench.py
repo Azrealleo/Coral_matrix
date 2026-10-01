@@ -18,8 +18,7 @@ async def mxu_fullcore_tile_test(dut):
     elf = runfiles.Create().Rlocation(
         "coralnpu_hw/tests/mxu/mxu_fullcore_tile_program.elf")
     assert elf, "Missing fork full-core tile ELF"
-    symbols = ["bench_a", "bench_b", "bench_out", "bench_k_hw", "bench_status",
-               "bench_fault_mepc", "bench_fault_mcause", "bench_fault_mtval"]
+    symbols = ["bench_a", "bench_b", "bench_out", "bench_k_hw", "bench_status"]
     for name, a, b in model_cases():
         m, k = a.shape
         n = b.shape[1]
@@ -40,24 +39,6 @@ async def mxu_fullcore_tile_test(dut):
             await fixture.write("bench_out", np.full(256, 0xDEADBEEF, dtype="<u4"))
             await fixture.write_word("bench_k_hw", k_hw)
             cycles = await fixture.run_to_halt(timeout_cycles=200000)
-            if fixture.fault():
-                status = int.from_bytes(bytes(await fixture.read_word("bench_status")), "little")
-                first_mepc, first_mcause, first_mtval = [
-                    int.from_bytes(bytes(await fixture.read_word(symbol)), "little")
-                    for symbol in ("bench_fault_mepc", "bench_fault_mcause", "bench_fault_mtval")
-                ]
-                # CoreAxiCSR maps CsrOutIO mepc/mtval/mcause to 0x104/0x108/0x10c.
-                mepc, mtval, mcause = [
-                    int.from_bytes(bytes(await fixture.core_mini_axi.read_csr(addr)), "little")
-                    for addr in (0x104, 0x108, 0x10c)
-                ]
-                cocotb.log.error(
-                    "[YANGG_FULLCORE_FAULT] case=%s repeat=%d cycles=%d "
-                    "bench_status=%d first_mepc=0x%08x first_mcause=0x%08x "
-                    "first_mtval=0x%08x final_mepc=0x%08x final_mtval=0x%08x "
-                    "final_mcause=0x%08x",
-                    name, repeat, cycles, status, first_mepc, first_mcause,
-                    first_mtval, mepc, mtval, mcause)
             assert not fixture.fault(), name + ": core fault"
             status_bytes = await fixture.read_word("bench_status")
             assert int.from_bytes(bytes(status_bytes), "little") == 1, name + ": program incomplete"

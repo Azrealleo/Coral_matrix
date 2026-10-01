@@ -115,6 +115,8 @@ class FullcoreFairTests(unittest.TestCase):
         self.assertIn("bench_a[row * k + chunk * kTile]", text)
         self.assertIn("bench_b[depth * kTile]", text)
         self.assertIn("bench_out[beat * 4]", text)
+        self.assertLess(text.index('asm volatile("vsetvli zero, %0, e8, m1'),
+                        text.index("Configure(k);"))
         self.assertIn("Configure(k);", text)
         self.assertIn("Zero();", text)
         self.assertIn("MultiplyAccumulate();", text)
