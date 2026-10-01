@@ -54,3 +54,30 @@ Return the manifest and nine `[FULLCORE_BATCH_PAIR]` rows, or the first
 build/test error and its log path. The parser rejects incomplete repeats,
 wrong vector hashes, wrong output counts and unstable per-case cycles. Compare
 cycles per tile as batch length grows, not only the total batch cycles.
+
+## Isolate fork weight-SRAM reuse
+
+The fork batch ELF also has a control word that forces `MLOAD_W` for **every**
+tile. To isolate this optimization within the same core, rebuild the updated
+ELF and rerun **both** fork targets after pulling this change; do not pair an
+older reuse log with a new reload log. The input, output, ELF, tile count and
+launch-to-halt endpoint are otherwise the same.
+
+```bash
+cd "$HOME/桌面/Coral_matrix"
+git pull --ff-only origin main
+conda run -n coral-matrix python verification/check_fullcore_batch.py
+cd coralnpu-Yangg152
+bazel test --jobs=2 --repo_env=CORALNPU_MAKE_JOBS=2 \
+  --cache_test_results=no --test_output=errors \
+  //tests/mxu:mxu_fullcore_shared_weight_batch_mxu_fullcore_shared_weight_batch_test \
+  //tests/mxu:mxu_fullcore_shared_weight_batch_reload_mxu_fullcore_shared_weight_batch_reload_test
+cd ..
+conda run -n coral-matrix python verification/compare_fullcore_batch_reuse.py \
+  coralnpu-Yangg152/bazel-testlogs/tests/mxu/mxu_fullcore_shared_weight_batch_mxu_fullcore_shared_weight_batch_test/test.log \
+  coralnpu-Yangg152/bazel-testlogs/tests/mxu/mxu_fullcore_shared_weight_batch_reload_mxu_fullcore_shared_weight_batch_reload_test/test.log
+```
+
+The `[FORK_WEIGHT_REUSE_PAIR]` lines report the cycle saving attributable to
+the B reload switch under this fixture. This is stronger causal evidence for
+reuse than comparing the fork against the different official core.

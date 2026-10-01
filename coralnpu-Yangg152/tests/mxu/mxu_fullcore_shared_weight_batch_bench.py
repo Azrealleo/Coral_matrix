@@ -11,14 +11,13 @@ from coralnpu_test_utils.sim_test_fixture import Fixture
 from mxu_fullcore_tile_vectors import shared_weight_batch_cases
 
 
-@cocotb.test()
-async def mxu_fullcore_shared_weight_batch_test(dut):
+async def _run_batch(dut, reload_weights):
     fixture = await Fixture.Create(dut, clock_ns=1.25, ext_mem_size=4 * 1024 * 1024)
     elf = runfiles.Create().Rlocation(
         "coralnpu_hw/tests/mxu/mxu_fullcore_shared_weight_batch_program.elf")
     assert elf, "Missing fork batch ELF"
     symbols = ["batch_a", "batch_b", "batch_out", "batch_k", "batch_tiles",
-               "batch_status"]
+               "batch_reload_weights", "batch_status"]
     cases = shared_weight_batch_cases()
     for name, a, b in cases:
         tiles, m, k = a.shape
@@ -40,6 +39,7 @@ async def mxu_fullcore_shared_weight_batch_test(dut):
                                                      dtype="<u4"))
             await fixture.write_word("batch_k", k)
             await fixture.write_word("batch_tiles", tiles)
+            await fixture.write_word("batch_reload_weights", int(reload_weights))
             cycles = await fixture.run_to_halt(timeout_cycles=300000)
             assert not fixture.fault(), name + ": core fault"
             status = int.from_bytes(bytes(await fixture.read_word("batch_status")), "little")
@@ -51,9 +51,24 @@ async def mxu_fullcore_shared_weight_batch_test(dut):
             counts.append(cycles)
             row = dict(case=name, repeat=repeat, K=k, tiles=tiles,
                        checked_elements=tiles * 256, useful_macs=tiles * 256 * k,
+                       program_schema=2,
                        logical_sha256=digest, launch_wait_to_halt_cycles=cycles,
-                       weight_load_schedule="B_loaded_once_into_MXU_SRAM",
-                       scope="fork_full_core_shared_weight_batch")
-            cocotb.log.info("[YANGG_BATCH] " + json.dumps(row, sort_keys=True))
+                       weight_load_schedule=("B_reloaded_into_MXU_SRAM_per_tile"
+                                             if reload_weights else "B_loaded_once_into_MXU_SRAM"),
+                       scope=("fork_full_core_shared_weight_batch_reload"
+                              if reload_weights else "fork_full_core_shared_weight_batch"))
+            marker = "[YANGG_BATCH_RELOAD] " if reload_weights else "[YANGG_BATCH] "
+            cocotb.log.info(marker + json.dumps(row, sort_keys=True))
         assert len(set(counts)) == 1, name + ": unstable cycles"
-    cocotb.log.info(f"[YANGG_BATCH_CHECK] cases={len(cases)} repeats=3 passed")
+    marker = "[YANGG_BATCH_RELOAD_CHECK]" if reload_weights else "[YANGG_BATCH_CHECK]"
+    cocotb.log.info(f"{marker} cases={len(cases)} repeats=3 passed")
+
+
+@cocotb.test()
+async def mxu_fullcore_shared_weight_batch_test(dut):
+    await _run_batch(dut, False)
+
+
+@cocotb.test()
+async def mxu_fullcore_shared_weight_batch_reload_test(dut):
+    await _run_batch(dut, True)

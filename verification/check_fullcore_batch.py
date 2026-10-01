@@ -17,6 +17,7 @@ sys.dont_write_bytecode = True
 from mxu_fullcore_tile_vectors import shared_weight_batch_cases as fork_cases  # noqa: E402
 from vme_matrix_model_tile_vectors import shared_weight_batch_cases as google_cases  # noqa: E402
 from compare_fullcore_batch import compare  # noqa: E402
+from compare_fullcore_batch_reuse import compare as compare_reuse  # noqa: E402
 
 
 class SharedWeightBatchTests(unittest.TestCase):
@@ -27,10 +28,11 @@ class SharedWeightBatchTests(unittest.TestCase):
                 "mxu_fullcore_shared_weight_batch_program.cc").read_text()
         self.assertLess(google.index("for (uint32_t tile = 0; tile < tiles; ++tile)"),
                         google.index("const uint8_t *b = &batch_b[base * kTe]"))
-        self.assertIn("if (tile == 0)", fork)
-        self.assertLess(fork.index("if (tile == 0)"),
+        self.assertIn("if (tile == 0 || batch_reload_weights != 0)", fork)
+        self.assertLess(fork.index("if (tile == 0 || batch_reload_weights != 0)"),
                         fork.index("LoadW(&batch_b[depth * kTile]"))
-        self.assertLess(fork.index("Zero();"), fork.index("if (tile == 0)"))
+        self.assertLess(fork.index("Zero();"),
+                        fork.index("if (tile == 0 || batch_reload_weights != 0)"))
         self.assertEqual(google.count('section(".extbss")'), 3)
         self.assertEqual(fork.count('section(".extbss")'), 3)
 
@@ -39,7 +41,7 @@ class SharedWeightBatchTests(unittest.TestCase):
         self.assertEqual(len(g_cases), 9)
         self.assertEqual(len(f_cases), 9)
         self.assertEqual(len({name for name, _, _ in g_cases}), 9)
-        google_rows, fork_rows = [], []
+        google_rows, fork_rows, reload_rows = [], [], []
         for (name, a, b), (f_name, fa, fb) in zip(g_cases, f_cases):
             self.assertEqual(name, f_name)
             np.testing.assert_array_equal(a, fa)
@@ -66,12 +68,23 @@ class SharedWeightBatchTests(unittest.TestCase):
                     weight_load_schedule="B_reloaded_from_memory_per_tile",
                     scope="official_tk4_full_core_shared_weight_batch"))
                 fork_rows.append(dict(
-                    common, launch_wait_to_halt_cycles=2000 + tiles * k,
+                    common, program_schema=2,
+                    launch_wait_to_halt_cycles=2000 + tiles * k,
                     weight_load_schedule="B_loaded_once_into_MXU_SRAM",
                     scope="fork_full_core_shared_weight_batch"))
+                reload_rows.append(dict(
+                    common, program_schema=2,
+                    launch_wait_to_halt_cycles=2000 + tiles * k + 10 * (tiles - 1),
+                    weight_load_schedule="B_reloaded_into_MXU_SRAM_per_tile",
+                    scope="fork_full_core_shared_weight_batch_reload"))
         paired, digest = compare(google_rows, fork_rows)
         self.assertEqual(len(paired), 9)
         self.assertEqual(len(digest), 64)
+        reuse_pairs, reuse_digest = compare_reuse(fork_rows, reload_rows)
+        self.assertEqual(len(reuse_pairs), 9)
+        self.assertEqual(reuse_digest, digest)
+        self.assertTrue(all(row["cycles_saved_by_reuse"] == 10 * (row["tiles"] - 1)
+                            for row in reuse_pairs))
         with self.assertRaises(AssertionError):
             compare(google_rows[:-1], fork_rows)
         for field, value in (("K", 17), ("tiles", 2), ("logical_sha256", "wrong"),
@@ -81,6 +94,14 @@ class SharedWeightBatchTests(unittest.TestCase):
             changed[-1][field] = value
             with self.assertRaises(AssertionError):
                 compare(google_rows, changed)
+        changed_reload = copy.deepcopy(reload_rows)
+        changed_reload[-1]["weight_load_schedule"] = "wrong"
+        with self.assertRaises(AssertionError):
+            compare_reuse(fork_rows, changed_reload)
+        stale_reuse = copy.deepcopy(fork_rows)
+        del stale_reuse[-1]["program_schema"]
+        with self.assertRaises((AssertionError, KeyError)):
+            compare_reuse(stale_reuse, reload_rows)
         print("[FULLCORE_BATCH_STATIC] cases=9 repeats=3 logical_set_sha256=" + digest)
 
 

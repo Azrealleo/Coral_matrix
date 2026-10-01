@@ -15,6 +15,7 @@ uint32_t batch_out[kMaxTiles * kTile * kTile]
     __attribute__((section(".extbss"), aligned(16)));
 volatile uint32_t batch_k __attribute__((section(".data"))) = 16;
 volatile uint32_t batch_tiles __attribute__((section(".data"))) = 1;
+volatile uint32_t batch_reload_weights __attribute__((section(".data"))) = 0;
 volatile uint32_t batch_status __attribute__((section(".data"))) = 0;
 }
 
@@ -72,7 +73,8 @@ int main() {
   const uint32_t k = batch_k;
   const uint32_t tiles = batch_tiles;
   if ((k != 16 && k != 64 && k != 256) ||
-      (tiles != 1 && tiles != 4 && tiles != 16)) {
+      (tiles != 1 && tiles != 4 && tiles != 16) ||
+      batch_reload_weights > 1) {
     batch_status = 2;
     return 0;
   }
@@ -88,7 +90,7 @@ int main() {
         LoadA(&a[row * k + chunk * kTile], last);
       }
     }
-    if (tile == 0) {
+    if (tile == 0 || batch_reload_weights != 0) {
       for (uint32_t depth = 0; depth < k; ++depth)
         LoadW(&batch_b[depth * kTile], depth == k - 1);
     }

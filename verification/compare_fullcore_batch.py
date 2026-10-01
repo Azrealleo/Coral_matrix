@@ -39,11 +39,20 @@ def validate(records, cases, side):
             assert (r["K"], r["tiles"], r["checked_elements"], r["useful_macs"]) == (
                 k, tiles, tiles * 256, tiles * 256 * k)
             assert r["logical_sha256"] == digest
-            assert r["scope"] == ("official_tk4_full_core_shared_weight_batch"
-                                  if side == "google" else "fork_full_core_shared_weight_batch")
-            assert r["weight_load_schedule"] == (
-                "B_reloaded_from_memory_per_tile" if side == "google"
-                else "B_loaded_once_into_MXU_SRAM")
+            scopes = {
+                "google": "official_tk4_full_core_shared_weight_batch",
+                "fork": "fork_full_core_shared_weight_batch",
+                "fork_reload": "fork_full_core_shared_weight_batch_reload",
+            }
+            schedules = {
+                "google": "B_reloaded_from_memory_per_tile",
+                "fork": "B_loaded_once_into_MXU_SRAM",
+                "fork_reload": "B_reloaded_into_MXU_SRAM_per_tile",
+            }
+            assert r["scope"] == scopes[side]
+            assert r["weight_load_schedule"] == schedules[side]
+            if side != "google":
+                assert r["program_schema"] == 2, "rerun fork with updated batch ELF"
             count = r["launch_wait_to_halt_cycles"]
             assert type(count) is int and count > 0
             values.append(count)
