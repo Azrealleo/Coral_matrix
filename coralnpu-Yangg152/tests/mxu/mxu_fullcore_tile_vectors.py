@@ -65,6 +65,19 @@ def speed_sweep_cases():
     return cases
 
 
+def shared_weight_batch_cases():
+    """Independent 16x16 outputs sharing one signed B matrix per launch."""
+    cases = []
+    for k in (16, 64, 256):
+        for tiles in (1, 4, 16):
+            tile, row, depth = np.indices((tiles, 16, k))
+            bdepth, column = np.indices((k, 16))
+            a = (((23 * tile + 19 * row + 7 * depth + 3) % 256) - 128).astype(np.int8)
+            b = (((11 * bdepth + 13 * column + 5) % 256) - 128).astype(np.int8)
+            cases.append((f"batch_t{tiles}_k{k}", a, b))
+    return cases
+
+
 def full_tile(a, b, padded_k):
     m, k = a.shape
     assert b.shape[0] == k

@@ -364,6 +364,33 @@ cocotb_test_suite(
 )
 
 coralnpu_v2_binary(
+    name = "vme_matrix_shared_weight_batch_program",
+    srcs = ["vme_matrix_shared_weight_batch_program.cc"],
+    hdrs = ["vme_test_utils.h"],
+)
+
+cocotb_test_suite(
+    name = "vme_matrix_shared_weight_batch",
+    simulators = ["verilator"],
+    testcases = ["vme_matrix_shared_weight_batch_test"],
+    tests_kwargs = {
+        "waves": False,
+        "hdl_toplevel": "VmeCoreMiniAxi",
+        "seed": "42",
+        "test_module": ["vme_matrix_shared_weight_batch_bench.py"],
+        "deps": [
+            ":vme_matrix_perf_support",
+            ":vme_matrix_model_tile_vectors",
+            "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+            "@bazel_tools//tools/python/runfiles",
+        ],
+        "data": [":vme_matrix_shared_weight_batch_program"],
+        "size": "medium",
+    },
+    verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
+)
+
+coralnpu_v2_binary(
     name = "vme_matrix_layer_program",
     srcs = ["vme_matrix_layer_program.cc"],
     hdrs = ["vme_test_utils.h"],
