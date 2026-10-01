@@ -8,11 +8,11 @@ constexpr uint32_t kMaxTiles = 16;
 
 extern "C" {
 uint8_t batch_a[kMaxTiles * kTile * kMaxK]
-    __attribute__((section(".data"), aligned(16))) = {};
+    __attribute__((section(".extbss"), aligned(16)));
 uint8_t batch_b[kMaxK * kTile]
-    __attribute__((section(".data"), aligned(16))) = {};
+    __attribute__((section(".extbss"), aligned(16)));
 uint32_t batch_out[kMaxTiles * kTile * kTile]
-    __attribute__((section(".data"), aligned(16))) = {};
+    __attribute__((section(".extbss"), aligned(16)));
 volatile uint32_t batch_k __attribute__((section(".data"))) = 16;
 volatile uint32_t batch_tiles __attribute__((section(".data"))) = 1;
 volatile uint32_t batch_status __attribute__((section(".data"))) = 0;

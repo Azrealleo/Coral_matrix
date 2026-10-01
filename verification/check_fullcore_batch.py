@@ -31,6 +31,8 @@ class SharedWeightBatchTests(unittest.TestCase):
         self.assertLess(fork.index("if (tile == 0)"),
                         fork.index("LoadW(&batch_b[depth * kTile]"))
         self.assertLess(fork.index("Zero();"), fork.index("if (tile == 0)"))
+        self.assertEqual(google.count('section(".extbss")'), 3)
+        self.assertEqual(fork.count('section(".extbss")'), 3)
 
     def test_vectors_packing_and_strict_parser(self):
         g_cases, f_cases = google_cases(), fork_cases()
