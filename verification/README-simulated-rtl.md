@@ -1,5 +1,7 @@
 # 官方 CoralNPU：已跑仿真配置的 RTL 交接
 
+面向综合组员的详细交接说明见 [HANDOFF-simulated-rtl.md](HANDOFF-simulated-rtl.md)，包含本次基线、综合入口、RAM、SoC 接口、启动控制和网表回传清单。本文保留导出工具的简要使用方法。
+
 本流程直接复制 Ubuntu 工作目录中已有的生成文件，不调用 Bazel，不重新生成硬件，不使用 `prod/` 目标。它替代此前关闭 AXI 外部取指的生产配置交接包；两包不能混用。
 
 ## 1. 在 Ubuntu 导出

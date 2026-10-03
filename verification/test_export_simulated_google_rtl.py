@@ -136,6 +136,44 @@ class ExportSimulatedTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "upstream order"):
                 exporter.verify(package)
 
+    def test_documentation_refresh_preserves_all_other_bytes(self):
+        from refresh_simulated_rtl_docs import file_hashes, refresh
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args, _ = self.fixture(root)
+            package = self.export_fixture(args)
+            before = file_hashes(package)
+            document = root / "revised.md"
+            document.write_text("# Revised documentation only\n")
+            output = refresh(package, root / "docs_v2", document)
+            self.assertEqual(file_hashes(package), before)
+            after = file_hashes(output)
+            changed = {name for name in before if before[name] != after[name]}
+            self.assertEqual(changed, {"HANDOFF.md", "manifest.json", "SHA256SUMS"})
+            self.assertTrue(exporter.verify(output)["original_rtl_unchanged"])
+
+    def test_documentation_refresh_refuses_existing_output(self):
+        from refresh_simulated_rtl_docs import refresh
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args, _ = self.fixture(root)
+            package = self.export_fixture(args)
+            document = root / "revised.md"
+            document.write_text("updated\n")
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                refresh(package, package, document)
+
+    def test_documentation_refresh_refuses_nested_output(self):
+        from refresh_simulated_rtl_docs import refresh
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args, _ = self.fixture(root)
+            package = self.export_fixture(args)
+            document = root / "revised.md"
+            document.write_text("updated\n")
+            with self.assertRaisesRegex(ValueError, "inside the input"):
+                refresh(package, package / "nested", document)
+
 
 if __name__ == "__main__":
     unittest.main()

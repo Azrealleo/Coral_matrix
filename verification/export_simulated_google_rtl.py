@@ -250,7 +250,7 @@ def export(args):
     shutil.copy2(repo / "tests/cocotb/BUILD", output / "evidence/tests_cocotb_BUILD.txt")
     shutil.copy2(repo / "hdl/chisel/src/coralnpu/BUILD", output / "evidence/rtl_generation_BUILD.txt")
     shutil.copy2(repo / "LICENSE", output / "LICENSE")
-    shutil.copy2(Path(__file__).with_name("README-simulated-rtl.md"), output / "HANDOFF.md")
+    shutil.copy2(Path(__file__).with_name("HANDOFF-simulated-rtl.md"), output / "HANDOFF.md")
     shutil.copy2(Path(__file__), output / "verify_export.py")
     for name in OUTPUT_NAMES:
         if sha256(generated / name) != before[name]:
