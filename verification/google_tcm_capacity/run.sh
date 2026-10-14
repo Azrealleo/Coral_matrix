@@ -13,6 +13,7 @@ tcm_run=$(mktemp -d "$tcm_study/run_d${tcm_kib}.XXXXXX")
 printf '[TCM_RUN_DIRECTORY] %s\n' "$tcm_run"
 tcm_source="$tcm_study/source"
 tcm_team="$tcm_study/team.git"
+tcm_team_url=${TCM_TEAM_URL:-git@github.com:cheshire-coral-soc/cheshire-coral-soc.git}
 tcm_upstream=8e4df09b4ea7e065e02d14ce3ae033d40dfd973a
 tcm_team_commit=95e06e872bff13b3625721a837b4b739a93bed6f
 
@@ -22,10 +23,17 @@ if [[ ! -e "$tcm_source" ]]; then
     git -C "$tcm_source" checkout --detach "$tcm_upstream"
 fi
 if [[ ! -f "$tcm_source/tcm_capacity_manifest.json" ]]; then
+    command -v ssh >/dev/null
     if [[ ! -e "$tcm_team" ]]; then
-        git clone --bare --depth 1 https://github.com/cheshire-coral-soc/cheshire-coral-soc.git "$tcm_team"
+        git clone --bare --depth 1 "$tcm_team_url" "$tcm_team"
     fi
-    git -C "$tcm_team" fetch --depth 1 origin "$tcm_team_commit"
+    if [[ $(git -C "$tcm_team" rev-parse --is-bare-repository 2>/dev/null) != true ]]; then
+        printf 'Existing team path is not a bare Git repository; preserved unchanged: %s\n' "$tcm_team" >&2
+        exit 2
+    fi
+    # Explicit URL also handles existing clones whose origin still uses HTTPS.
+    # Honor GIT_SSH_COMMAND/ssh-agent; never rewrite global Git or SSH settings.
+    git -C "$tcm_team" fetch --depth 1 "$tcm_team_url" "$tcm_team_commit"
     python3 -B "$tcm_here/prepare.py" prepare --upstream "$tcm_source" --team-git "$tcm_team"
 fi
 python3 -B "$tcm_here/prepare.py" verify --upstream "$tcm_source"

@@ -9,7 +9,7 @@
 - 保持RVV/VME/FP/BF16、VLEN128、外部取指true、FetchL0=false、verification=false和读一周期/128bit/byte mask。没有选择高容量verification目标改变ROB配置。
 - **当前交付是阶段1：容量配置及正面AXI RAM检查，不是矩阵性能结果。** Windows只执行本地静态/合成自测；Bazel9生成、Verilator冷编译和实际RTL仿真需要Ubuntu执行。还没有新容量PASS。
 
-本地验证：8项几何/独立向量/参数/BUILD语法/假fixture正反控制/日志解析测试通过；另在临时稀疏Git副本用真实`8e4df09b`和团队真实补丁核验完整prepare、六package/22文件校验、拒绝覆盖和篡改检测；Git Bash `bash -n`通过。这些都不是实际SV编译或RAM仿真PASS。
+本地验证：9项几何/独立向量/参数/BUILD语法/假fixture正反控制/日志解析及SSH入口静态测试通过；另在临时稀疏Git副本用真实`8e4df09b`和团队真实补丁核验完整prepare、六package/22文件校验、拒绝覆盖和篡改检测；Git Bash `bash -n`通过。这些都不是实际SV编译或RAM仿真PASS，也不证明Ubuntu的SSH网络和账号权限已通过。
 
 ## 实验地址图
 
@@ -35,6 +35,51 @@
 ## Ubuntu运行（先32KiB）
 
 在此前Ubuntu虚拟机，保留可用代理；需要当前账号能用Git读取团队私有仓库（两个补丁来源）。不在EDA152/CentOS上执行，也不要在Windows大小写不敏感文件系统生成官方源码。
+
+### 团队仓库改用SSH（2026-10-15）
+
+脚本默认仅将团队私有仓库改为`git@github.com:cheshire-coral-soc/cheshire-coral-soc.git`，个人仓库pull、官方公共源码及Bazel下载仍走HTTPS。已有`team.git`即使origin是HTTPS，也通过显式SSH URL fetch固定提交，无需删除副本或修改全局Git配置。不是bare仓库的已有同名路径会停止并保留，不能直接删掉重试。
+
+在**Ubuntu**生成专用密钥，已有同名密钥不覆盖：
+
+```bash
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+if [ -e "$HOME/.ssh/id_ed25519_coral_tcm" ] || [ -e "$HOME/.ssh/id_ed25519_coral_tcm.pub" ]; then
+    echo '同名密钥已存在；不覆盖，请先核查。'
+else
+    ssh-keygen -t ed25519 -C 'Azrealleo-coral-tcm-vm' -f "$HOME/.ssh/id_ed25519_coral_tcm"
+fi
+```
+
+建议设置密钥口令。把`cat "$HOME/.ssh/id_ed25519_coral_tcm.pub"`显示的**公钥**加入个人账号Azrealleo的[SSH keys](https://github.com/settings/ssh/new)，Key type选Authentication Key。不要上传无`.pub`的私钥或贴到聊天中；这是个人账号认证，不需要审批那个Pending PAT，但账号必须已有团队仓库读权限，组织启用SAML SSO时还需授权SSH key。
+
+然后在同一Ubuntu终端执行：
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add "$HOME/.ssh/id_ed25519_coral_tcm"
+export GIT_SSH_COMMAND="ssh -i '$HOME/.ssh/id_ed25519_coral_tcm' -o IdentitiesOnly=yes -o ConnectTimeout=15"
+ssh -i "$HOME/.ssh/id_ed25519_coral_tcm" -o IdentitiesOnly=yes -o ConnectTimeout=15 -T git@github.com
+# 上一条成功认证通常仍返回1，因此不要放进set -e串行区块。
+git ls-remote git@github.com:cheshire-coral-soc/cheshire-coral-soc.git HEAD
+```
+
+首次连接必须核对[GitHub官方指纹](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)，ED25519为`SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`，匹配后才输入yes。`Hi Azrealleo! ... successfully authenticated`只证明个人SSH认证；`ls-remote`输出HEAD哈希才证明该仓库访问也通过。
+
+如果22端口超时，可按[GitHub官方443方案](https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port)单独检查：
+
+```bash
+ssh -i "$HOME/.ssh/id_ed25519_coral_tcm" -o IdentitiesOnly=yes -o ConnectTimeout=15 -T -p 443 git@ssh.github.com
+export TCM_TEAM_URL='ssh://git@ssh.github.com:443/cheshire-coral-soc/cheshire-coral-soc.git'
+git ls-remote "$TCM_TEAM_URL" HEAD
+```
+
+443成功后保持上述环境变量再运行容量脚本；不改`~/.ssh/config`。SSH不会自动使用`HTTP_PROXY/HTTPS_PROXY`；443也超时则先诊断网络，不清理缓存或更改仓库可见性。新终端需重新设置`GIT_SSH_COMMAND`；若选443还需重新设置`TCM_TEAM_URL`，有口令的key可重新加入当前ssh-agent。
+
+### 启动控制组
+
+确认上述`git ls-remote`成功，在**同一终端**执行：
 
 ```bash
 (

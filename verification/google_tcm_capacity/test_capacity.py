@@ -20,6 +20,16 @@ from prepare import build_text, checked_log, experiment_sources
 
 
 class CapacityTests(unittest.TestCase):
+    def test_team_transport_is_scoped_ssh(self):
+        script = (HERE / "run.sh").read_text(encoding="utf-8")
+        self.assertIn("${TCM_TEAM_URL:-git@github.com:cheshire-coral-soc/cheshire-coral-soc.git}", script)
+        self.assertIn('git clone --bare --depth 1 "$tcm_team_url" "$tcm_team"', script)
+        self.assertIn('fetch --depth 1 "$tcm_team_url" "$tcm_team_commit"', script)
+        self.assertIn('rev-parse --is-bare-repository', script)
+        self.assertNotIn('https://github.com/cheshire-coral-soc/', script)
+        self.assertIn('https://github.com/google-coral/coralnpu.git', script)
+        self.assertNotIn('git config --global', script)
+
     def test_geometry(self):
         for kib in CAPACITIES:
             g = geometry(kib)
