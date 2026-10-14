@@ -14,6 +14,13 @@ For the current synthesis RTL package, use the
 [simulated-RTL handoff](verification/HANDOFF-simulated-rtl.md); do not substitute
 the older `prod` package with a different instruction-fetch configuration.
 
+## Official single-NPU memory study
+
+The [ITCM/DTCM capacity experiment](verification/google_tcm_capacity/README.md)
+uses the team's newer pinned official source and generation fixes. Stage 1
+qualifies six DTCM capacities (32 KiB through 4 MiB) with ITCM fixed at 8 KiB;
+it is not yet a workload-performance result or a SoC configuration change.
+
 ## Windows compatibility
 
 The Google repository contains both `SRAM.scala` and `Sram.scala`. Windows uses a
