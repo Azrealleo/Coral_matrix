@@ -9,7 +9,7 @@
 - 保持RVV/VME/FP/BF16、VLEN128、外部取指true、FetchL0=false、verification=false和读一周期/128bit/byte mask。没有选择高容量verification目标改变ROB配置。
 - **当前交付是阶段1：容量配置及正面AXI RAM检查，不是矩阵性能结果。** Windows只执行本地静态/合成自测；Bazel9生成、Verilator冷编译和实际RTL仿真需要Ubuntu执行。还没有新容量PASS。
 
-本地验证：9项几何/独立向量/参数/BUILD语法/假fixture正反控制/日志解析及SSH入口静态测试通过；另在临时稀疏Git副本用真实`8e4df09b`和团队真实补丁核验完整prepare、六package/22文件校验、拒绝覆盖和篡改检测；Git Bash `bash -n`通过。这些都不是实际SV编译或RAM仿真PASS，也不证明Ubuntu的SSH网络和账号权限已通过。
+本地验证：10项几何/独立向量/参数/BUILD语法/假fixture正反控制/日志解析及SSH入口、进度输出静态测试通过；另在临时稀疏Git副本用真实`8e4df09b`和团队真实补丁核验完整prepare、六package/22文件校验、拒绝覆盖和篡改检测；Git Bash `bash -n`通过。这些都不是实际SV编译或RAM仿真PASS，也不证明Ubuntu的SSH网络和账号权限已通过。
 
 ## 实验地址图
 
@@ -99,6 +99,8 @@ bash verification/google_tcm_capacity/run.sh 32
 ```
 
 脚本在`$HOME/coral_tcm_capacity_8e4_v1`建立新官方源码实验副本、团队只读bare副本、单独Bazel9.1.0和缓存。不会覆盖此前`coralnpu-google/`或改Conda里的Bazel8.6。首次下载/编译可能较慢，jobs和make都限制2；Java堆2GiB，Bazel本地memory预算4096MiB。此预算不是峰值内存保证，若VM资源不足可降低并行或扩内存，不能清空历史日志掩盖OOM。
+
+构建和测试统一使用`--noshow_progress`，关闭频繁重复的Analyzing/进度刷新，保留警告、错误、工具输出和最终结果。每个阶段开始打印一次`[TCM_STAGE]`，没有新输出不等于任务卡住。此调整只涉及运行脚本，不改RTL或实验源码指纹；已启动的命令不会自动改变输出，下一次拉取并运行才生效。
 
 32KiB实际通过后再逐档运行，**一档成功后才运行下一档**：
 

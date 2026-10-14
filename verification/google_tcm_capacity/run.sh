@@ -52,7 +52,7 @@ if [[ ! -e "$tcm_bazel" ]]; then
 fi
 printf '%s  %s\n' "$tcm_bazel_sha" "$tcm_bazel" | sha256sum -c -
 tcm_startup=(--output_user_root="$tcm_study/bazel-user" --host_jvm_args=-Xmx2g)
-tcm_build_flags=(--jobs=2 --local_resources=memory=4096 --lockfile_mode=error
+tcm_build_flags=(--noshow_progress --jobs=2 --local_resources=memory=4096 --lockfile_mode=error
     --repo_env=CORALNPU_MAKE_JOBS=2 --action_env=LANG=C.UTF-8 --action_env=LC_ALL=C.UTF-8)
 tcm_package="tests/cocotb/tcm_capacity/d$tcm_kib"
 tcm_top=VmeCoreMiniAxi
@@ -61,6 +61,7 @@ cd -- "$tcm_source"
 "$tcm_bazel" "${tcm_startup[@]}" version > "$tcm_run/bazel-version.log" 2>&1
 printf '%q ' "$tcm_bazel" "${tcm_startup[@]}" build "${tcm_build_flags[@]}" "//$tcm_package:rtl_emit_verilog" > "$tcm_run/build-command.txt"
 printf '\n' >> "$tcm_run/build-command.txt"
+printf '[TCM_STAGE] Generating single-NPU RTL, DTCM_KiB=%s\n' "$tcm_kib"
 "$tcm_bazel" "${tcm_startup[@]}" build "${tcm_build_flags[@]}" \
     "//$tcm_package:rtl_emit_verilog" 2>&1 | tee "$tcm_run/generate.log"
 tcm_header="bazel-bin/$tcm_package/V${tcm_top}_parameters.h"
@@ -68,6 +69,7 @@ python3 -B "$tcm_here/prepare.py" header --file "$tcm_header" --kib "$tcm_kib" |
 cp "$tcm_header" "$tcm_run/parameters.h"
 sha256sum "bazel-bin/$tcm_package/$tcm_top.sv" \
     "bazel-bin/$tcm_package/$tcm_top.zip" "$tcm_header" > "$tcm_run/rtl.sha256"
+printf '[TCM_STAGE] Building/running capacity simulation, DTCM_KiB=%s\n' "$tcm_kib"
 "$tcm_bazel" "${tcm_startup[@]}" test "${tcm_build_flags[@]}" \
     --cache_test_results=no --test_output=errors \
     "//$tcm_package:capacity_tcm_capacity_test" 2>&1 | tee "$tcm_run/test-command.log"

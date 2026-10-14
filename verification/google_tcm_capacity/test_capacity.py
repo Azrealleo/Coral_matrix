@@ -20,6 +20,15 @@ from prepare import build_text, checked_log, experiment_sources
 
 
 class CapacityTests(unittest.TestCase):
+    def test_progress_is_disabled_without_hiding_errors(self):
+        script = (HERE / "run.sh").read_text(encoding="utf-8")
+        self.assertIn('tcm_build_flags=(--noshow_progress ', script)
+        self.assertIn('build "${tcm_build_flags[@]}"', script)
+        self.assertIn('test "${tcm_build_flags[@]}"', script)
+        self.assertIn('--test_output=errors', script)
+        self.assertNotIn('--quiet', script)
+        self.assertNotIn('2>/dev/null | tee', script)
+
     def test_team_transport_is_scoped_ssh(self):
         script = (HERE / "run.sh").read_text(encoding="utf-8")
         self.assertIn("${TCM_TEAM_URL:-git@github.com:cheshire-coral-soc/cheshire-coral-soc.git}", script)
