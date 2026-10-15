@@ -7,9 +7,11 @@
 - 团队仓库固定`95e06e872bff13b3625721a837b4b739a93bed6f`，官方源码固定`8e4df09b4ea7e065e02d14ce3ae033d40dfd973a`，Bazel9.1.0。
 - 保留团队CSR排序和cvfpu sticky位宽两个生成补丁，以Git对象读取并验证原始补丁SHA；不复制旧`870993f7`产物来冒充新基线。
 - 保持RVV/VME/FP/BF16、VLEN128、外部取指true、FetchL0=false、verification=false和读一周期/128bit/byte mask。没有选择高容量verification目标改变ROB配置。
-- **当前交付是阶段1：容量配置及正面AXI RAM检查，不是矩阵性能结果。** Windows只执行本地静态/合成自测；Bazel9生成、Verilator冷编译和实际RTL仿真需要Ubuntu执行。还没有新容量PASS。
+- **阶段1六档容量检查已收到Ubuntu实际RTL仿真PASS摘要**，见[容量结果记录](STAGE1-results.md)，不是性能结论。后续[阶段2a计算控制组](CONTROL.md)已提供脚本，但尚待Ubuntu交叉编译/实际RTL运行，不预报PASS。
 
 本地验证：10项几何/独立向量/参数/BUILD语法/假fixture正反控制/日志解析及SSH入口、进度输出静态测试通过；另在临时稀疏Git副本用真实`8e4df09b`和团队真实补丁核验完整prepare、六package/22文件校验、拒绝覆盖和篡改检测；Git Bash `bash -n`通过。这些都不是实际SV编译或RAM仿真PASS，也不证明Ubuntu的SSH网络和账号权限已通过。
+
+新增计算控制组后，本地测试共20项（包括合成fixture算术正反控制、低32KiB ELF布局、重复结果/哈希严格解析及不覆盖阶段1的安装校验），全部通过。已准备好的阶段1副本及其工具指纹没有改变，不必重跑容量检查。
 
 ## 实验地址图
 
