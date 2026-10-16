@@ -4,7 +4,7 @@
 
 阶段1容量检查与阶段2a计算控制组六档均收到Ubuntu实际RTL PASS，六份完整控制日志也已由用户在Ubuntu比较通过，结果日志为`/home/lqq/coral_tcm_capacity_8e4_v1/control_compare.L0Pxte.log`。
 
-**本阶段新内核尚未完成Ubuntu RISC-V编译或实际RTL运行，没有性能PASS或加速比结论。** 本地42项静态/合成检查通过，涵盖已有测试、缓存计划、实际握手采样的合成时序、流量和响应配对、ELF布局、正负golden控制、重复性、比较器CLI及安装不覆盖；这些不等同于RTL执行。
+**本阶段新内核尚未完成Ubuntu RISC-V编译或实际RTL运行，没有性能PASS或加速比结论。** 本地43项静态/合成检查通过，涵盖已有测试、缓存计划、实际握手采样的合成时序、流量和响应配对、ELF布局、正负golden控制、重复性、比较器CLI、安装不覆盖及Git缓存忽略；这些不等同于RTL执行。
 
 仍只测一个官方NPU，ITCM固定8KiB，DTCM保持32/128/512/1024/2048/4096KiB，一周期RAM行为模型。准备器验证两个旧阶段及六档完整控制日志身份后，在单独`tests/cocotb/tcm_workset/`增加包和独立manifest，不改已通过的源码或两个旧manifest。新测试目标需要重新emit同参数RTL/编译模型，复用下载和编译依赖缓存，不用旧870版本产物替代。任何残缺安装/文件指纹变化会停止，不覆盖旧文件或清缓存。
 
@@ -58,6 +58,8 @@
 - 外部读服务前附加等待可选0/8周期，通过原官方fixture的`read_delay_cycles`实现。0仍有代理握手和服务开销；8是每个读请求附加等待假设，**不是测得的SoC SRAM/DDR参数**。比较时必须保持相同延迟设置；两种延迟分开比较。
 
 ## Ubuntu：先32KiB、T12、额外读等待0
+
+本目录的局部`.gitignore`仅忽略Python的`__pycache__/`、`.pyc`、`.pyo`，不隐藏源码或其他修改，也不删除缓存。若旧版本在pull前被唯一的`?? verification/google_tcm_capacity/__pycache__/`拦住，可在确认只有这一项时先pull新规则；任何其他改动仍应停下核查。普通Python运行可能产生缓存，正式脚本继续使用`python3 -B`。
 
 ```bash
 (
