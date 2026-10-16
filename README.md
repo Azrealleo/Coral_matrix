@@ -27,7 +27,10 @@ also has six user-reported RTL passes with identical cycle counts, recorded in
 [control results](verification/google_tcm_capacity/CONTROL-results.md).
 The six full control logs have also passed cross-capacity auditing on Ubuntu.
 The [fixed-order weight-residency experiment](verification/google_tcm_capacity/WORKSET.md)
-is ready for Ubuntu compilation/testing; larger-working-set benefit measurements remain pending.
+has a user-reported RTL pass for the 32 KiB/T12/zero-extra-read-delay pilot,
+recorded in [workset results](verification/google_tcm_capacity/WORKSET-results.md).
+Cross-capacity benefit measurements remain pending; the pilot compares residency
+strategies at the same capacity.
 
 ## Windows compatibility
 
