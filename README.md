@@ -22,8 +22,10 @@ qualifies six DTCM capacities (32 KiB through 4 MiB) with ITCM fixed at 8 KiB;
 it is not yet a workload-performance result or a SoC configuration change.
 All six capacity runs have user-reported RTL passes, recorded in
 [stage 1 results](verification/google_tcm_capacity/STAGE1-results.md).
-The next [same-ELF small-workset control](verification/google_tcm_capacity/CONTROL.md)
-is ready for Ubuntu execution; its workload-performance results are still pending.
+The [same-ELF small-workset control](verification/google_tcm_capacity/CONTROL.md)
+also has six user-reported RTL passes with identical cycle counts, recorded in
+[control results](verification/google_tcm_capacity/CONTROL-results.md).
+Full-log cross-capacity auditing and larger-working-set benefit measurements remain pending.
 
 ## Windows compatibility
 
