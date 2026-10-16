@@ -33,7 +33,7 @@ def inspect_elf(path):
     return entry, segments, symbols, sizes
 
 
-@cocotb.test(timeout_time=2, timeout_unit="s")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def tcm_workset_test(dut):
     assert os.environ.get("COCOTB_USE_FRONTDOOR") == "1"
     kib = int(os.environ["TCM_DTCM_KIB"])

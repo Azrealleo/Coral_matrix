@@ -24,6 +24,13 @@ from workset_spec import (EXT_A, EXT_B, EXT_OUT, EXT_BYTES, K, LOW_DTCM_BYTES,
 from resolve_bazel_elf import resolve_elf
 
 
+def checked_test_decorator(**kwargs):
+    # Model cocotb's documented units, not an unrestricted no-op decorator.
+    if kwargs.get("timeout_unit", "step") not in ("step", "fs", "ps", "ns", "us", "ms", "sec"):
+        raise ValueError("Invalid cocotb timeout unit")
+    return lambda fn: fn
+
+
 def layout():
     symbols, cursor = {}, DTCM_BASE
     for name, size in SYMBOL_SIZES.items():
@@ -154,7 +161,7 @@ class WorksetTests(unittest.TestCase):
                      "coralnpu_test_utils", "coralnpu_test_utils.sim_backends",
                      "coralnpu_test_utils.sim_backends.verilator_test_fixture", "workset_axi_probe"]
             modules = {n: types.ModuleType(n) for n in names}
-            modules["cocotb"].test = lambda **kw: (lambda fn: fn)
+            modules["cocotb"].test = checked_test_decorator
             modules["bazel_tools.tools.python.runfiles"].runfiles = types.SimpleNamespace(
                 Create=lambda: types.SimpleNamespace(Rlocation=lambda _: str(path)))
             modules["elftools.elf.elffile"].ELFFile = None
@@ -172,6 +179,15 @@ class WorksetTests(unittest.TestCase):
     def test_synthetic_full_bench_and_log_roundtrip(self):
         result, _ = installer.checked_log(self.fake_bench(), 32, 12, 0)
         self.assertEqual(len(result), 2)
+
+    def test_timeout_unit_regression(self):
+        with self.assertRaises(ValueError):
+            checked_test_decorator(timeout_time=2, timeout_unit="s")
+        tree = ast.parse((HERE / "workset_bench.py").read_text())
+        fn = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "tcm_workset_test")
+        timeout = {k.arg: ast.literal_eval(k.value) for k in fn.decorator_list[0].keywords}
+        self.assertEqual(timeout, dict(timeout_time=2000, timeout_unit="ms"))
+        checked_test_decorator(**timeout)
 
     def test_synthetic_full_bench_rejects_wrong_output(self):
         with self.assertRaises(AssertionError): self.fake_bench(corrupt=True)

@@ -13,11 +13,13 @@ case "$tcm_delay" in 0|8) ;; *) echo 'Read delay must be 0 or 8 cycles' >&2; exi
 tcm_study=$(cd -- "$tcm_study" && pwd -P)
 tcm_source="$tcm_study/source"
 tcm_bazel="$tcm_study/bazel-9.1.0"
+python3 -B "$tcm_here/upgrade_workset_timeout.py" --upstream "$tcm_source"
 python3 -B "$tcm_here/prepare_workset.py" prepare --upstream "$tcm_source"
 tcm_run=$(mktemp -d "$tcm_study/workset_d${tcm_kib}_t${tcm_tiles}_r${tcm_delay}.XXXXXX")
 printf '[TCM_WORKSET_RUN_DIRECTORY] %s\n' "$tcm_run"
 cp "$tcm_source/tcm_workset_manifest.json" "$tcm_run/manifest.json"
-cp -- "$tcm_here/run_workset.sh" "$tcm_here/resolve_bazel_elf.py" "$tcm_run/"
+cp -- "$tcm_here/run_workset.sh" "$tcm_here/resolve_bazel_elf.py" \
+    "$tcm_here/upgrade_workset_timeout.py" "$tcm_run/"
 printf '%s  %s\n' a667454f3f4f8878df8199136b82c199f6ada8477b337fae3b1ef854f01e4e2f "$tcm_bazel" | sha256sum -c -
 tcm_startup=(--output_user_root="$tcm_study/bazel-user" --host_jvm_args=-Xmx2g)
 tcm_flags=(--noshow_progress --jobs=2 --local_resources=memory=4096 --lockfile_mode=error
@@ -48,7 +50,8 @@ tcm_elf=$(python3 -B "$tcm_here/resolve_bazel_elf.py" --basename workset_program
 printf '[TCM_WORKSET_ELF] %s\n' "$tcm_elf"
 cp -L -- "$tcm_elf" "$tcm_run/workset_program.elf"
 sha256sum "bazel-bin/$tcm_package/$tcm_top.sv" "$tcm_header" "$tcm_run/workset_program.elf" \
-    "$tcm_run/run_workset.sh" "$tcm_run/resolve_bazel_elf.py" > "$tcm_run/artifacts.sha256"
+    "$tcm_run/run_workset.sh" "$tcm_run/resolve_bazel_elf.py" \
+    "$tcm_run/upgrade_workset_timeout.py" > "$tcm_run/artifacts.sha256"
 printf '[TCM_STAGE] Building/running stream vs prefix-cache, three repeats each\n'
 printf '%q ' "$tcm_bazel" "${tcm_startup[@]}" test "${tcm_flags[@]}" \
     --cache_test_results=no --test_output=errors "--test_env=TCM_WS_TILES=$tcm_tiles" \

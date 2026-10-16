@@ -4,9 +4,17 @@
 
 阶段1容量检查与阶段2a计算控制组六档均收到Ubuntu实际RTL PASS，六份完整控制日志也已由用户在Ubuntu比较通过，结果日志为`/home/lqq/coral_tcm_capacity_8e4_v1/control_compare.L0Pxte.log`。
 
-**本阶段新内核尚未完成Ubuntu RISC-V编译或实际RTL运行，没有性能PASS或加速比结论。** 本地43项静态/合成检查通过，涵盖已有测试、缓存计划、实际握手采样的合成时序、流量和响应配对、ELF布局、正负golden控制、重复性、比较器CLI、安装不覆盖及Git缓存忽略；这些不等同于RTL执行。
+**Ubuntu已成功编译本阶段RISC-V程序、RTL及Verilator模型，但工作集测试在0ns因测试脚本超时单位写成`"s"`退出，尚未执行内核，没有性能PASS或加速比结论。** 已将超时改为等价的`2000ms`（2秒仿真时间，不是实际耗时），等待Ubuntu重跑。已有静态/合成检查涵盖缓存计划、握手采样、流量和响应配对、ELF布局、正负golden控制、重复性、比较器、安装不覆盖及Git缓存忽略；这些不等同于RTL执行。
 
-仍只测一个官方NPU，ITCM固定8KiB，DTCM保持32/128/512/1024/2048/4096KiB，一周期RAM行为模型。准备器验证两个旧阶段及六档完整控制日志身份后，在单独`tests/cocotb/tcm_workset/`增加包和独立manifest，不改已通过的源码或两个旧manifest。新测试目标需要重新emit同参数RTL/编译模型，复用下载和编译依赖缓存，不用旧870版本产物替代。任何残缺安装/文件指纹变化会停止，不覆盖旧文件或清缓存。
+仍只测一个官方NPU，ITCM固定8KiB，DTCM保持32/128/512/1024/2048/4096KiB，一周期RAM行为模型。准备器验证两个旧阶段及六档完整控制日志身份后，在单独`tests/cocotb/tcm_workset/`增加包和独立manifest，不改已通过的源码或两个旧manifest。新测试目标需要emit同参数RTL/编译模型，复用下载和编译依赖缓存，不用旧870版本产物替代。通常任何残缺安装/文件指纹变化都会停止；下面仅为已知超时笔误提供严格、带备份的一次性升级，不清缓存。
+
+### 2026-10-16：0ns超时单位错误修复
+
+cocotb 2.0的秒单位是`"sec"`而不是`"s"`；本次选择通用的`timeout_time=2000, timeout_unit="ms"`。错误出在测试框架参数，不能据此判定NPU算术失败。
+
+`run_workset.sh`在普通安装校验前调用`upgrade_workset_timeout.py`：无旧安装时不迁移；已有正确版本时严格验证后不改动。只有旧benchmark SHA为`032faeff95adc4080c117f332c8f15ef664288e86bfa5c1cc6218944a91cd992`、全部33个安装文件、5个工具指纹以及旧容量/控制基线均匹配时才升级。先在实验目录下建立`workset_timeout_upgrade.XXXXXX`，保存原manifest、原benchmark和迁移记录，再仅替换六档生成benchmark中的这一行、更新工作集manifest指纹并记录迁移历史。RTL、固件、BUILD、两个旧manifest、旧运行目录及Bazel缓存不改动；任何未知修改或部分升级均停止。若升级被中断，请保留备份和报错，勿手动重建manifest绕过验证。
+
+本次本地完整回归56项通过，新增超时单位、精确旧版本迁移、备份一致、幂等、缺文件/篡改/部分升级/错误基线及混入其他benchmark改动的拒绝检查；另通过Shell语法检查。上述仍是静态/合成验证，实际工作集PASS待Ubuntu重跑确认。
 
 ## 工作负载及策略边界
 
