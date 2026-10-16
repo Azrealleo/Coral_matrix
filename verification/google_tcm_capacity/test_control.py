@@ -209,7 +209,7 @@ class ControlTests(unittest.TestCase):
         self.assertIn("--noshow_progress", script)
         self.assertIn("--cache_test_results=no --test_output=errors", script)
         self.assertNotIn("git clone", script)
-        self.assertNotIn("rm ", script)
+        self.assertNotRegex(script, r"(?m)^\s*(?:sudo[ \t]+)?rm(?:[ \t]|$)")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ tcm_run=$(mktemp -d "$tcm_study/control_d${tcm_kib}.XXXXXX")
 printf '[TCM_CONTROL_RUN_DIRECTORY] %s\n' "$tcm_run"
 cp "$tcm_source/tcm_control_manifest.json" "$tcm_run/manifest.json"
 cp "$tcm_source/tcm_capacity_manifest.json" "$tcm_run/stage1-manifest.json"
+cp -- "$tcm_here/run_control.sh" "$tcm_here/resolve_bazel_elf.py" "$tcm_run/"
 printf '%s  %s\n' a667454f3f4f8878df8199136b82c199f6ada8477b337fae3b1ef854f01e4e2f "$tcm_bazel" | sha256sum -c -
 tcm_startup=(--output_user_root="$tcm_study/bazel-user" --host_jvm_args=-Xmx2g)
 tcm_flags=(--noshow_progress --jobs=2 --local_resources=memory=4096 --lockfile_mode=error
@@ -32,8 +33,27 @@ printf '\n' >> "$tcm_run/build-command.txt"
 tcm_header="bazel-bin/$tcm_package/V${tcm_top}_parameters.h"
 python3 -B "$tcm_here/prepare.py" header --file "$tcm_header" --kib "$tcm_kib" | tee "$tcm_run/parameters.log"
 cp "$tcm_header" "$tcm_run/parameters.h"
-cp -L bazel-bin/tests/cocotb/tcm_control/control_program.elf "$tcm_run/control_program.elf"
-sha256sum "bazel-bin/$tcm_package/$tcm_top.sv" "$tcm_header" "$tcm_run/control_program.elf" > "$tcm_run/artifacts.sha256"
+# The RISC-V rule applies a platform transition. bazel-bin points at the
+# default configuration, not necessarily the ELF's configured output tree.
+printf '[TCM_STAGE] Resolving configured RISC-V ELF output\n'
+"$tcm_bazel" "${tcm_startup[@]}" cquery "${tcm_flags[@]}" \
+    --universe_scope=//tests/cocotb/tcm_control:control_program.elf \
+    --output=files 'config(//tests/cocotb/tcm_control:control_program.elf, target)' \
+    > "$tcm_run/elf-outputs.txt" 2> "$tcm_run/elf-query.log" || {
+        cat "$tcm_run/elf-query.log" >&2
+        exit 1
+    }
+"$tcm_bazel" "${tcm_startup[@]}" info execution_root \
+    > "$tcm_run/execution-root.txt" 2> "$tcm_run/execution-root-query.log" || {
+        cat "$tcm_run/execution-root-query.log" >&2
+        exit 1
+    }
+tcm_elf=$(python3 -B "$tcm_here/resolve_bazel_elf.py" \
+    --execution-root-file "$tcm_run/execution-root.txt" --outputs-file "$tcm_run/elf-outputs.txt")
+printf '[TCM_CONTROL_ELF] %s\n' "$tcm_elf"
+cp -L -- "$tcm_elf" "$tcm_run/control_program.elf"
+sha256sum "bazel-bin/$tcm_package/$tcm_top.sv" "$tcm_header" "$tcm_run/control_program.elf" \
+    "$tcm_run/run_control.sh" "$tcm_run/resolve_bazel_elf.py" > "$tcm_run/artifacts.sha256"
 printf '[TCM_STAGE] Running four signed-INT8 controls, three repeats each\n'
 "$tcm_bazel" "${tcm_startup[@]}" test "${tcm_flags[@]}" \
     --cache_test_results=no --test_output=errors \
