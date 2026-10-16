@@ -25,7 +25,9 @@ All six capacity runs have user-reported RTL passes, recorded in
 The [same-ELF small-workset control](verification/google_tcm_capacity/CONTROL.md)
 also has six user-reported RTL passes with identical cycle counts, recorded in
 [control results](verification/google_tcm_capacity/CONTROL-results.md).
-Full-log cross-capacity auditing and larger-working-set benefit measurements remain pending.
+The six full control logs have also passed cross-capacity auditing on Ubuntu.
+The [fixed-order weight-residency experiment](verification/google_tcm_capacity/WORKSET.md)
+is ready for Ubuntu compilation/testing; larger-working-set benefit measurements remain pending.
 
 ## Windows compatibility
 

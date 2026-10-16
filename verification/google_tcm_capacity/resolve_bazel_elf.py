@@ -4,7 +4,9 @@ import argparse
 from pathlib import Path, PurePosixPath
 
 
-def resolve_elf(execroot, output_text):
+def resolve_elf(execroot, output_text, basename="control_program.elf"):
+    if basename not in ("control_program.elf", "workset_program.elf"):
+        raise ValueError("unsupported firmware basename")
     root = Path(execroot).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("execution_root is not a directory")
@@ -15,7 +17,7 @@ def resolve_elf(execroot, output_text):
         relative = PurePosixPath(line.strip())
         if (relative.is_absolute() or ".." in relative.parts or
                 not relative.parts or relative.parts[0] != "bazel-out" or
-                relative.name != "control_program.elf"):
+                relative.name != basename):
             raise ValueError("unexpected cquery firmware output: " + line)
         path = root.joinpath(*relative.parts).resolve(strict=True)
         if not path.is_relative_to(root) or not path.is_file():
@@ -37,11 +39,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execution-root-file", required=True, type=Path)
     parser.add_argument("--outputs-file", required=True, type=Path)
+    parser.add_argument("--basename", default="control_program.elf",
+                        choices=("control_program.elf", "workset_program.elf"))
     args = parser.parse_args()
     root_lines = [s.strip() for s in args.execution_root_file.read_text().splitlines() if s.strip()]
     if len(root_lines) != 1 or not Path(root_lines[0]).is_absolute():
         raise ValueError("expected one absolute execution_root")
-    print(resolve_elf(root_lines[0], args.outputs_file.read_text()))
+    print(resolve_elf(root_lines[0], args.outputs_file.read_text(), args.basename))
 
 
 if __name__ == "__main__":
