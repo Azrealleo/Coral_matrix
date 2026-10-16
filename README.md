@@ -30,7 +30,7 @@ The [fixed-order weight-residency experiment](verification/google_tcm_capacity/W
 has user-reported RTL passes for the 32/128 KiB, T12, zero-extra-read-delay pilot,
 recorded in [workset results](verification/google_tcm_capacity/WORKSET-results.md).
 The same prefix-residency strategy uses 29.32% fewer cycles at 128 KiB; stream
-control cycles are unchanged. Full-log cross-capacity auditing is pending.
+control cycles are unchanged. Both full logs passed cross-capacity auditing on Ubuntu.
 This is a fixed-schedule synthetic workload, not a model-runtime or 2/4 MiB result.
 
 ## Windows compatibility

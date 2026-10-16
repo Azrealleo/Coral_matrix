@@ -16,7 +16,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from capacity_spec import CAPACITIES, DTCM_BASE
+from capacity_spec import CAPACITIES, DTCM_BASE, EXTERNAL_BASE
 import prepare_workset as installer
 from workset_spec import (EXT_A, EXT_B, EXT_OUT, EXT_BYTES, K, LOW_DTCM_BYTES,
                           REPEATS, ROUNDS, SCOPE, STRATEGIES, SYMBOL_SIZES, TILE_CHOICES,
@@ -279,6 +279,28 @@ class WorksetTests(unittest.TestCase):
         self.assertEqual(len(sha), 64)
         for r, t in ((0, 0), (2, 11)):
             np.testing.assert_array_equal(expected[r, t], a[r].astype(np.int64) @ b[t].astype(np.int64))
+
+    def test_mib_threshold_plans_and_external_bounds(self):
+        expected = {(1024, 384): (251, 2662400), (2048, 384): (384, 1572864),
+                    (2048, 768): (507, 5283840), (4096, 768): (768, 3145728)}
+        for (kib, tiles), (resident, traffic) in expected.items():
+            p = plan(kib, tiles, "prefix_cache")
+            self.assertEqual((p["resident_tiles"], p["weight_read_bytes"]), (resident, traffic))
+            self.assertLessEqual(LOW_DTCM_BYTES + p["used_slots"] * 4096, kib * 1024)
+            self.assertLessEqual(EXT_A + p["input_read_bytes"], EXT_B)
+            self.assertLessEqual(EXT_B + p["weight_set_bytes"], EXT_OUT)
+            self.assertLessEqual(EXT_OUT + p["output_write_bytes"], EXTERNAL_BASE + EXT_BYTES)
+
+    def test_mib_vectors_match_scalar_signed_dot_products(self):
+        # Cover weights beyond the first 256 tiles using independent Python ints.
+        for tiles in (384, 768):
+            a, b, expected, sha = vectors(tiles)
+            self.assertEqual(expected.shape, (3, tiles, 16, 16))
+            self.assertEqual(len(sha), 64)
+            for r, t, m, n in ((0, 0, 0, 0), (1, 255, 3, 5),
+                                (2, 256, 7, 9), (2, tiles - 1, 15, 15)):
+                scalar = sum(int(a[r, m, k]) * int(b[t, k, n]) for k in range(K))
+                self.assertEqual(int(expected[r, t, m, n]), scalar)
 
     def test_axi_completions_and_expected_bytes(self):
         for strategy in STRATEGIES:
