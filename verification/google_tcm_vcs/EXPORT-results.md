@@ -38,6 +38,8 @@
 - 6条记录全部在JSON结尾附带SGR颜色复位字符`\x1b[49m\x1b[39m`；stream三次`wait_for_halt_cycles=225222`，prefix三次为145029，与Ubuntu1MiB T12一致。明确是展示字符使JSON汇总器拒绝解析，不据此称RTL算术失败。
 - XML记录sim_time_ns=1411740.0、cocotb testcase time=1178.2477581501007秒（约19分38秒）；不是NPU硬件执行秒数，也不是最终wrapper墙钟值。与Ubuntu测试292.4秒的主机耗时不同，但两台主机、统计边界不同，不能据此给出仿真器本身的加速比；至少当前观测没有VCS更快的证据。
 - 用户尚未回传原始_test-status.json内容及全部结构化数据；不只凭上述截断诊断就补写最终PASS。新增包外vcs_workset.py，保留原包/模型/原日志，重新检查完整进程状态、命令、模型与环境身份、XML、6条记录及原始文件哈希，再创建缺失的验收结果。
+- 首版包外入口23afde9已在服务器下载、SHA256校验OK，位置`/home2/lqq/coral_vcs_tools/ansi_fix.xZ2b2v/vcs_workset.py`，脚本SHA256为`9e54a84b7e0f18f8ba53034428ec9272672ead2296ba66ff412637c62fc09654`。执行停止于`logged ELF/layout/vectors do not match this package`，未输出ACCEPT_PASS。
+- 已本地重现并修复首版验收器的表示误比较：inspect_elf返回的加载段列表含元组，日志JSON含列表；只统一预期容器表示，不改变任何地址、长度或身份值。新增真实返回类型回归和逐字段错误值拒绝测试，修正版输出不匹配字段名。该失败发生于创建result.json之前，原始仿真不需重跑、证据不需删除。
 - **VCS编译已实测PASS，cocotb/XML已报告PASS；包外完整重新验收待实际执行，尚未收到TCM_VCS_ACCEPT_PASS。**
 
 下一步：在相同编译器隔离环境运行包外验收入口，严格重新验收1MiB现有T12，不重新仿真、不编辑原日志。取得TCM_VCS_ACCEPT_PASS后才通过该包外入口运行大工作集。各容量都先通过自己的小工作集，不能拿1MiB包冒充2/4MiB。

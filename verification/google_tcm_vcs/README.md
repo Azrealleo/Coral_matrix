@@ -54,6 +54,8 @@ cd /home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_
 
 accept只接受该包runtime/runs内的T12/等待0运行，检查原始退出码0、无超时、原始命令与模型路径、运行环境/包快照、成功构建记录及模型哈希、XML恰好1个无失败/跳过测试，以及全部6条严格算术完成/流量/重复性记录、实际ELF/布局与向量身份。只有全部通过，才独占创建缺失的result.json，记录原始文件哈希、原始墙钟耗时、验收脚本哈希和显示规范化策略；已有result.json则拒绝覆盖。输出`[TCM_VCS_ACCEPT_PASS] simulation_rerun=false raw_files_unchanged=true`才代表这次补充验收成功，不伪造一次新的仿真。
 
+首版包外验收（23afde9）在真实服务器误报`logged ELF/layout/vectors do not match this package`。原因已在本地重现：官方inspect_elf返回list[tuple[int,int]]，JSON加载段为list[list[int]]，旧测试用列表未覆盖真实类型。修正版只把预期加载段的元组转换为列表再比较，地址、长度、入口、符号、ELF及向量哈希仍严格相等；错误时输出具体不匹配字段。该停止点在创建result.json之前，不需要删除文件或重新仿真。下载修正版到包外新目录重试即可，保留旧脚本和原始证据。
+
 此后通过同一包外入口的`run --tiles 384 --delay 0`等命令启动后续测试（仍使用同样编译器隔离设置），而不是直接调用旧包runtime.py。入口复用原有模型和大工作集前置小用例判据，能读取已验收的原始彩色日志；编译选项、RTL、固件和测试语义不变。未来子进程强制`COCOTB_ANSI_OUTPUT=0`及`NO_COLOR=1`，防止同类显示问题再次阻断汇总。两变量意义见[cocotb2.0日志颜色文档](https://docs.cocotb.org/en/v2.0.0/library_reference.html#log-coloring)。新导出的2/4MiB包也可直接使用这个包外入口的check/build/run，无需再次生成RTL。
 
 ## Ubuntu先导出1MiB配置
@@ -86,7 +88,7 @@ bash verification/google_tcm_vcs/export.sh 1024
 
 ## 本地验证范围
 
-补充ANSI包外验收后的回归：VCS包/升级/验收入口39项检查通过（含真实cocotb2.0公共API和固定fixture导入检查），原TCM实验64项检查通过。这些是本地工具检查，不替代服务器实际验收。
+补充真实ELF元组/JSON列表表示回归后：VCS包/升级/验收入口40项检查通过（含真实cocotb2.0公共API和固定fixture导入检查、真实返回类型正例、各身份字段数值差异反例），原TCM实验64项检查通过。这些是本地工具检查，不替代服务器实际验收。
 
 检查包括ZIP路径安全、参数/宏、完整原始字节、来源证据、篡改拒绝、路径适配器、VCS命令参数/原程序复用、XML拒绝失败、模型指纹和超时处理。真实VCS2020与glibc2.17环境无法在Windows工作区验证，必须由用户在实验室运行小用例确认。此时仍是VCS+cocotb，Python逐周期开销未消除，也不承诺速度优于Verilator。
 

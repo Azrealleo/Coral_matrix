@@ -137,9 +137,17 @@ def accept(bundle, requested_run, requested_state=None):
         raise ValueError("nonzero/timed-out/incomplete phase or wrong simulation command")
     rt.check_xml(run / "results.xml")
     rows, log_identity = bundle.checked_log((run / "_test.log").read_text(), manifest["dtcm_kib"], 12, 0)
-    expected_identity = (manifest["passed_workset_elf_sha256"], env["elf_entry"], env["elf_load_segments"], env["symbols"])
-    if log_identity != expected_identity or any(row["vector_sha256"] != manifest["vector_sha256"]["12"] for row in rows):
-        raise ValueError("logged ELF/layout/vectors do not match this package")
+    # inspect_elf returns list[tuple[int, int]]; JSON has no tuple type. Convert
+    # only the trusted container representation, not any addresses or lengths.
+    expected_identity = (manifest["passed_workset_elf_sha256"], env["elf_entry"],
+                         [list(segment) for segment in env["elf_load_segments"]], env["symbols"])
+    different = [name for name, actual, expected in zip(
+        ("elf_sha256", "elf_entry", "elf_load_segments", "symbols"), log_identity, expected_identity)
+        if actual != expected]
+    if any(row["vector_sha256"] != manifest["vector_sha256"]["12"] for row in rows):
+        different.append("vector_sha256")
+    if different:
+        raise ValueError("logged ELF/layout/vectors do not match this package; fields=" + ",".join(different))
     bundle.library.verify(root)
     if (sha(root / "manifest.json") != package_sha or
             before != {name: sha(run / name) for name in names} or record["model_files"] != rt.model_hashes(build)):

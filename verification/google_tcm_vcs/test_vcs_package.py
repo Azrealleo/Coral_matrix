@@ -246,7 +246,10 @@ class PackageTests(unittest.TestCase):
         bundle = adapter.load_package(self.output)
         from test_workset import layout
         entry, segments, symbols, _ = layout()
-        env = dict(python=sys.executable, elf_entry=entry, elf_load_segments=segments, symbols=symbols, gcc="synthetic GCC")
+        # Real inspect_elf returns list[tuple[int, int]], while JSON records
+        # necessarily contain list[list[int]]. Exercise that exact boundary.
+        env = dict(python=sys.executable, elf_entry=entry, elf_load_segments=[tuple(s) for s in segments],
+                   symbols=symbols, gcc="synthetic GCC")
         self.stack.enter_context(patch.object(bundle.runtime, "environment", return_value=env))
         self.stack.enter_context(patch.object(bundle.runtime, "execute_phase", side_effect=AssertionError("must not simulate")))
         state = bundle.runtime.state_directory(self.output, None)
@@ -343,6 +346,33 @@ class PackageTests(unittest.TestCase):
         self.assertEqual((env["COCOTB_ANSI_OUTPUT"], env["NO_COLOR"]), ("0", "1"))
         self.assertEqual(bundle.runtime.BUILD_ARGS, runtime.BUILD_ARGS)
         self.assertEqual(adapter.sha(self.output / "runtime.py"), adapter.RUNTIME_SHA256)
+
+    def test_external_adapter_requires_exact_elf_field_values_after_container_conversion(self):
+        bundle, run, _ = self.adapter_pilot()
+        env = bundle.runtime.environment.return_value
+        original_segments = env["elf_load_segments"]
+        self.assertIsInstance(original_segments[0], tuple)
+        first_symbol = next(iter(env["symbols"]))
+        for field, wrong in (
+                ("elf_entry", env["elf_entry"] + 4),
+                ("elf_load_segments", [(original_segments[0][0] + 16, original_segments[0][1])] + original_segments[1:]),
+                ("symbols", dict(env["symbols"], **{first_symbol: env["symbols"][first_symbol] + 4}))):
+            with self.subTest(field=field):
+                original = env[field]
+                env[field] = wrong
+                with self.assertRaisesRegex(ValueError, "fields=" + field):
+                    adapter.accept(bundle, run)
+                self.assertFalse((run / "result.json").exists())
+                env[field] = original
+        for field, container, key in (("elf_sha256", bundle.manifest, "passed_workset_elf_sha256"),
+                                       ("vector_sha256", bundle.manifest["vector_sha256"], "12")):
+            with self.subTest(field=field):
+                original = container[key]
+                container[key] = "0" * 64
+                with self.assertRaisesRegex(ValueError, "fields=" + field):
+                    adapter.accept(bundle, run)
+                self.assertFalse((run / "result.json").exists())
+                container[key] = original
 
     def test_external_adapter_refuses_unrecognized_code_before_import(self):
         self.export()
