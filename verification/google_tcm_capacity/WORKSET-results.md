@@ -115,7 +115,15 @@ conda run -n coral-matrix python -B verification/google_tcm_capacity/prepare_wor
 
 同容量stream/prefix周期比1.552945，少读取98304字节权重。相较128KiB，两个策略的内部CSR总周期、各阶段周期、轮次周期和AXI流量均一致；等待halt窗口都多3周期，窗口与CSR总周期差值从244变为247。只确认差异位于所测内部CSR窗口之外，不推断具体原因，也不把它作为阵列变慢或SRAM频率变化的证据。这个48KiB权重集在128KiB已能全部驻留，因此该负载没有支持1MiB额外收益的证据。
 
-Bazel报告测试`PASSED in 292.4s`，test命令elapsed299.707秒；此前仅RTL/固件构建30.119秒。这些是主机软件墙钟数据，不是NPU周期或纯RTL吞吐率。服务器VCS同容量T12运行尚有JSON解析异常，不能据此给出VCS相对Verilator加速比；即使后来通过，两台机器硬件也不同。
+Bazel报告测试`PASSED in 292.4s`，test命令elapsed299.707秒；此前仅RTL/固件构建30.119秒。这些是主机软件墙钟数据，不是NPU周期或纯RTL吞吐率。
+
+### 同配置VCS交叉验证：正式验收PASS
+
+服务器VCS Q-2020.03-SP2-7使用同一RTL/ELF及原fixture/工作集，T12/等待0两策略各3次。起初SGR颜色复位码阻断JSON汇总，之后包外验收器又出现ELF段元组/列表表示误比较；均已修正工具，未修改RTL、固件、原日志或重跑原仿真。用户最终回传TCM_VCS_ACCEPT_PASS及两条完整汇总，所有汇总字段与上述Verilator结果相同：stream225222周期、prefix145029周期，CSR/轮次/AXI计数、ELF与向量SHA全部一致。
+
+原运行目录：`/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_runtime/runs/t12_r0.6xf7vakp`；修正版包外入口：`/home2/lqq/coral_vcs_tools/ansi_fix_v2.bzKDlm/vcs_workset.py`（760bda8）。验收严格检查原始进程退出码/超时状态、命令、模型/包/环境、XML和六条记录，并新建result.json；simulation_rerun=false、raw_files_unchanged=true。
+
+VCS原流程墙钟1185.423秒，cocotb testcase时间1178.2477581501007秒，编译另计60.523秒。它们与Ubuntu/Verilator的Bazel测试292.4秒是不同机器、略有不同统计边界的数据，不能完全归因于仿真器；但目前没有换VCS加速的证据。建议大工作集主线回Ubuntu/Verilator，保留固定VCS模型用于交叉验证。1MiB小工作集PASS不代表2/4MiB VCS通过，也不代表T384/T768已通过。
 
 ## MiB级权重跨容量阈值（1MiB/T384首次运行超时，尚未完整PASS）
 

@@ -40,9 +40,14 @@
 - 用户尚未回传原始_test-status.json内容及全部结构化数据；不只凭上述截断诊断就补写最终PASS。新增包外vcs_workset.py，保留原包/模型/原日志，重新检查完整进程状态、命令、模型与环境身份、XML、6条记录及原始文件哈希，再创建缺失的验收结果。
 - 首版包外入口23afde9已在服务器下载、SHA256校验OK，位置`/home2/lqq/coral_vcs_tools/ansi_fix.xZ2b2v/vcs_workset.py`，脚本SHA256为`9e54a84b7e0f18f8ba53034428ec9272672ead2296ba66ff412637c62fc09654`。执行停止于`logged ELF/layout/vectors do not match this package`，未输出ACCEPT_PASS。
 - 已本地重现并修复首版验收器的表示误比较：inspect_elf返回的加载段列表含元组，日志JSON含列表；只统一预期容器表示，不改变任何地址、长度或身份值。新增真实返回类型回归和逐字段错误值拒绝测试，修正版输出不匹配字段名。该失败发生于创建result.json之前，原始仿真不需重跑、证据不需删除。
-- **VCS编译已实测PASS，cocotb/XML已报告PASS；包外完整重新验收待实际执行，尚未收到TCM_VCS_ACCEPT_PASS。**
+- 修正版包外入口760bda8已在服务器下载并SHA256校验OK；路径`/home2/lqq/coral_vcs_tools/ansi_fix_v2.bzKDlm/vcs_workset.py`，脚本SHA256为`e2668cd25e690177dea89087f4804b7fb4a426c8c9e8a2a2d19c9effb04999f0`。
+- 用户回传两条完整`[TCM_WORKSET_SUMMARY]`和`[TCM_VCS_ACCEPT_PASS] simulation_rerun=false raw_files_unchanged=true simulation_wall_seconds=1185.423`。验收复用原运行，不重跑仿真、不修改原始日志；result.json在原运行目录中新建，原模型/环境/命令/退出状态/XML/6条记录及数据身份通过严格检查。
+- stream：等待halt225222周期，CSR总周期224975，输入/权重/计算及读出/输出周期为10002/120384/60336/32148，外部权重读取147456字节。
+- prefix_cache：等待halt145029周期，CSR总周期144782，对应阶段为10002/40296/60336/32148，驻留12块，外部权重读取49152字节。
+- 两策略各重复3次，每次9216输出元素；ELF SHA为`a8aa2d6feaefd56a5901f8bcca4f8f6bbf5394932add092243aff8f5eb497192`，向量SHA为`5f48b97cefb656ad1e4a96dc80a3f42804ed86d9c0553dade288d14519ebeb93`。两条汇总中的全部字段（包括AXI计数、各阶段/轮次周期）与Ubuntu1MiB/T12摘要一致。
+- **1MiB VCS T12/等待0已正式验收PASS**，仅适用于该固定配置和工作集，不是整模型、2/4MiB或物理时序的PASS。
 
-下一步：在相同编译器隔离环境运行包外验收入口，严格重新验收1MiB现有T12，不重新仿真、不编辑原日志。取得TCM_VCS_ACCEPT_PASS后才通过该包外入口运行大工作集。各容量都先通过自己的小工作集，不能拿1MiB包冒充2/4MiB。
+下一步：VCS路线已具备继续跑该模型大工作集的前置小用例证据，但当前实际主机耗时不支持其比虚拟机Verilator更快。建议大工作集主线优先回Ubuntu/Verilator（先1MiB/T384、再2MiB/T384），保留服务器固定包和已编译模型用于交叉验证；这是运行安排建议，尚未收到大工作集重跑结果。若选择服务器继续运行，使用包外入口和相同编译器隔离设置，不能直接用旧包runtime.py解析彩色pilot；6小时默认上限也不是耗时保证。2/4MiB VCS仍需各自小用例，不能拿1MiB包冒充。
 
 本记录位于源码仓库，独立于已导出的不可变包；不要为更新状态而修改包内文件或其manifest。
 

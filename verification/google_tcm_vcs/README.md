@@ -1,6 +1,6 @@
 # 官方单NPU：Ubuntu导出，CentOS7独立VCS运行
 
-当前状态：**1/2/4MiB均已实际导出并通过原RTL/固件字节一致性检查；1MiB已在服务器通过VCS编译（60.523秒），T12的cocotb/XML为1/1 PASS，六条记录和完成标记已回传，但汇总器被JSON后的SGR颜色复位字符阻断**。已新增下述包外验收入口；实际重新验收结果待回传。2/4MiB尚未回传服务器编译/运行结果。1MiB还已在Ubuntu通过同T12的Verilator完整测试（292.4秒）。实际路径、包SHA256与状态见[导出记录](EXPORT-results.md)。保持旧的Bazel/Verilator实验副本、manifest、程序和结果，不修改团队仓库。
+当前状态：**1/2/4MiB均已实际导出并通过原RTL/固件字节一致性检查；1MiB已在服务器通过VCS编译（60.523秒）及T12/等待0完整验收（TCM_VCS_ACCEPT_PASS）**。颜色输出和元组/列表误比较均在包外入口处理，原日志未修改、原仿真未重跑；原流程墙钟1185.423秒。VCS两条严格汇总与Ubuntu同容量/T12的Verilator汇总完全一致，后者Bazel测试时间292.4秒。不同主机与统计边界下不能给出仿真器本身的加速比，但当前VCS流程没有更快；建议大工作集主线优先使用Ubuntu/Verilator，VCS保留交叉验证用途。2/4MiB尚未回传服务器编译/运行结果。路径、哈希和完整边界见[导出记录](EXPORT-results.md)。不修改原包、旧Bazel/Verilator实验副本或团队仓库。
 
 ## 旧版包：补充VCS elaboration选项
 
