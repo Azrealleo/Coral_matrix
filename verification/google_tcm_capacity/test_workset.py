@@ -359,6 +359,12 @@ class WorksetTests(unittest.TestCase):
             with self.assertRaises(ValueError): installer.checked_log(log(wrong), 32, 12, 0)
         with self.assertRaises(ValueError): installer.checked_log(log(rows()[:-1]), 32, 12, 0)
 
+    def test_two_completed_repeats_before_timeout_are_not_a_pass(self):
+        partial = "\n".join("[GOOGLE_TCM_WORKSET] " + json.dumps(r) for r in rows()[:2])
+        partial += "\n-- Test timed out --\nTIMEOUT in 3600.1s\n"
+        with self.assertRaises(ValueError):
+            installer.checked_log(partial, 32, 12, 0)
+
     def test_install_preserves_both_baselines_and_detects_tampering(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

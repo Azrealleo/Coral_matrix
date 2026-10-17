@@ -16,6 +16,18 @@ cocotb 2.0的秒单位是`"sec"`而不是`"s"`；本次选择通用的`timeout_t
 
 本次本地完整回归56项通过，新增超时单位、精确旧版本迁移、备份一致、幂等、缺文件/篡改/部分升级/错误基线及混入其他benchmark改动的拒绝检查；另通过Shell语法检查。这些检查本身是静态/合成验证；用户随后重跑32KiB/T12/等待0已回传实际RTL PASS，详见上述结果记录。
 
+### 2026-10-17：MiB级测试触发Bazel一小时墙钟上限
+
+1MiB DTCM、T384、额外读等待0的首次实际运行被Bazel在3600.1秒终止，并非cocotb的2秒仿真时间上限。日志已完成stream的repeat=0/1，均逐项检查294912个输出，等待halt均6885516周期；尚无第3次重复、prefix策略或完整PASS。该组状态为INCOMPLETE，不能参与跨容量性能比较。
+
+原因是Bazel的`timeout="eternal"`默认仍为60分钟，并非无限，见[Bazel9.1测试超时定义](https://bazel.build/versions/9.1.0/reference/be/common-definitions#test.timeout)。运行器现在在真实test命令和保存的命令中均显式传入`--test_timeout=21600`，将整项测试的墙钟上限设为6小时；可用`TCM_WORKSET_TEST_TIMEOUT_SECONDS`设置1～86400秒的正十进制整数。它不包括构建时间，不是预计耗时，也不保证6小时内通过。
+
+此次只改运行器：不改生成BUILD、RTL、固件、两策略各3次重复、golden、AXI判据、2秒仿真时间限制或每次内核一亿周期保护，也不修改安装manifest。Bazel模型/编译缓存和旧运行目录保留，但没有仿真checkpoint，需从头重跑六次，不能把本次两条PASS拼成完整通过。原始计算耗时瓶颈尚未profile，本日志只能确认墙钟限制被触发。
+
+运行器现在会保存测试开始/结束UTC时间、墙钟耗时、配置上限、Bazel/tee退出码；即使test失败/超时也尝试复制原始test.log，打印`[TCM_WORKSET_INCOMPLETE]`后保留非零退出，不执行摘要/PASS。没有test.log、tee写入失败、残缺重复均拒绝通过。继续使用`--noshow_progress`和`--test_output=errors`，不增加每几秒输出。
+
+本次完整本地回归64项通过，新增真实Bash+假Bazel的墙钟参数校验、超时退出/原始日志保存、日志缺失及tee失败拒绝、正常退出仍进入严格日志检查，以及两条已完成记录不能冒充整组PASS的测试；Shell语法通过。这不等同于MiB级RTL重跑通过。
+
 ## 工作负载及策略边界
 
 权重由T个4096字节块组成，每块K256×N16；三个不同输入块各M16×K256，对每个权重块产生16×16 INT32输出。整体相当于M48、N16T、K256的分块GEMM，输出按`输入轮次,权重块,行,列`排列。所有输出均用先扩展INT64的NumPy golden逐元素校验，输入+golden SHA跨容量不变。
@@ -86,7 +98,7 @@ bash verification/google_tcm_capacity/run_workset.sh 32 12 0
 )
 ```
 
-脚本参数依次是DTCM KiB、权重块数、额外读等待周期，第四个可选参数是实验目录。默认仍沿用`$HOME/coral_tcm_capacity_8e4_v1`；源码/缓存/旧结果均保留。Bazel和make并行2、内存预算4096MiB，关闭频繁进度刷新；新测试target默认eternal超时上限，不代表预估需要一小时。ELF通过cquery取准确配置路径并检查RISC-V ELF32，不再猜`bazel-bin`的固件路径。
+脚本参数依次是DTCM KiB、权重块数、额外读等待周期，第四个可选参数是实验目录。默认仍沿用`$HOME/coral_tcm_capacity_8e4_v1`；源码/缓存/旧结果均保留。Bazel和make并行2、内存预算4096MiB，关闭频繁进度刷新；运行器显式覆盖测试墙钟上限为21600秒（6小时，可用上述环境变量调整），不再依赖eternal的默认一小时，也不是运行时长承诺。ELF通过cquery取准确配置路径并检查RISC-V ELF32，不再猜`bazel-bin`的固件路径。
 
 完成后回传两行`[TCM_WORKSET_SUMMARY]`、`[TCM_WORKSET_PAIR]`和`[TCM_WORKSET_PASS]`；失败则回传首个错误和`[TCM_WORKSET_RUN_DIRECTORY]`。新目录为`workset_d32_t12_r0.XXXXXX`，含manifest、构建/测试命令和日志、参数头、ELF、hash、原始test.log及摘要。
 

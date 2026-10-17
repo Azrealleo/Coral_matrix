@@ -9,6 +9,12 @@ tcm_study=${4:-"$HOME/coral_tcm_capacity_8e4_v1"}
 case "$tcm_kib" in 32|128|512|1024|2048|4096) ;; *) echo 'Invalid DTCM KiB' >&2; exit 2 ;; esac
 case "$tcm_tiles" in 2|12|120|192|384|768) ;; *) echo 'Invalid weight tile count' >&2; exit 2 ;; esac
 case "$tcm_delay" in 0|8) ;; *) echo 'Read delay must be 0 or 8 cycles' >&2; exit 2 ;; esac
+tcm_timeout=${TCM_WORKSET_TEST_TIMEOUT_SECONDS:-21600}
+case "$tcm_timeout" in ''|*[!0-9]*|0*) echo 'Test timeout must be a positive decimal number of seconds' >&2; exit 2 ;; esac
+if [[ ${#tcm_timeout} -gt 5 ]] || (( tcm_timeout > 86400 )); then
+    echo 'Test timeout must not exceed 86400 seconds' >&2
+    exit 2
+fi
 [[ $(uname -s) == Linux ]] || { echo 'Run in native Linux.' >&2; exit 2; }
 tcm_study=$(cd -- "$tcm_study" && pwd -P)
 tcm_source="$tcm_study/source"
@@ -52,15 +58,33 @@ cp -L -- "$tcm_elf" "$tcm_run/workset_program.elf"
 sha256sum "bazel-bin/$tcm_package/$tcm_top.sv" "$tcm_header" "$tcm_run/workset_program.elf" \
     "$tcm_run/run_workset.sh" "$tcm_run/resolve_bazel_elf.py" \
     "$tcm_run/upgrade_workset_timeout.py" > "$tcm_run/artifacts.sha256"
-printf '[TCM_STAGE] Building/running stream vs prefix-cache, three repeats each\n'
+printf '[TCM_STAGE] Building/running stream vs prefix-cache, three repeats each; wall_timeout_seconds=%s\n' "$tcm_timeout"
 printf '%q ' "$tcm_bazel" "${tcm_startup[@]}" test "${tcm_flags[@]}" \
-    --cache_test_results=no --test_output=errors "--test_env=TCM_WS_TILES=$tcm_tiles" \
+    "--test_timeout=$tcm_timeout" --cache_test_results=no --test_output=errors "--test_env=TCM_WS_TILES=$tcm_tiles" \
     "--test_env=TCM_WS_READ_DELAY=$tcm_delay" "//$tcm_package:workset_tcm_workset_test" > "$tcm_run/test-command.txt"
 printf '\n' >> "$tcm_run/test-command.txt"
-"$tcm_bazel" "${tcm_startup[@]}" test "${tcm_flags[@]}" --cache_test_results=no --test_output=errors \
+date -u '+%Y-%m-%dT%H:%M:%SZ' > "$tcm_run/test-started-utc.txt"
+tcm_test_started=$SECONDS
+set +e
+"$tcm_bazel" "${tcm_startup[@]}" test "${tcm_flags[@]}" "--test_timeout=$tcm_timeout" --cache_test_results=no --test_output=errors \
     "--test_env=TCM_WS_TILES=$tcm_tiles" "--test_env=TCM_WS_READ_DELAY=$tcm_delay" \
     "//$tcm_package:workset_tcm_workset_test" 2>&1 | tee "$tcm_run/test-command.log"
-cp -L "bazel-testlogs/$tcm_package/workset_tcm_workset_test/test.log" "$tcm_run/test.log"
+tcm_test_status=("${PIPESTATUS[@]}")
+set -e
+date -u '+%Y-%m-%dT%H:%M:%SZ' > "$tcm_run/test-finished-utc.txt"
+printf 'timeout_seconds=%s\nelapsed_seconds=%s\nbazel_exit=%s\ntee_exit=%s\n' \
+    "$tcm_timeout" "$((SECONDS - tcm_test_started))" "${tcm_test_status[0]}" "${tcm_test_status[1]}" \
+    > "$tcm_run/test-exit-status.txt"
+if [[ -f "bazel-testlogs/$tcm_package/workset_tcm_workset_test/test.log" ]]; then
+    cp -L "bazel-testlogs/$tcm_package/workset_tcm_workset_test/test.log" "$tcm_run/test.log"
+fi
+if (( tcm_test_status[0] != 0 || tcm_test_status[1] != 0 )); then
+    printf '[TCM_WORKSET_INCOMPLETE] bazel_exit=%s tee_exit=%s results=%s\n' \
+        "${tcm_test_status[0]}" "${tcm_test_status[1]}" "$tcm_run" >&2
+    if (( tcm_test_status[0] != 0 )); then exit "${tcm_test_status[0]}"; fi
+    exit "${tcm_test_status[1]}"
+fi
+[[ -f "$tcm_run/test.log" ]] || { echo 'No test.log; refusing PASS' >&2; exit 1; }
 python3 -B "$tcm_here/prepare_workset.py" log --file "$tcm_run/test.log" \
     --kib "$tcm_kib" --tiles "$tcm_tiles" --delay "$tcm_delay" | tee "$tcm_run/summary.log"
 python3 -B "$tcm_here/prepare_workset.py" verify --upstream "$tcm_source"
