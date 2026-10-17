@@ -1,0 +1,14 @@
+"""Standalone adapter: resolve only the immutable, packaged workset ELF."""
+import os
+from pathlib import Path
+
+
+class _PackageFiles:
+    def Rlocation(self, name):
+        if name == "coralnpu_hw/tests/cocotb/tcm_workset/workset_program.elf":
+            return str(Path(os.environ["TCM_VCS_PACKAGE"]) / "firmware/workset_program.elf")
+        return None
+
+
+def Create():
+    return _PackageFiles()

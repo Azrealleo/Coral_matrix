@@ -1,0 +1,5 @@
+# CPython 3.11, Linux x86_64; install compatible wheels on the server.
+cocotb==2.0.0
+numpy==1.26.4
+pyelftools==0.32
+find-libpython==0.5.1

@@ -30,6 +30,8 @@ cocotb 2.0的秒单位是`"sec"`而不是`"s"`；本次选择通用的`timeout_t
 
 ## 工作负载及策略边界
 
+2026-10-17：为避免CentOS7的Bazel/glibc限制，新增[Ubuntu导出、服务器独立VCS运行](../google_tcm_vcs/README.md)工具。原始单文件RTL必须与对应容量控制组PASS的SHA一致；同一ELF、SRAM C++源码、cocotb fixture/观察器与严格判据均保留。服务器本地编译DPI和VCS，先小工作集完整通过再允许大工作集；不是纯SV测试平台，也不承诺加速。实际Ubuntu包导出和服务器VCS验证尚未完成，本轮Verilator结果及manifest不因此改变。
+
 权重由T个4096字节块组成，每块K256×N16；三个不同输入块各M16×K256，对每个权重块产生16×16 INT32输出。整体相当于M48、N16T、K256的分块GEMM，输出按`输入轮次,权重块,行,列`排列。所有输出均用先扩展INT64的NumPy golden逐元素校验，输入+golden SHA跨容量不变。
 
 固定顺序为**输入轮次在外、权重块在内**。这可作为顺序输入复用权重的受控实验，但没有模拟真实输入到达时间、deadline、算子图或编译器最优调度。

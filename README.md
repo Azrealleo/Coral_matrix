@@ -33,6 +33,11 @@ The same prefix-residency strategy uses 29.32% fewer cycles at 128 KiB; stream
 control cycles are unchanged. Both full logs passed cross-capacity auditing on Ubuntu.
 This is a fixed-schedule synthetic workload, not a model-runtime or 2/4 MiB result.
 
+The [standalone VCS export flow](verification/google_tcm_vcs/README.md) prepares
+fixed ITCM8 KiB / DTCM1, 2 or 4 MiB packages on Ubuntu. The CentOS7 server compiles
+and runs them without Bazel. It preserves the original RTL, firmware, SRAM DPI
+source and cocotb checks. Actual Ubuntu export and server VCS validation are pending.
+
 ## Windows compatibility
 
 The Google repository contains both `SRAM.scala` and `Sram.scala`. Windows uses a
