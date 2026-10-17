@@ -23,6 +23,7 @@ import package_lib as lib
 import export as exporter
 import runtime
 import upgrade_svaext
+import vcs_workset as adapter
 from test_control import as_log, synthetic_rows
 from test_workset import log, synthetic_record
 from workset_spec import REPEATS, STRATEGIES
@@ -233,6 +234,122 @@ class PackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "immutable package files"):
             upgrade_svaext.upgrade(self.output)
 
+    def adapter_pilot(self):
+        self.export()
+        manifest = lib.verify(self.output)
+        for name in ("runtime.py", "package_lib.py"):
+            path = self.output / name
+            path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
+        lib.seal(self.output, manifest)
+        self.stack.enter_context(patch.dict(sys.modules))
+        self.stack.enter_context(patch.object(sys, "path", list(sys.path)))
+        bundle = adapter.load_package(self.output)
+        from test_workset import layout
+        entry, segments, symbols, _ = layout()
+        env = dict(python=sys.executable, elf_entry=entry, elf_load_segments=segments, symbols=symbols, gcc="synthetic GCC")
+        self.stack.enter_context(patch.object(bundle.runtime, "environment", return_value=env))
+        self.stack.enter_context(patch.object(bundle.runtime, "execute_phase", side_effect=AssertionError("must not simulate")))
+        state = bundle.runtime.state_directory(self.output, None)
+        build = state / "builds/synthetic"
+        (build / "simv.daidir").mkdir(parents=True)
+        (build / "simv").write_bytes(b"synthetic model")
+        (build / "libsram_backdoor.so").write_bytes(b"synthetic DPI")
+        identity = bundle.runtime.build_identity(self.output, bundle.manifest, env)
+        record = dict(identity=identity, directory=str(build), model_files=bundle.runtime.model_hashes(build), timing={})
+        lib.write_json(build / "build-record.json", record)
+        lib.write_json(state / "current_build.json", record)
+        run = state / "runs/t12_r0.synthetic"
+        run.mkdir(parents=True)
+        lib.write_json(run / "environment.json", env)
+        (run / "package-manifest.json").write_bytes((self.output / "manifest.json").read_bytes())
+        records = [synthetic_record(kib=1024, strategy=s, repeat=r) for s in STRATEGIES for r in range(REPEATS)]
+        for row in records:
+            row["elf_sha256"] = bundle.manifest["passed_workset_elf_sha256"]
+        text = "\n".join(line + "\x1b[49m\x1b[39m" for line in log(records).splitlines()) + "\n"
+        (run / "_test.log").write_text(text)
+        (run / "results.xml").write_text('<testsuite><testcase name="tcm_workset_test"/></testsuite>')
+        command = [sys.executable, "-B", str(self.output / "runtime.py"), "_test", "--build-dir", str(run),
+                   "--model-dir", str(build), "--tiles", "12", "--delay", "0"]
+        lib.write_json(run / "_test-command.json", command)
+        lib.write_json(run / "_test-status.json", dict(argv=command, exit_code=0, timed_out=False,
+                       elapsed_seconds=1.25, timeout_seconds=21600, log=str(run / "_test.log")))
+        return bundle, run, build
+
+    def test_external_adapter_accepts_existing_color_log_without_rerun_or_payload_changes(self):
+        bundle, run, build = self.adapter_pilot()
+        before = {p: p.read_bytes() for base in (self.output, run, build)
+                  for p in base.rglob("*") if p.is_file()}
+        with patch("sys.stdout", new=io.StringIO()) as output:
+            result = adapter.accept(bundle, run)
+        self.assertIn("[TCM_VCS_ACCEPT_PASS]", output.getvalue())
+        self.assertFalse(result["simulation_rerun"])
+        self.assertEqual(result["log_sha256"], lib.sha(run / "_test.log"))
+        self.assertIn("\x1b[49m", (run / "_test.log").read_text())
+        self.assertEqual(len(result["summaries"]), 2)
+        for path, data in before.items(): self.assertEqual(path.read_bytes(), data)
+        bundle.runtime.checked_run(run, bundle.manifest, result["build_identity"], result["model_files"])
+        # The unchanged large-run gate must accept this recovered same-model
+        # pilot, but the mocked phase must prevent any real simulator launch.
+        with patch.object(sys, "argv", ["runtime.py", "run", "--tiles", "384"]), patch("sys.stdout", new=io.StringIO()):
+            with self.assertRaisesRegex(AssertionError, "must not simulate"):
+                bundle.runtime.main()
+        with self.assertRaisesRegex(ValueError, "refusing overwrite"):
+            adapter.accept(bundle, run)
+
+    def test_external_adapter_refuses_wrong_process_status_or_command(self):
+        bundle, run, _ = self.adapter_pilot()
+        path = run / "_test-status.json"
+        original = json.loads(path.read_text())
+        for changes in (dict(exit_code=1), dict(exit_code=False), dict(timed_out=True), dict(elapsed_seconds=0),
+                        dict(argv=["wrong"]), dict(log="wrong"), dict(timeout_seconds=0)):
+            with self.subTest(changes=changes):
+                lib.write_json(path, dict(original, **changes))
+                with self.assertRaises(ValueError): adapter.accept(bundle, run)
+                self.assertFalse((run / "result.json").exists())
+
+    def test_external_adapter_refuses_failed_xml_or_bad_structured_data(self):
+        bundle, run, _ = self.adapter_pilot()
+        xml = run / "results.xml"
+        original = xml.read_bytes()
+        xml.write_text('<testsuite><testcase name="tcm_workset_test"><failure/></testcase></testsuite>')
+        with self.assertRaises(ValueError): adapter.accept(bundle, run)
+        xml.write_bytes(original)
+        path = run / "_test.log"
+        original = path.read_text()
+        for bad in (original.replace('"status": "PASS"', '"status": "FAIL"', 1),
+                    original.replace(bundle.manifest["passed_workset_elf_sha256"], "b" * 64),
+                    original.replace("}\x1b[49m", "} UNEXPECTED\x1b[49m", 1),
+                    "\n".join(original.splitlines()[1:]),
+                    original.replace("TESTS=1 PASS=1 FAIL=0", "TESTS=1 PASS=0 FAIL=1")):
+            path.write_text(bad)
+            with self.assertRaises(ValueError): adapter.accept(bundle, run)
+            self.assertFalse((run / "result.json").exists())
+
+    def test_external_adapter_refuses_changed_model_environment_or_package(self):
+        bundle, run, build = self.adapter_pilot()
+        for path, content in ((build / "simv", b"changed model"),
+                              (run / "package-manifest.json", b"{}"),
+                              (run / "environment.json", b'{"gcc":"wrong"}')):
+            original = path.read_bytes()
+            path.write_bytes(content)
+            with self.assertRaises(ValueError): adapter.accept(bundle, run)
+            self.assertFalse((run / "result.json").exists())
+            path.write_bytes(original)
+
+    def test_external_adapter_retains_build_identity_and_forces_future_plain_logs(self):
+        bundle, _, _ = self.adapter_pilot()
+        with patch.dict(os.environ, COCOTB_ANSI_OUTPUT="1", NO_COLOR=""):
+            env = bundle.runtime.child_env(self.output)
+        self.assertEqual((env["COCOTB_ANSI_OUTPUT"], env["NO_COLOR"]), ("0", "1"))
+        self.assertEqual(bundle.runtime.BUILD_ARGS, runtime.BUILD_ARGS)
+        self.assertEqual(adapter.sha(self.output / "runtime.py"), adapter.RUNTIME_SHA256)
+
+    def test_external_adapter_refuses_unrecognized_code_before_import(self):
+        self.export()
+        (self.output / "runtime.py").write_bytes(b"raise RuntimeError('must not execute')\n")
+        with self.assertRaisesRegex(ValueError, "unknown verifier/runtime"):
+            adapter.load_package(self.output)
+
     def test_large_run_blocked_until_same_model_pilot_and_tamper_rejected(self):
         self.export()
         state = self.base / "runtime"
@@ -283,6 +400,20 @@ class PackageTests(unittest.TestCase):
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_ansi_adapter_only_removes_presentation_sgr(self):
+        plain = '[GOOGLE_TCM_WORKSET] {"value": "unchanged"}\nTESTS=1 PASS=1 FAIL=0 SKIP=0\n'
+        colored = '\x1b[32m[GOOGLE_TCM_WORKSET] \x1b[1m{"value": "unchanged"}\x1b[49m\x1b[39m\n' + \
+                  '\x1b[32mTESTS=1 PASS=1 FAIL=0 SKIP=0\x1b[0m\n'
+        self.assertEqual(adapter.normalized_log(colored), plain)
+        self.assertEqual(adapter.normalized_log(plain), plain)
+        for bad in ('[GOOGLE_TCM_WORKSET] {"va\x1b[0mlue":1}\n',
+                    '[GOOGLE_TCM_WORKSET] {"value":1}\x1b[2K\n'):
+            with self.assertRaises(ValueError): adapter.normalized_log(bad)
+        extra = '[GOOGLE_TCM_WORKSET] {"value":1} GARBAGE\x1b[0m\n'
+        self.assertIn("GARBAGE", adapter.normalized_log(extra))
+        with self.assertRaises(json.JSONDecodeError):
+            json.loads(adapter.normalized_log(extra).split(adapter.MARKER, 1)[1])
+
     def test_cache_identity_ignores_banner_time_and_aslr_but_not_versions(self):
         manifest = dict(hdl_top="Top", files={"rtl/Top.sv": "a" * 64})
         one = dict(vcs_release="Q-2020.03-SP2-7", vcs_version="banner at 10:00", ldd={"a": "(0x1000)"})

@@ -1,6 +1,6 @@
 # 官方单NPU：Ubuntu导出，CentOS7独立VCS运行
 
-当前状态：**1/2/4MiB均已实际导出并通过原RTL/固件字节一致性检查；1MiB已在服务器通过VCS编译（60.523秒），首次T12运行在结果JSON解析处停止，尚无完整VCS RUN_PASS**。2/4MiB尚未回传服务器编译/运行结果。1MiB还已在Ubuntu通过同T12的Verilator完整测试（292.4秒）。实际路径、包SHA256与状态见[导出记录](EXPORT-results.md)。保持旧的Bazel/Verilator实验副本、manifest、程序和结果，不修改团队仓库。
+当前状态：**1/2/4MiB均已实际导出并通过原RTL/固件字节一致性检查；1MiB已在服务器通过VCS编译（60.523秒），T12的cocotb/XML为1/1 PASS，六条记录和完成标记已回传，但汇总器被JSON后的SGR颜色复位字符阻断**。已新增下述包外验收入口；实际重新验收结果待回传。2/4MiB尚未回传服务器编译/运行结果。1MiB还已在Ubuntu通过同T12的Verilator完整测试（292.4秒）。实际路径、包SHA256与状态见[导出记录](EXPORT-results.md)。保持旧的Bazel/Verilator实验副本、manifest、程序和结果，不修改团队仓库。
 
 ## 旧版包：补充VCS elaboration选项
 
@@ -38,7 +38,23 @@ cd /home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_
 )
 ```
 
-这是已通过编译的环境设置，不等于VCS测试已通过。目前T12结果显示`Extra data: line 1 column 1946 (char 1945)`，保留原始日志、XML和状态文件，待定位解析异常；不要编辑日志、放宽算术/流量判据或直接启动大工作集。新导出的2/4MiB包也不能因1MiB编译通过而跳过各自的小工作集验收。
+这是已通过编译的环境设置，不等于所有容量的VCS测试已通过。1MiB T12的JSON异常已定位为下述SGR显示颜色；不要编辑日志、放宽算术/流量判据或跳过重新验收。2/4MiB仍需各自的小工作集验收。
+
+## 不重跑仿真：验收已有彩色日志
+
+本次JSON结尾为`}\x1b[49m\x1b[39m`：数据对象已结束，但颜色复位字符使严格`json.loads`报告Extra data。`vcs_workset.py`是放在包外的独立入口，先核验原版校验库和svaext启动器固定SHA及完整包，再加载包内原始解析器。它只在内存中去除结构化JSON边界的SGR显示颜色；JSON内部控制字符、未知转义、任意额外文本、第二个JSON仍拒绝，原始日志、XML、状态、manifest、RTL和固件均不改。
+
+先激活相同Python/编译器隔离环境，取得本目录的vcs_workset.py（存放在包外），然后执行：
+
+```bash
+"$tcm_python" -B /已下载的脚本路径/vcs_workset.py \
+  --package /home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1 \
+  accept --run-dir /data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_runtime/runs/t12_r0.6xf7vakp
+```
+
+accept只接受该包runtime/runs内的T12/等待0运行，检查原始退出码0、无超时、原始命令与模型路径、运行环境/包快照、成功构建记录及模型哈希、XML恰好1个无失败/跳过测试，以及全部6条严格算术完成/流量/重复性记录、实际ELF/布局与向量身份。只有全部通过，才独占创建缺失的result.json，记录原始文件哈希、原始墙钟耗时、验收脚本哈希和显示规范化策略；已有result.json则拒绝覆盖。输出`[TCM_VCS_ACCEPT_PASS] simulation_rerun=false raw_files_unchanged=true`才代表这次补充验收成功，不伪造一次新的仿真。
+
+此后通过同一包外入口的`run --tiles 384 --delay 0`等命令启动后续测试（仍使用同样编译器隔离设置），而不是直接调用旧包runtime.py。入口复用原有模型和大工作集前置小用例判据，能读取已验收的原始彩色日志；编译选项、RTL、固件和测试语义不变。未来子进程强制`COCOTB_ANSI_OUTPUT=0`及`NO_COLOR=1`，防止同类显示问题再次阻断汇总。两变量意义见[cocotb2.0日志颜色文档](https://docs.cocotb.org/en/v2.0.0/library_reference.html#log-coloring)。新导出的2/4MiB包也可直接使用这个包外入口的check/build/run，无需再次生成RTL。
 
 ## Ubuntu先导出1MiB配置
 
@@ -70,7 +86,7 @@ bash verification/google_tcm_vcs/export.sh 1024
 
 ## 本地验证范围
 
-补充svaext后的回归：VCS包/升级入口32项检查通过（含真实cocotb2.0公共API和固定fixture导入检查），原TCM实验64项检查通过。这些是本地工具检查，不是实际VCS编译或RTL仿真通过。
+补充ANSI包外验收后的回归：VCS包/升级/验收入口39项检查通过（含真实cocotb2.0公共API和固定fixture导入检查），原TCM实验64项检查通过。这些是本地工具检查，不替代服务器实际验收。
 
 检查包括ZIP路径安全、参数/宏、完整原始字节、来源证据、篡改拒绝、路径适配器、VCS命令参数/原程序复用、XML拒绝失败、模型指纹和超时处理。真实VCS2020与glibc2.17环境无法在Windows工作区验证，必须由用户在实验室运行小用例确认。此时仍是VCS+cocotb，Python逐周期开销未消除，也不承诺速度优于Verilator。
 

@@ -33,10 +33,14 @@
 - 单次子终端把`/usr/bin:/bin`置于PATH前，保留Conda Python与DPI G++的绝对路径，并显式设置VCS CC/CXX为系统工具后，输出`[TCM_VCS_BUILD_PASS] compile_seconds=60.523`。
 - 成功构建目录：`/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_runtime/builds/754330b47408.u824wjiz`。60.523秒仅是构建时间，不是仿真耗时。
 - 后续T12/等待0运行目录：`/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_runtime/runs/t12_r0.6xf7vakp`。
-- 运行入口输出`[TCM_VCS_STOP] Extra data: line 1 column 1946 (char 1945)`。尚未取得`_test.log`、`_test-status.json`及`results.xml`的诊断输出，不预判额外字符来源，不修改原日志，不补写PASS记录。
-- **VCS编译已实测PASS；完整仿真验收仍未PASS，不报告VCS速度提升。**
+- 运行入口输出`[TCM_VCS_STOP] Extra data: line 1 column 1946 (char 1945)`，当时未创建最终result.json。
+- 后续用户回传XML：恰好一个`tcm_workset_test`，未出现failure/error/skipped；cocotb汇总`TESTS=1 PASS=1 FAIL=0 SKIP=0`，完整工作集完成标记出现，6条结构化记录均存在。
+- 6条记录全部在JSON结尾附带SGR颜色复位字符`\x1b[49m\x1b[39m`；stream三次`wait_for_halt_cycles=225222`，prefix三次为145029，与Ubuntu1MiB T12一致。明确是展示字符使JSON汇总器拒绝解析，不据此称RTL算术失败。
+- XML记录sim_time_ns=1411740.0、cocotb testcase time=1178.2477581501007秒（约19分38秒）；不是NPU硬件执行秒数，也不是最终wrapper墙钟值。与Ubuntu测试292.4秒的主机耗时不同，但两台主机、统计边界不同，不能据此给出仿真器本身的加速比；至少当前观测没有VCS更快的证据。
+- 用户尚未回传原始_test-status.json内容及全部结构化数据；不只凭上述截断诊断就补写最终PASS。新增包外vcs_workset.py，保留原包/模型/原日志，重新检查完整进程状态、命令、模型与环境身份、XML、6条记录及原始文件哈希，再创建缺失的验收结果。
+- **VCS编译已实测PASS，cocotb/XML已报告PASS；包外完整重新验收待实际执行，尚未收到TCM_VCS_ACCEPT_PASS。**
 
-下一步：网络恢复后先读取1MiB现有T12原始日志、XML和状态文件，定位JSON解析异常，不能仅重跑或忽略异常。各容量先取得小工作集完整PASS再跑大工作集。每个DTCM容量单独编译和验证，不能拿1MiB包冒充2/4MiB。
+下一步：在相同编译器隔离环境运行包外验收入口，严格重新验收1MiB现有T12，不重新仿真、不编辑原日志。取得TCM_VCS_ACCEPT_PASS后才通过该包外入口运行大工作集。各容量都先通过自己的小工作集，不能拿1MiB包冒充2/4MiB。
 
 本记录位于源码仓库，独立于已导出的不可变包；不要为更新状态而修改包内文件或其manifest。
 
