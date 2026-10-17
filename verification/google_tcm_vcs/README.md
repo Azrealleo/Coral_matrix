@@ -1,6 +1,6 @@
 # 官方单NPU：Ubuntu导出，CentOS7独立VCS运行
 
-当前状态：独立包工具已实现，**Ubuntu实际导出和服务器VCS编译/仿真尚未执行**。本地新入口26项静态/合成/依赖API检查通过（其中2项使用真实cocotb2.0和固定官方fixture），不把它们当实际RTL PASS。保持旧的Bazel/Verilator实验副本、manifest、程序和结果，不修改团队仓库。
+当前状态：**1MiB配置已在Ubuntu实际导出并通过原RTL/固件字节一致性检查；服务器VCS编译/仿真尚未执行**。实际路径、包SHA256与状态见[导出记录](EXPORT-results.md)。2MiB/4MiB尚未报告实际导出。本地新入口26项静态/合成/依赖API检查通过（其中2项使用真实cocotb2.0和固定官方fixture），不把它们当实际RTL PASS。保持旧的Bazel/Verilator实验副本、manifest、程序和结果，不修改团队仓库。
 
 ## Ubuntu先导出1MiB配置
 
