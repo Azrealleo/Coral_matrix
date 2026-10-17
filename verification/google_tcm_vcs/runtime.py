@@ -21,7 +21,7 @@ from package_lib import DEFINES, digest, sha, verify, write_json
 
 ROOT = Path(__file__).resolve().parent
 TILES = (2, 12, 120, 192, 384, 768)
-BUILD_ARGS = ["-timescale=1ns/1ps", "-O3", "+define+VCS"] + ["+define+" + n for n in DEFINES]
+BUILD_ARGS = ["-timescale=1ns/1ps", "-O3", "-assert", "svaext", "+define+VCS"] + ["+define+" + n for n in DEFINES]
 
 
 def compiler_configuration():

@@ -76,6 +76,8 @@ python -B runtime.py run --tiles 12 --delay 0
 
 build先用VCS头文件编译原始SRAM DPI库并检查ldd，再通过C ABI测试末地址128bit读写/byte mask，随后编译RTL。仿真通过`-sv_lib`加载同一库，库和simv/daidir均参与复用指纹检查。`[TCM_VCS_DPI_SELFTEST_PASS]`仅代表C++内存读写自检，不是RTL/NPU PASS。DPI源码、SV本体和内核均不为适配老系统而改写。
 
+VCS编译参数包含`-assert svaext`，用于支持原始RTL中的elaboration system tasks（例如参数合法性检查中的`$fatal`）。若旧包报告`Using elaboration system tasks requires option -assert svaext`，使用源码仓库google_tcm_vcs目录的`upgrade_svaext.py`生成保留父包的新版启动包，不手动修改SV、manifest或旧包内文件。
+
 必须收到`[TCM_VCS_RUN_PASS]`才算完整通过。程序同时要求XML恰好1个测试、无failure/error/skip，以及6条完整输出、终止marker、正确golden/流量和重复性。单条`status=PASS`或`[TCM_VCS_BUILD_PASS]`都不等于整组仿真PASS。
 
 本容量/同编译模型的T12/等待0完整通过后，才允许启动T>12。例如1MiB与2MiB包都分别先通过小用例，再分别运行：

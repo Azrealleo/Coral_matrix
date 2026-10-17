@@ -1,6 +1,21 @@
 # 官方单NPU：Ubuntu导出，CentOS7独立VCS运行
 
-当前状态：**1MiB配置已在Ubuntu实际导出并通过原RTL/固件字节一致性检查；服务器VCS编译/仿真尚未执行**。实际路径、包SHA256与状态见[导出记录](EXPORT-results.md)。2MiB/4MiB尚未报告实际导出。本地新入口26项静态/合成/依赖API检查通过（其中2项使用真实cocotb2.0和固定官方fixture），不把它们当实际RTL PASS。保持旧的Bazel/Verilator实验副本、manifest、程序和结果，不修改团队仓库。
+当前状态：**1MiB已实际导出并在服务器完成包/环境校验、SRAM DPI自检；首次VCS编译因缺少`-assert svaext`停止，完整VCS仿真尚未通过**。该选项现已补入编译入口；旧包通过下述保留原包的升级入口更新，修正后的实际VCS结果待回传。实际路径、包SHA256与状态见[导出记录](EXPORT-results.md)。2MiB/4MiB尚未报告实际导出。保持旧的Bazel/Verilator实验副本、manifest、程序和结果，不修改团队仓库。
+
+## 旧版包：补充VCS elaboration选项
+
+VCS Q-2020.03-SP2-7在原始RTL的elaboration `$fatal`处明确报告`Using elaboration system tasks requires option -assert svaext`。这是旧版启动器漏加编译选项，并非已经证明WIDTH参数非法；不删除检查、不加SYNTHESIS、不关闭断言或改RTL。
+
+新导出的包自动包含`-assert svaext`。已经传到服务器的旧包无需重新生成RTL、重新跑Bazel或复制整个仓库，只需取得本目录的`upgrade_svaext.py`，在服务器已激活的coral-vcs环境执行：
+
+```bash
+python -B /已下载的脚本路径/upgrade_svaext.py \
+  /home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024
+```
+
+升级器先校验原版校验库/启动器固定SHA、完整manifest及全部包文件，然后新建同级`coral_tcm_vcs_d1024_svaext_v1`（已存在则拒绝覆盖）。唯一既有负载改动是runtime.py编译参数增加两个token；SV、ZIP、头文件、DPI、固件、fixture和工作集脚本字节不变。新manifest记录父manifest哈希及升级原因，并保存父manifest证据。原包、原SHA文件和失败编译日志保留；不篡改旧包来伪造校验通过。
+
+进入新包目录运行`python -B runtime.py verify`及`python -B runtime.py build`。编译参数参与build identity，新包使用新的独立runtime目录，不复用旧失败模型。升级PASS不等于VCS编译/仿真PASS。
 
 ## Ubuntu先导出1MiB配置
 
@@ -31,6 +46,8 @@ bash verification/google_tcm_vcs/export.sh 1024
 1MiB流程跑通后，用相同导出脚本分别传2048、4096，形成三套固定、独立、可追溯的RTL/服务器simv。改变容量需换包；相同包下换T或外部读等待不重新生成硬件。
 
 ## 本地验证范围
+
+补充svaext后的回归：VCS包/升级入口32项检查通过（含真实cocotb2.0公共API和固定fixture导入检查），原TCM实验64项检查通过。这些是本地工具检查，不是实际VCS编译或RTL仿真通过。
 
 检查包括ZIP路径安全、参数/宏、完整原始字节、来源证据、篡改拒绝、路径适配器、VCS命令参数/原程序复用、XML拒绝失败、模型指纹和超时处理。真实VCS2020与glibc2.17环境无法在Windows工作区验证，必须由用户在实验室运行小用例确认。此时仍是VCS+cocotb，Python逐周期开销未消除，也不承诺速度优于Verilator。
 

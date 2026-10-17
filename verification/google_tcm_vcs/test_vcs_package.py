@@ -22,6 +22,7 @@ sys.path.insert(0, str(HERE.parent / "google_tcm_capacity"))
 import package_lib as lib
 import export as exporter
 import runtime
+import upgrade_svaext
 from test_control import as_log, synthetic_rows
 from test_workset import log, synthetic_record
 from workset_spec import REPEATS, STRATEGIES
@@ -168,6 +169,70 @@ class PackageTests(unittest.TestCase):
                              str(self.output / "firmware/workset_program.elf"))
             self.assertIsNone(module.Create().Rlocation("../not_the_firmware"))
 
+    def original_v1_package(self):
+        self.export()
+        # Reconstruct the exact LF-encoded v1 files, independent of Windows
+        # checkout EOL conversion. Upgrade accepts only their pinned byte hashes.
+        original_runtime = (HERE / "runtime.py").read_bytes().replace(b"\r\n", b"\n").replace(
+            upgrade_svaext.NEW_ARGS, upgrade_svaext.OLD_ARGS)
+        original_library = (HERE / "package_lib.py").read_bytes().replace(b"\r\n", b"\n")
+        self.assertEqual(lib.digest(original_runtime), upgrade_svaext.ORIGINAL_RUNTIME_SHA256)
+        self.assertEqual(lib.digest(original_library), upgrade_svaext.ORIGINAL_LIBRARY_SHA256)
+        (self.output / "runtime.py").write_bytes(original_runtime)
+        (self.output / "package_lib.py").write_bytes(original_library)
+        lib.seal(self.output, json.loads((self.output / "manifest.json").read_text()))
+        return lib.verify(self.output)
+
+    def test_svaext_upgrade_preserves_original_and_all_payload_bytes(self):
+        parent = self.original_v1_package()
+        before = {p.relative_to(self.output).as_posix(): p.read_bytes()
+                  for p in self.output.rglob("*") if p.is_file()}
+        with patch("sys.stdout", new=io.StringIO()):
+            destination = upgrade_svaext.upgrade(self.output)
+        updated = lib.verify(destination)
+        self.assertEqual(updated["passed_control_rtl_sha256"], parent["passed_control_rtl_sha256"])
+        self.assertEqual(updated["passed_workset_elf_sha256"], parent["passed_workset_elf_sha256"])
+        for name, data in before.items():
+            self.assertEqual((self.output / name).read_bytes(), data)
+            if name not in ("runtime.py", "manifest.json", "SHA256SUMS"):
+                self.assertEqual((destination / name).read_bytes(), data)
+        self.assertEqual((destination / "runtime.py").read_bytes(),
+                         before["runtime.py"].replace(upgrade_svaext.OLD_ARGS, upgrade_svaext.NEW_ARGS))
+        self.assertEqual(updated["vcs_launcher_upgrade"]["parent_manifest_sha256"], lib.digest(before["manifest.json"]))
+        self.assertEqual(updated["vcs_simulation"], "NOT_RUN")
+        result = subprocess.run([sys.executable, "-B", str(destination / "runtime.py"), "verify"],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_svaext_upgrade_refuses_overwrite(self):
+        self.original_v1_package()
+        destination = self.output.with_name(self.output.name + "_svaext_v1")
+        destination.mkdir()
+        with self.assertRaisesRegex(ValueError, "destination exists"):
+            upgrade_svaext.upgrade(self.output)
+        self.assertEqual(list(destination.iterdir()), [])
+
+    def test_svaext_upgrade_rejects_unknown_runtime_even_when_resealed(self):
+        manifest = self.original_v1_package()
+        with (self.output / "runtime.py").open("ab") as stream:
+            stream.write(b"# unreviewed change\n")
+        lib.seal(self.output, manifest)
+        with self.assertRaisesRegex(ValueError, "exact original v1 runtime"):
+            upgrade_svaext.upgrade(self.output)
+        self.assertFalse(self.output.with_name(self.output.name + "_svaext_v1").exists())
+
+    def test_svaext_upgrade_rejects_unknown_verifier_before_import(self):
+        self.original_v1_package()
+        (self.output / "package_lib.py").write_bytes(b"raise RuntimeError('must not execute')\n")
+        with self.assertRaisesRegex(ValueError, "unknown package_lib"):
+            upgrade_svaext.upgrade(self.output)
+
+    def test_svaext_upgrade_rejects_payload_tampering(self):
+        self.original_v1_package()
+        (self.output / "firmware/workset_program.elf").write_bytes(b"changed")
+        with self.assertRaisesRegex(ValueError, "immutable package files"):
+            upgrade_svaext.upgrade(self.output)
+
     def test_large_run_blocked_until_same_model_pilot_and_tamper_rejected(self):
         self.export()
         state = self.base / "runtime"
@@ -239,8 +304,16 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(kw["sources"], [root / "rtl/ExampleTop.sv"])
         self.assertEqual(set(a[8:] for a in kw["build_args"] if a.startswith("+define+")), set(lib.DEFINES) | {"VCS"})
         self.assertNotIn("SYNTHESIS", str(kw))
+        self.assertEqual(kw["build_args"][2:4], ["-assert", "svaext"])
         self.assertFalse(kw["waves"])
         self.assertFalse(kw["clean"])
+
+    def test_svaext_option_changes_model_identity(self):
+        manifest = dict(hdl_top="Top", files={"rtl/Top.sv": "a" * 64})
+        updated = runtime.build_identity(Path("/pkg"), manifest, {})
+        previous_args = [a for a in runtime.BUILD_ARGS if a not in ("-assert", "svaext")]
+        with patch.object(runtime, "BUILD_ARGS", previous_args):
+            self.assertNotEqual(updated, runtime.build_identity(Path("/pkg"), manifest, {}))
 
     def test_test_phase_reuses_original_bench_seed_frontdoor(self):
         fake = Mock()
