@@ -8,8 +8,8 @@
 - 保留团队CSR排序和cvfpu sticky位宽两个生成补丁，以Git对象读取并验证原始补丁SHA；不复制旧`870993f7`产物来冒充新基线。
 - 保持RVV/VME/FP/BF16、VLEN128、外部取指true、FetchL0=false、verification=false和读一周期/128bit/byte mask。没有选择高容量verification目标改变ROB配置。
 - **阶段1六档容量检查和阶段2a六档小工作集控制组均已收到Ubuntu实际RTL仿真PASS摘要，六份控制组完整日志也已在Ubuntu比较通过**，见[容量记录](STAGE1-results.md)与[计算控制组记录](CONTROL-results.md)。小控制组各档周期相同，尚无大工作集扩容收益结论。
-- [阶段2b固定调度权重驻留实验](WORKSET.md)已收到32/128KiB、T12、等待0的Ubuntu实际RTL PASS，两份完整日志已在Ubuntu通过跨容量比较器复核；同一prefix策略扩容后少29.32%周期，权重读取从120KiB降至48KiB，两档stream周期相同，见[工作集结果及MiB级测试计划](WORKSET-results.md)。这不是整模型或2/4MiB收益结论。
-- 2026-10-17新增[独立VCS包入口](../google_tcm_vcs/README.md)：Ubuntu只生成固定1/2/4MiB RTL与同一ELF，服务器不需要Bazel，使用原始SRAM DPI源码、原有cocotb程序和校验。1MiB已实际导出并核对RTL/固件字节，详见[导出记录](../google_tcm_vcs/EXPORT-results.md)；2/4MiB实际导出及VCS2020编译/运行待验证。不修改本目录已安装的基线或旧结果。
+- [阶段2b固定调度权重驻留实验](WORKSET.md)已收到32/128KiB及1MiB、T12、等待0的Ubuntu实际RTL PASS。32/128KiB两份完整日志已在Ubuntu通过跨容量比较器复核；同一prefix策略扩容后少29.32%周期，权重读取从120KiB降至48KiB。后补1MiB测试耗时292.4秒、内部CSR周期/流量与128KiB完全一致，等待halt窗口多3周期，原因未定位；没有额外容量收益证据。见[工作集结果及MiB级测试计划](WORKSET-results.md)。这不是整模型或2/4MiB收益结论。
+- 2026-10-17新增[独立VCS包入口](../google_tcm_vcs/README.md)：1/2/4MiB均已实际导出并核对RTL/固件字节，服务器不需要Bazel。1MiB使用系统GCC与独立Conda DPI编译器后VCS编译通过；T12结果在JSON解析处停止，尚未完整验收。2/4MiB服务器编译/运行待验证。详见[导出记录](../google_tcm_vcs/EXPORT-results.md)；不修改本目录已安装的基线或旧结果。
 
 本地验证：10项几何/独立向量/参数/BUILD语法/假fixture正反控制/日志解析及SSH入口、进度输出静态测试通过；另在临时稀疏Git副本用真实`8e4df09b`和团队真实补丁核验完整prepare、六package/22文件校验、拒绝覆盖和篡改检测；Git Bash `bash -n`通过。这些都不是实际SV编译或RAM仿真PASS，也不证明Ubuntu的SSH网络和账号权限已通过。
 

@@ -1,6 +1,6 @@
 # 官方单NPU：Ubuntu导出，CentOS7独立VCS运行
 
-当前状态：**1MiB已实际导出并在服务器完成包/环境校验、SRAM DPI自检；首次VCS编译因缺少`-assert svaext`停止，完整VCS仿真尚未通过**。该选项现已补入编译入口；旧包通过下述保留原包的升级入口更新，修正后的实际VCS结果待回传。实际路径、包SHA256与状态见[导出记录](EXPORT-results.md)。2MiB/4MiB尚未报告实际导出。保持旧的Bazel/Verilator实验副本、manifest、程序和结果，不修改团队仓库。
+当前状态：**1/2/4MiB均已实际导出并通过原RTL/固件字节一致性检查；1MiB已在服务器通过VCS编译（60.523秒），首次T12运行在结果JSON解析处停止，尚无完整VCS RUN_PASS**。2/4MiB尚未回传服务器编译/运行结果。1MiB还已在Ubuntu通过同T12的Verilator完整测试（292.4秒）。实际路径、包SHA256与状态见[导出记录](EXPORT-results.md)。保持旧的Bazel/Verilator实验副本、manifest、程序和结果，不修改团队仓库。
 
 ## 旧版包：补充VCS elaboration选项
 
@@ -16,6 +16,29 @@ python -B /已下载的脚本路径/upgrade_svaext.py \
 升级器先校验原版校验库/启动器固定SHA、完整manifest及全部包文件，然后新建同级`coral_tcm_vcs_d1024_svaext_v1`（已存在则拒绝覆盖）。唯一既有负载改动是runtime.py编译参数增加两个token；SV、ZIP、头文件、DPI、固件、fixture和工作集脚本字节不变。新manifest记录父manifest哈希及升级原因，并保存父manifest证据。原包、原SHA文件和失败编译日志保留；不篡改旧包来伪造校验通过。
 
 进入新包目录运行`python -B runtime.py verify`及`python -B runtime.py build`。编译参数参与build identity，新包使用新的独立runtime目录，不复用旧失败模型。升级PASS不等于VCS编译/仿真PASS。
+
+## 实验室已验证的编译器隔离方式
+
+服务器系统GCC4.8.5、Conda默认GCC/G++15.3.0。补入svaext后，VCS内部`filelist.hsopt`使用`CC_CG`构建rmapats.c；仅传`-cc /bin/gcc`仍出现隐式函数声明错误。将系统目录放在PATH前、同时保留Conda Python与DPI编译器绝对路径后，1MiB实际编译通过。构建和运行都使用相同隔离设置，避免环境指纹改变；设置限于子终端，不修改系统配置或全局LD_LIBRARY_PATH：
+
+```bash
+(
+set -eo pipefail
+source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-vcs
+tcm_python="$CONDA_PREFIX/bin/python"
+tcm_dpi_cxx=$(command -v g++)
+export TCM_DPI_CXX="$tcm_dpi_cxx"
+export PATH="/usr/bin:/bin:$PATH"
+export CC=/bin/gcc CXX=/bin/g++
+export TCM_VCS_CC=/bin/gcc TCM_VCS_CXX=/bin/g++
+cd /home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1
+"$tcm_python" -B runtime.py check
+"$tcm_python" -B runtime.py build
+)
+```
+
+这是已通过编译的环境设置，不等于VCS测试已通过。目前T12结果显示`Extra data: line 1 column 1946 (char 1945)`，保留原始日志、XML和状态文件，待定位解析异常；不要编辑日志、放宽算术/流量判据或直接启动大工作集。新导出的2/4MiB包也不能因1MiB编译通过而跳过各自的小工作集验收。
 
 ## Ubuntu先导出1MiB配置
 
