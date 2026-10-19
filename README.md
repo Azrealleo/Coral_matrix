@@ -50,9 +50,13 @@ The [standalone server Verilator flow](verification/google_tcm_verilator/README.
 has passed the corrected 1 MiB T12 test with exact VCS-reference agreement. It
 reused the existing model and ran in 429.077 seconds versus the previous normal
 VCS run's 1178.5 seconds on the same server (about 2.75x for this configuration).
-The earlier trace-launch failure is retained separately. Server Verilator T384
-is next; no larger-workload speedup is assumed. Compilation or local tool tests
-alone are still not RTL simulation passes.
+The earlier trace-launch failure is retained separately. Server Verilator 1 MiB
+T384 has now also passed with exact VCS-reference agreement in 13979.842 seconds
+(about 3h53m). The earlier server VCS run took 37619.46 seconds, while the VM's
+Verilator Bazel test took 6736.5 seconds. These are observed workflow timings,
+not isolated CPU/engine benchmarks. Next: qualify each new capacity's own model
+and T12 before the 2/4 MiB T768 pair. Compilation or local tool tests alone are
+still not RTL simulation passes.
 The separate [ITCM sweep tools](verification/google_itcm_capacity/README.md) are
 prepared but paused, with no reported RTL pass. The current DTCM runs keep ITCM
 at 8 KiB. Real-model, physical SRAM timing, 200 MHz and gate-level validation

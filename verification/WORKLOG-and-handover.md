@@ -8,7 +8,7 @@
 
 **当前主线已经变化：团队已选官方版本，不再继续两套矩阵单元选型。当前任务是单个官方NPU的DTCM容量/驻留性能实验，ITCM暂固定8KiB。** 用户告知团队已把单NPU集成到SoC并跑通测试，后续计划4核；本记录没有替团队重跑这些SoC测试。接手先读[当前项目交接指南](HANDOFF-current.md)及本文第1、20～26节。第4～19节保留早期工作及其原始证据，旧版“下一步比较fork”“尚未集成SoC”等阶段性表述不能覆盖这里的最新状态。
 
-截至最新回传：Ubuntu1/2MiB T384配对PASS，同prefix策略少17.07%周期；服务器VCS1MiB/T384、2MiB/T12均PASS。服务器独立Verilator修复后1MiB/T12现已完整PASS并精确匹配VCS，429.077秒，复用了原模型。首次trace启动失败保留；下一步为同模型T384并比对既有VCS大测试，尚无本后端大测试结果。
+截至最新回传：Ubuntu1/2MiB T384配对PASS，同prefix策略少17.07%周期；服务器VCS1MiB/T384、2MiB/T12均PASS。服务器独立Verilator1MiB T12/T384现均完整PASS并精确匹配VCS，429.077/13979.842秒，复用了原模型。首次trace失败保留；当前准备2/4MiB T768，先各自Verilator T12，服务器VCS2MiB/T384最终状态仍待回传。
 
 ### 目录
 
@@ -54,7 +54,7 @@
 已经明确或暂定的事项：
 
 - Windows 修改代码，通过 Git 同步到 Linux，Linux 运行验证。
-- Ubuntu虚拟机用于Bazel/Chisel生成及当前单官方核Verilator/cocotb实验；实验室CentOS7已通过Conda建立独立VCS/Verilator环境，后者修复后1MiB/T12已正式验收，T384仍待运行。
+- Ubuntu用于Bazel/Chisel及单官方核Verilator/cocotb；CentOS7的独立Verilator1MiB T12/T384均已正式验收，读取同一不可变包并保留原VCS状态，其他容量的本后端验证仍待进行。
 - 本轮性能比较以 signed INT8 输入、INT32 累加/输出为主。真实 uint8 需求暂缓，不能据此说 uint8 问题已经解决。
 - 目标频率暂定 200 MHz，后续用 DC/实际工艺库评估；目前没有频率达标证据。
 - 用户报告团队已集成并跑通单NPU SoC，后续4核暂不在本人当前任务内。DC/网表/库模型/SDF/门仿没有新增完成证据，继续列为待团队交接。
@@ -83,7 +83,7 @@
 | T384跨1/2MiB | Ubuntu两档PASS，比较器PASS | 同prefix策略1MiB→2MiB少17.07%周期；固定调度合成负载，不是模型最优结果 |
 | 服务器VCS大测试 | 1MiB/T384完整PASS | 2MiB/T384仅收到启动信息，当前状态需查日志，不声称仍在跑或已通过 |
 | 1/2/4MiB独立包 | 三档均已在Ubuntu导出并核对RTL/ELF字节 | 1/2MiB已转服务器；4MiB未收到传输/构建/运行证据 |
-| 服务器独立Verilator | 1MiB/T12完整PASS、与VCS精确匹配；429.077秒 | 复用434.214秒编译的模型，首次trace失败另存；本后端T384仍待实测 |
+| 服务器独立Verilator | 1MiB/T12和T384均完整PASS、VCS参考EXACT；429.077/13979.842秒 | 复用原模型，首次失败另存；2/4MiB后端验证与T768仍待进行 |
 | ITCM扩容 | 8～128KiB前门几何工具已实现、本地14项检查PASS，当前暂停 | 没有本轮RTL执行PASS；1MiB需求需实际模型ELF/段布局决定 |
 | DC、STA、LEC、门仿、完整 AI 模型 | 尚未完成 | 不得把 RTL 打包成功或功能仿真 PASS 当作这些工作的结果 |
 
@@ -93,7 +93,7 @@
 2. 保留Ubuntu实验source、Bazel缓存、三档不可变包及所有成功/失败日志；不要重新clone上游最新版本替换。
 3. 按指南检查服务器2MiB/T384历史任务是否完成，收集结果；不要停掉其他人的simv。
 4. 保存已通过的Server Verilator T12目录`t12_r0.fmvgge7f`、修复入口和VCS精确参考；不重复跑旧失败或重编已通过模型。
-5. 使用同一`c0b4b76`入口/环境复用该1MiB模型跑T384，并精确比对既有VCS大测试；单独报告主机墙钟和NPU周期。
+5. 保存已通过的1MiB Verilator T384及VCS精确参考，不重复该档；按指南先建立2MiB独立Verilator模型/T12，再准备2/4MiB T768，分别报告NPU周期与主机墙钟。
 6. 后续准备T768的2/4MiB配对、外部延迟敏感性和实际模型/备选调度；ITCM待用户重新决定，DC/门仿待团队提供实际材料。
 
 <a id="section-2"></a>
@@ -1446,6 +1446,7 @@ fork既有uint8、K、输出停顿失败保留，未授权修复，也不再是�
 | 10-19 | 安装`coral-verilator`，`92937fe`：包外独立入口 | glibc2.17上环境基本检查PASS，1MiB模型434.214秒编译PASS |
 | 10-19 | 首次服务器Verilator T12退出255；`c0b4b76`修复WAVES/GUI | 1.777秒、未超时；本地25项PASS，失败日志保留 |
 | 10-19后续回传 | 修复后Server Verilator1MiB/T12完整PASS | 原模型只读复用，VCS参考EXACT，429.077秒；同服务器当前T12流程比VCS观察快约2.75倍 |
+| 后续回传 | Server Verilator1MiB/T384完整PASS | 复用原模型，VCS参考EXACT，13979.842秒；同服务器比VCS流程观察快2.69倍，VM流程仍更快 |
 
 没有因为夜间任务后台运行就减少验证次数；无checkpoint，断电后必须重跑完整六次，而不是把残缺日志拼接成完整证据。
 
@@ -1588,7 +1589,7 @@ ELF装载段为ITCM从0起1664字节、DTCM从`0x01000000`起16384字节；运�
 | 尚无完成证据的项目 | 状态 |
 | --- | --- |
 | EDA152 VCS 2MiB/T384 | 已启动，最终结果未回传；不是断言当前还在运行 |
-| EDA152 独立Verilator T384、2/4MiB | 尚无实际PASS；各包须先自己的T12 |
+| EDA152 独立Verilator2/4MiB、T768 | 尚无实际PASS；各包须先自己的T12；1MiB T384已完成 |
 | T768的2/4MiB容量配对 | 尚未进行，不能从T384推导4MiB收益 |
 | 附加读延迟8周期配对 | 尚无完整PASS，只有0等待结果 |
 | 真实AI模型、四NPU竞争、物理SRAM/PPA | 当前实验未验证 |
@@ -1663,7 +1664,23 @@ VCS构建时系统PATH优先，但先保存Conda Python和SRAM DPI G++绝对路�
 
 模型`e6ab26657e58.xbhdmzuj`、包与构建记录没有因修复而更改；434.214秒编译另计，不计入429.077秒运行墙钟。本结果确实完成严格外层验收，不是从编译或本地单元测试推断。
 
-同服务器当前T12配置中，对比正常VCS wrapper1178.5秒，观察速度比2.74659、墙钟少63.5913%。不是同一时刻/主机负载控制试验，不宣称纯仿真内核或所有模型比值；T384/T768仍须实测。现在可按[交接指南](HANDOFF-current.md#server-verilator-t384)复用该模型跑T384，并与既有VCS1MiB大日志精确比对；其他容量仍需自己的模型和T12。
+同服务器当前T12配置中，对比正常VCS wrapper1178.5秒，观察速度比2.74659、墙钟少63.5913%。不是同一时刻/主机负载控制试验，不宣称纯仿真内核或所有模型比值；后来T384也已通过，见下一节，T768/其他容量仍需自己的模型和T12。
+
+### 23.6 后续回传：Server Verilator1MiB/T384完整PASS
+
+控制台`/home2/lqq/coral_vcs_tools/verilator_t384.ydMKyr.log`；新运行完整路径：
+
+```text
+/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/runs/t384_r0._66rc55e
+```
+
+`_66rc55e`中的下划线是实际后缀字符。已回传BUILD_REUSED/RUNTIME_FIX、两条完整SUMMARY、REFERENCE_MATCH=EXACT和RUN_PASS=13979.842秒。1MiB原模型/构建记录未改，编译不计入本次墙钟；同ELF、T384向量、ITCM8KiB、附加读等待0。
+
+两策略各3次、每次294912个输出，合计1769472元素检查。stream等待6885516、CSR总6885263、权重阶段3852288周期、权重外读4718592字节；prefix等待5208090、CSR总5207833、权重阶段2177114、驻留251块、权重外读2662400。输入/计算/输出阶段、轮次和全部AXI事务/拍/有效字节与VCS参考完全一致。
+
+当前Server Verilator约3h53m；同服务器VCS37619.46秒约10h27m，观察快2.69098倍，墙钟少62.8388%。VM同容量Bazel test6736.5秒约1h52m，比服务器Verilator流程观察快2.07524倍；机器、当时负载及少量计时边界不同，不当纯CPU/引擎基准。本次/T12墙钟比32.5812接近32倍tile数，但不保证其他容量或T768同比增长。
+
+这次是已知1MiB工作集的后端交叉验证，不是新的扩容收益。当前不再重跑1MiB，转向2/4MiB T768前置；先用已有2MiB包/VCS T12日志建立该容量Verilator模型并验收。4MiB服务器传输/运行未确认，不能复用1MiB前置。可执行入口见[当前指南](HANDOFF-current.md#server-verilator-2m-pilot)。
 
 <a id="section-24"></a>
 
@@ -1681,6 +1698,7 @@ VCS构建时系统PATH优先，但先保存Conda Python和SRAM DPI G++绝对路�
 | Ubuntu Verilator 2MiB/T384 | Bazel test8789.0秒 | 约2h26m；command elapsed8940.854秒含新模型动作 |
 | EDA152 VCS 2MiB/T12 | wrapper1187.676秒 | 编译54.893秒另计 |
 | EDA152独立Verilator1MiB/T12 | wrapper429.077秒；复用原模型 | VCS精确参考匹配；编译434.214秒另计，首次失败另存 |
+| EDA152独立Verilator1MiB/T384 | wrapper13979.842秒，约3h53m | 同原模型，VCS参考EXACT；不是NPU计算时间 |
 
 VCS/VM的T384观察墙钟比约5.58，但CPU、系统、编译器和计时边界不同，不能当纯仿真引擎加速比。VCS从T12到T384的仿真逻辑时间增长约32.31倍，正常wrapper增长约31.92倍（37619.46/1178.5），在已测范围近似线性；不能保证T768线性，也没有“大测试会自动反超”的证据。
 
@@ -1724,7 +1742,7 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 
 ### 26.1 当前第一件事
 
-按[HANDOFF-current.md](HANDOFF-current.md)先做只读任务检查并保存已通过的T12目录`t12_r0.fmvgge7f`及修复入口，继而复用同一1MiB模型跑T384、精确比对原VCS大日志。T12已收到完整REFERENCE_MATCH/RUN_PASS，不再列待办；T384尚未回传。下载、单元测试、BUILD_REUSED或编译本身仍不等于RTL通过。
+按[HANDOFF-current.md](HANDOFF-current.md)先保存已通过的1MiB T12目录`t12_r0.fmvgge7f`、T384目录`t384_r0._66rc55e`与修复入口，不重复该档。当前准备服务器2MiB独立模型/T12，再进入2/4MiB T768；同时只读核对旧VCS2MiB/T384最终状态。下载/编译/单元测试仍不等于RTL通过，其他容量不能复用1MiB的前置结果。
 
 同时从服务器2MiB/T384的固定旧队列目录取最终日志/退出码；不要再启动重复任务来覆盖它，也不要因为时间过去就写ALL_PASS。服务器路线成功后，才安排同机速度对照和大工作集。Ubuntu1/2MiB T384不需要为了换模拟器重新跑一遍。
 
@@ -1733,7 +1751,7 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 1. 归档现有1/2MiB完整工作集日志、参数、ELF、向量、退出码/命令和包身份；完整原始报告不全在Git里。
 2. 保存已通过的Server Verilator1MiB T12精确参考验收材料、入口与429.077秒记录，不重跑旧失败；新大测试失败仍看`_test.log`和`_test-status.json`，不删旧包/日志、不手改manifest/hash。
 3. 确认VCS2MiB T384历史结果；同一服务器、同一包做可比墙钟时，记录并发用户、profiling/波形、模型编译器及计时边界。
-4. 当前1MiB已T12合格，可复用模型跑Server Verilator T384并精确参考比对；其他容量仍先自己的T12。保留两策略各3次、全部输出和AXI检查。
+4. 当前1MiB T384也已完成，先建立2MiB自己的Verilator模型及T12；再安排2/4MiB T768，保留两策略各3次、全部输出和AXI检查。
 5. T768的2MiB/4MiB配对：先传4MiB不可变包并自己的T12；这才是区分2/4MiB驻留收益的后续工作集。当前只有静态预期，未测结果。
 6. 附加读等待8周期、真实SoC外存条件、备选循环调度和真实模型：需分别控制变量，不把代理0等待当真实零延迟SRAM/DDR。
 7. ITCM实验等用户重新排期；完整模型先编ELF/map，不能拿现有1664字节微基准证明模型ITCM需求。
@@ -1761,4 +1779,4 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 
 更新当前总记录、独立接手指南及专题入口/结果说明，共14份Markdown；检查本地链接和锚点、代码围栏，并对48个Bash代码块执行仅语法检查（不执行命令）。历史RTL导出/文档刷新工具11项本地合成回归通过，测试临时包不是新的NPU仿真或交付包。
 
-原始10月4日RTL归档仍为`0a7d737dc1c18d49781b9cdb246a4fe0bf11ffeb1db509ca8263bca255f271ed`；最新固定Verilator脚本仍为`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。在上一轮文档提交`572894e`时，修复后T12确实未回传；本次根据用户新提供的EXACT/RUN_PASS及完整摘要新增23.5节，不回写旧失败。VCS2MiB/T384、Server Verilator T384仍不能补写为通过。
+原始10月4日RTL归档仍为`0a7d737dc1c18d49781b9cdb246a4fe0bf11ffeb1db509ca8263bca255f271ed`；固定Verilator脚本仍为`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。`572894e`时修复后T12未回传、`f84fa31`时Server T384未回传；现在按用户新EXACT/RUN_PASS记录补入23.5/23.6，不回写旧失败。VCS2MiB/T384最终结果和Verilator2/4MiB、T768仍不能补写为通过。

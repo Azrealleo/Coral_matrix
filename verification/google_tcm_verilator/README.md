@@ -2,7 +2,18 @@
 
 状态：2026-10-19已收到服务器1MiB/T12完整RTL PASS及与VCS参考的精确比对PASS，实际运行429.077秒；复用了434.214秒编译通过的原模型。首次trace启动失败保留，修复后的新运行另存，不覆盖失败证据。环境为Python3.11.17、Verilator5.052、Conda GCC15.3、glibc2.17。
 
-固定`c0b4b76`脚本及本次PASS已满足相同包/模型/环境的大测试前置条件；下一步可以复用该1MiB模型跑T384，尚未收到Server Verilator T384结果。续跑命令见[当前项目交接指南](../HANDOFF-current.md#server-verilator-t384)，不重新导出或编译。只更新外层说明，不修改已导出包或运行证据。
+后续1MiB/T384亦已完整PASS、精确匹配VCS，13979.842秒，继续复用原模型。这个后端交叉验证已完成，不再重复跑1MiB；当前转向2/4MiB的T768准备，先为每个新容量完成自己的T12。服务器2MiB包已落盘，可按[当前交接指南](../HANDOFF-current.md#server-verilator-2m-pilot)建立独立模型及pilot；4MiB传输/运行尚未确认。只更新外层说明，不修改已导出包或原证据。
+
+## 后续回传：1MiB/T384实际PASS，VCS参考EXACT
+
+- 控制台：`/home2/lqq/coral_vcs_tools/verilator_t384.ydMKyr.log`。
+- 结果：`/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/runs/t384_r0._66rc55e`。目录随机后缀中的下划线是实际字符，不要删改。
+- 原`e6ab26657e58.xbhdmzuj`模型及构建记录未改；无新增RTL/固件/编译动作。
+- 两策略各3次，每次294912个输出、75497472个有用MAC，合计1769472输出检查；ITCM8KiB/DTCM1MiB、T384、附加读等待0。
+- stream等待6885516周期、CSR总6885263、权重外读4718592字节；prefix等待5208090、CSR总5207833、驻留251块、权重外读2662400字节。输入/计算/输出阶段、轮次、AXI全部拍数/事务/字节、ELF和向量均与原VCS参考一致。
+- 用户回传REFERENCE_MATCH=EXACT及RUN_PASS=13979.842秒，约3h53m。这是完整大工作集交叉验证，不是只测首轮或拼接残缺记录。
+- 同服务器VCS原wrapper37619.46秒，当前Verilator流程观察快2.69098倍、墙钟少62.8388%；VM同容量Bazel test6736.5秒，VM流程观察比服务器Verilator快2.07524倍。统计边界/机器/当时负载不同，不作为纯CPU或引擎理论速度比。
+- 本次墙钟为T12的32.5812倍，与32倍tile规模接近，但不能保证T768或不同容量同比例。NPU周期完全相同，变化的是主机仿真开销，不是硬件计算加速。
 
 ## 2026-10-19：修复后的T12实际PASS
 
@@ -17,7 +28,7 @@
 
 本地验证：修正前19项检查通过，但当时的真实Runner测试未使用生产子进程环境，漏掉了`WAVES="0"`问题。补充生产环境到真实cocotb2.0接口的启动命令检查、旧模型只读复用和拒绝环境/命令/模型篡改等回归后，本入口25项通过。原DTCM工具64项和原VCS工具40项此前回归通过。这些检查不替代服务器上的RTL测试。
 
-最新已回传的DTCM工作集状态：Ubuntu1/2MiB的T384均完整PASS并配对比较；服务器1MiB/T384完整PASS（流程37619.46秒），2MiB/T12完整PASS（1187.676秒）；服务器2MiB/T384仅收到启动信息，尚无完成回传。ITCM新工具已暂缓，不把其几何检查当作模型性能验证。
+最新DTCM状态：Ubuntu1/2MiB T384均完整PASS并配对；服务器VCS1MiB/T384 PASS（37619.46秒）、VCS2MiB/T12 PASS（1187.676秒），VCS2MiB/T384只收到启动。服务器Verilator1MiB T12/T384均精确匹配VCS，其他容量仍需自己的pilot。ITCM暂停，不把其几何工具自测当RTL/模型性能验证。
 
 只把`verilator_workset.py`放到包外即可，无需克隆整个仓库、重新导出RTL或在服务器装Bazel/Java/RISC-V编译器。读取原`google_tcm_vcs`导出的不可变1/2/4MiB包；核验固定校验库SHA和完整manifest后才导入原始测试。原VCS的包、simv、运行目录和日志不动，ITCM保持8KiB，暂停新的ITCM实验。
 

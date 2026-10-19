@@ -1,6 +1,6 @@
 # 固定RTL包实际导出记录
 
-更新至2026-10-19。各小节按发生时保留状态；文末为后续结果。当前三档导出，服务器1/2MiB传输与VCS编译，1MiB T12/T384及2MiB T12均PASS。2MiB T384仅收到启动，4MiB服务器未回传。独立Verilator1MiB/T12修复后已完整PASS、精确匹配VCS，429.077秒；本后端T384待跑。接手见[项目交接指南](../HANDOFF-current.md)，不修改旧包manifest。
+各小节按发生时保留状态，文末为最新结果。当前三档导出，服务器1/2MiB传输与VCS编译，VCS1MiB T12/T384及2MiB T12均PASS。VCS2MiB T384仅收到启动，4MiB服务器未回传。独立Verilator1MiB T12/T384均完整PASS、VCS参考EXACT，429.077/13979.842秒；下一步准备2/4MiB T768，各自先T12。接手见[当前指南](../HANDOFF-current.md)，不改旧包manifest。
 
 ## 2026-10-17：DTCM 1MiB
 
@@ -125,4 +125,14 @@ wrapper37619.46秒，cocotb37605.01秒，逻辑仿真时间45608321.25ns；10月
 
 用户回传两条SUMMARY及REFERENCE_MATCH=EXACT、RUN_PASS=429.077秒。stream225222周期、prefix145029周期，CSR/轮次/AXI/ELF/向量与VCS1MiB正常T12参考全部相同；每策略3次，合计55296输出。此为真实RTL+严格参考验收，不是环境检查或单元测试。
 
-相比同服务器VCS正常T12 wrapper1178.5秒，当前流程观察快2.74659倍、墙钟减少63.5913%，编译另计。主机当时负载未完全受控，不外推纯引擎、其他容量或T384。当前可用同一模型跑T384并参考既有VCS1MiB大日志；[续跑命令](../HANDOFF-current.md#server-verilator-t384)，不改任何不可变包。
+相比同服务器VCS正常T12 wrapper1178.5秒，当前流程观察快2.74659倍、墙钟少63.5913%，编译另计；不外推其他工作集。后来1MiB T384也实际通过，见下节；[原命令](../HANDOFF-current.md#server-verilator-t384)保留为复现，不再重复跑1MiB。
+
+### 后续1MiB Verilator T384正式PASS，VCS参考EXACT
+
+控制台`/home2/lqq/coral_vcs_tools/verilator_t384.ydMKyr.log`；结果在包同级`coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/runs/t384_r0._66rc55e`。原模型只读复用，2策略×3次、每次294912输出，总1769472元素检查；全部周期/CSR/轮次/AXI/ELF/向量与VCS大日志一致，用户回传REFERENCE_MATCH=EXACT、RUN_PASS=13979.842秒。
+
+stream等待6885516、CSR总6885263、外部权重4718592字节；prefix等待5208090、CSR总5207833、驻留251块、权重2662400字节。不是新扩容结果，只确认该1MiB大工作集后端一致。
+
+墙钟约3h53m，相对同服务器VCS37619.46秒观察快2.69098倍、少62.8388%；VM同档Bazel test6736.5秒，当前VM流程仍比服务器Verilator观察快2.07524倍。主机/编译器/统计边界及负载不完全受控，不当纯引擎或芯片速度结论。
+
+当前回到2/4MiB T768准备：已落地2MiB包先独立Verilator编译/T12，用原VCS2MiB小用例作精确参考；4MiB仍需确认传输/模型及T12。[下一步命令](../HANDOFF-current.md#server-verilator-2m-pilot)。VCS2MiB/T384最终状态未收到，不猜测、不停止他人任务。

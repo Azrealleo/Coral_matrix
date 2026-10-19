@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-2026-10-19更新：Ubuntu1/2MiB T384完整配对PASS，同prefix策略周期减少17.07%、权重外读减少40.92%。服务器VCS1MiB/T384、2MiB/T12亦PASS，2MiB/T384最终状态待回传。服务器独立Verilator修复后1MiB/T12已正式PASS且精确匹配VCS，429.077秒；下一步复用该模型T384。ITCM仍8KiB，T768和延迟8没有完整结果。早期失败/超时段保留，最新数字见[结果记录](WORKSET-results.md)，续接命令见[交接指南](../HANDOFF-current.md)。
+最新回传：Ubuntu1/2MiB T384完整配对PASS，同prefix策略少17.07%周期/40.92%权重外读；VCS1MiB/T384及2MiB/T12亦PASS。服务器独立Verilator1MiB/T12、T384均正式PASS、精确匹配VCS，耗时429.077/13979.842秒。VCS2MiB/T384最终状态仍待回传，下一步准备2/4MiB T768及各自的Verilator T12。ITCM仍8KiB，延迟8和真实模型没有完整结果。早期失败保留，最新数字见[结果记录](WORKSET-results.md)，续接见[交接指南](../HANDOFF-current.md)。
 
 阶段1容量检查与阶段2a计算控制组六档均收到Ubuntu实际RTL PASS，六份完整控制日志也已由用户在Ubuntu比较通过，结果日志为`/home/lqq/coral_tcm_capacity_8e4_v1/control_compare.L0Pxte.log`。
 
