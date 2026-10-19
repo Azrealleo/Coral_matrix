@@ -9,6 +9,15 @@ the Yangg152 comparison is historical, not the current workstream.
 
 ## Work record and handoff
 
+Current task (2026-10-19): one NPU with **512 KiB DTCM**, a complete pretrained
+**two-class MobileNetV1 person-detection** model, and ITCM assessed from firmware
+up to 512 KiB. See the [active model and firmware-resource step](verification/google_person_detect/README.md).
+The original model has a desktop LiteRT metadata-compatibility failure; the
+pinned native TFLM host test and firmware link/audit are the next VM commands,
+not completed passes. The [1001-output model and host golden](verification/google_mobilenet_v1/README.md)
+are preserved for later. No NPU model-inference or accuracy pass is claimed.
+The capacity sweeps below remain historical, not the default next run.
+
 Start with the Chinese [current handoff guide](verification/HANDOFF-current.md),
 updated through 2026-10-19. It identifies the exact resumption point, environments,
 immutable packages, accepted results, pending runs, and safe commands.

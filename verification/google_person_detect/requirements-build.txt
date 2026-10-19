@@ -1,0 +1,2 @@
+# Firmware audit only, install in the activated coral-matrix environment if absent.
+pyelftools==0.32

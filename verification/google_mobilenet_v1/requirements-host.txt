@@ -1,0 +1,5 @@
+# Host golden only. Use a separate environment, not a simulator Conda environment.
+ai-edge-litert==2.1.4
+numpy==1.26.3
+flatbuffers==25.12.19
+tflite==2.18.0

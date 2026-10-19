@@ -6,9 +6,9 @@
 
 初版整理时比较仓库基线为 `e3046dc`；本次核对到的工具提交为 `c0b4b76098a88d5bace3c3fbdcef318c10e924f7`。两者都是工具仓库版本，不代替硬件源码提交、生成RTL或归档哈希。
 
-**当前主线已经变化：团队已选官方版本，不再继续两套矩阵单元选型。当前任务是单个官方NPU的DTCM容量/驻留性能实验，ITCM暂固定8KiB。** 用户告知团队已把单NPU集成到SoC并跑通测试，后续计划4核；本记录没有替团队重跑这些SoC测试。接手先读[当前项目交接指南](HANDOFF-current.md)及本文第1、20～26节。第4～19节保留早期工作及其原始证据，旧版“下一步比较fork”“尚未集成SoC”等阶段性表述不能覆盖这里的最新状态。
+**当前主线再次变化：团队已选官方版本；因面积预算，本轮单NPU暂定DTCM512KiB，先运行完整预训练二分类MobileNetV1（有人／无人），ITCM按实测评估且不超过512KiB。** 1001类模型/golden及旧ITCM8KiB、2/4MiB T768计划保留历史，不自动继续。用户告知团队已把NPU集成SoC，本文不替团队重跑其测试。接手先读[当前项目交接指南](HANDOFF-current.md)最新覆盖说明及本文第28节；第27节是本日稍早1001类盘点，第1、20～26节是上一阶段证据，第4～19节保留早期工作。
 
-截至最新回传：Ubuntu1/2MiB T384配对PASS，同prefix策略少17.07%周期；服务器VCS1MiB/T384、2MiB/T12均PASS。服务器独立Verilator1MiB T12/T384现均完整PASS并精确匹配VCS，429.077/13979.842秒，复用了原模型。首次trace失败保留；当前准备2/4MiB T768，先各自Verilator T12，服务器VCS2MiB/T384最终状态仍待回传。
+上一阶段最新回传：Ubuntu1/2MiB T384配对PASS，同prefix策略少17.07%周期；服务器VCS1MiB/T384、2MiB/T12均PASS。服务器独立Verilator1MiB T12/T384现均完整PASS并精确匹配VCS，429.077/13979.842秒，复用了原模型。首次trace失败保留；2/4MiB T768尚未完成，服务器VCS2MiB/T384最终状态仍待回传。
 
 ### 目录
 
@@ -1780,3 +1780,27 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 更新当前总记录、独立接手指南及专题入口/结果说明，共14份Markdown；检查本地链接和锚点、代码围栏，并对48个Bash代码块执行仅语法检查（不执行命令）。历史RTL导出/文档刷新工具11项本地合成回归通过，测试临时包不是新的NPU仿真或交付包。
 
 原始10月4日RTL归档仍为`0a7d737dc1c18d49781b9cdb246a4fe0bf11ffeb1db509ca8263bca255f271ed`；固定Verilator脚本仍为`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。`572894e`时修复后T12未回传、`f84fa31`时Server T384未回传；现在按用户新EXACT/RUN_PASS记录补入23.5/23.6，不回写旧失败。VCS2MiB/T384最终结果和Verilator2/4MiB、T768仍不能补写为通过。
+
+## 27. 面积约束后转向完整MobileNetV1（2026-10-19）
+
+用户要求单NPU、DTCM暂定512KiB、ITCM评估但上限512KiB；完整MobileNetV1输出1001分类，后端选择更快者。本阶段优先Verilator：旧T384服务器同配置VCS/Verilator约2.69098倍，不外推整模型耗时。旧容量扫描及不可变包保持，本轮尚未开始完整模型RTL。
+
+只读下载团队SoC主分支`fa4b83e43bb0b1d58b18eb5f4c31d98ee4054123`到`.upstream-git/cheshire-coral-soc.git`审查。团队`sw/models/cnn-series/npu.cc`和三轮优化后的`sw/models/h4-resnet8/npu.cc`确有conv/depthwise/dense调用VME，具备im2col、pack复用和bias/tile初始化优化；量化/残差/GAP主要标量。四个固定未训练小诊断图的报告已阅读，但没有本机新SoC仿真。之前“未发现矩阵优化算子集成”的结论只限官方原始`sw/opt`，不能用于团队派生软件。
+
+未收到团队指定模型文件，先采用官方MobileNetV1 1.0/224量化版候选；原模型不改。归档SHA`d32432d28673a936b2d6281ab0600c71cf7226dfe4cdcef3012555f691744166`，FlatBuffer SHA`ecc3a67c47c5a609ec35f6a58a7d97532834e43df4cb7d3f1204a8164b7d20dd`。静态确认输入UINT8 `[1,224,224,3]`、输出UINT8 `[1,1001]`，15普通卷积+13深度卷积+池化/reshape/softmax各1。模型4276352字节、常量4257900字节，最大特征802816字节。权重零点非统一128，不能直接套用团队signed权重/简化右移量化。单算子输入输出不别名合计最大1204224字节不是实际arena或通用下界。
+
+新增[静态盘点工具与后续路线](google_mobilenet_v1/README.md)，模型/inventory缓存仅在忽略目录。12项本地检查通过，含实际模型及拒绝错误/动态/变量输入、报告不可覆盖。用户随后确认实际SoC外存尚未确定，单NPU阶段先用外部AXI行为存储；512KiB ITCM是上限而非已确定需求，待交叉编译ELF/map统计。完整主机参考、量化内核、固件、RTL包和整网性能全部未完成，不把静态盘点或本地测试标成推理PASS。
+
+随后在项目忽略目录的独立主机环境安装固定`ai-edge-litert==2.1.4`，未更改系统Python/远程环境。`reference.py`用原模型、BUILTIN_REF、无外部delegate、单线程，neutral128/ramp/checker三组合成输入各invoke两次；31算子输出逐位稳定，1001维最终输出及各层golden落盘。六次invoke与保存约3.725秒，不是NPU性能，也不代表训练准确率。运行目录`.upstream-git/model-cache/mobilenet_v1_2018_08_02/reference_builtin_ref_v1`；模型、输入、逐层数据身份和输出SHA见专题README/manifest。此更新将主机参考标记完成，其他固件/量化/ITCM/RTL项目仍未完成。
+
+## 28. 首个完整RTL模型改为预训练二分类MobileNetV1
+
+用户担心大模型仿真成本，同意先用完整预训练Person Detection（有人／无人）。仍单NPU、DTCM512KiB、ITCM<=512KiB、优先Verilator，允许外部AXI行为存储；不修改上一阶段结果。
+
+选择Coral固定依赖的TFLM `b75c6ff4e2270047f2b48fa01f833c8101c31f43`原模型`person_detect.tflite`，SHA `808cfdfc0cf3a6fa6f6fa26bfa379ea97c16d5db7334637766e39c3408502e9d`、300568字节。静态确认INT8 `[1,96,96,1]`→`[1,2]`，31算子（14Conv、14Depthwise、pool/reshape/softmax各1），最大特征36864字节。首层depthwise倍率8、其他倍率1，不能直接套用团队小诊断图的通道一一对应实现。官方两个BMP亦固定SHA，按照原生成器直接使用解码字节作为INT8输入，不再次减128。
+
+桌面LiteRT2.1.4加载失败：14个一维bias的quantized_dimension=3，入口校验拒绝，尚未invoke；主分支模型Git blob同原文件。未改模型/权重/量化轴，不伪造参考。新入口改为在VM运行配套固定TFLM的官方原生C++测试，并检查两张图分数/完成标记；当前未执行，不提前记PASS。
+
+新增[二分类专题](google_person_detect/README.md)、固定资产获取/本地尝试路径、固件源、现有source增量安装器、ELF预算/原模型字节审计、安静的VM构建入口。固件先使用原始TFLM INT8五类注册，不是VME加速版。模型原字节拟放DTCM `.data.pd_model`，arena预留160KiB、输入9KiB、栈16KiB；ITCM先按512KiB链接上限测真实加载大小，再建议有余量的容量，不生成RTL或直接宣称需要512KiB。模型/输入/arena/栈均由真实ELF再次检查，未链接前不保证满足预算。主机预载输入非BSS，避免启动清零擦除。
+
+本机15项静态/合成测试通过：固定资产/生成数组相同、样本字节、输出判据负向、ELF资源预算/模型hash/CRT擦除/错误架构与路径拒绝，以及安装器拒绝覆盖已有目录/改动。另有19项1001类工具回归通过。未在Windows编译NPU固件、未实际执行原生TFLM C++或NPU RTL。下一步用户在Ubuntu运行`verification/google_person_detect/build_firmware.sh`，只做原生主机测试和固件资源测量；得到报告后再准备选定ITCM/DTCM512KiB的Verilator模型，不直接启动未经评估的长标量仿真。
