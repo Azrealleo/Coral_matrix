@@ -26,6 +26,9 @@ import xml.etree.ElementTree as ET
 
 sys.dont_write_bytecode = True
 LIBRARY_SHA256 = "d5673e81b49c75a7630aa54f365f1dd9d5a606aa771b5b6021daa5e335fa864d"
+# Only this exact previous adapter may supply a reusable model after the
+# runtime-only WAVES/GUI correction. Its actual build identity is retained.
+PREVIOUS_ADAPTER_SHA256 = "f502f30e17d75e408418e89e408aa115c156d5ef4907f8c0e6701c41c7ca3d0d"
 VERSIONS = {"cocotb": "2.0.0", "numpy": "1.26.4", "pyelftools": "0.32", "find-libpython": "0.5.1"}
 TILES = (2, 12, 120, 192, 384, 768)
 WARNINGS = ("WIDTH", "CASEINCOMPLETE", "LATCH", "SIDEEFFECT", "MULTIDRIVEN", "SPLITVAR",
@@ -179,9 +182,9 @@ def state_directory(root):
     return state
 
 
-def build_identity(bundle, env):
+def build_identity(bundle, env, *, adapter_sha256=None):
     stable = {key: value for key, value in env.items() if key != "ldd"}
-    return digest(dict(adapter_sha256=sha(__file__), manifest_sha256=sha(bundle.root / "manifest.json"),
+    return digest(dict(adapter_sha256=adapter_sha256 or sha(__file__), manifest_sha256=sha(bundle.root / "manifest.json"),
                        package=str(bundle.root), environment=stable, warnings=WARNINGS,
                        visibility=VISIBILITY, optimization="OPT_FAST=-O3", cxx_standard="c++17",
                        clock="original_python_clock_trust_inertial_0"))
@@ -190,14 +193,17 @@ def build_identity(bundle, env):
 def child_environment(bundle, env):
     child = dict(os.environ)
     for name in ("COCOTB_TESTCASE", "COCOTB_TEST_FILTER", "COCOTB_TEST_MODULES", "GPI_EXTRA",
-                 "COCOTB_RESULTS_FILE", "PYTHONHOME", "MAKEFLAGS", "MFLAGS", "COCOTB_ENABLE_PROFILING"):
+                 "COCOTB_RESULTS_FILE", "PYTHONHOME", "MAKEFLAGS", "MFLAGS", "COCOTB_ENABLE_PROFILING",
+                 "WAVES", "GUI"):
         child.pop(name, None)
     child.update(PYTHONPATH=os.pathsep.join(str(bundle.root / p) for p in ("support", "python")),
                  PYTHONDONTWRITEBYTECODE="1", TCM_VERILATOR_CHILD="1",
                  # Historical name is required by the unchanged packaged runfiles adapter.
                  TCM_VCS_PACKAGE=str(bundle.root), COCOTB_USE_FRONTDOOR="1", TEST_XLEN="32",
                  CLOCK_NS="1.25", COCOTB_TRUST_INERTIAL_WRITES="0", COCOTB_ANSI_OUTPUT="0",
-                 NO_COLOR="1", WAVES="0", GUI="0", LIBPYTHON_LOC=env["libpython"],
+                 # Runner2.0 treats even WAVES="0" / GUI="0" as True.
+                 # Remove both variables and pass waves=False, gui=False.
+                 NO_COLOR="1", LIBPYTHON_LOC=env["libpython"],
                  CC=env["tools"]["cc"], CXX=env["tools"]["cxx"])
     directories = [env["libs"], str(Path(env["libpython"]).parent)]
     if os.environ.get("LD_LIBRARY_PATH"):
@@ -206,11 +212,12 @@ def child_environment(bundle, env):
     return child
 
 
-def build_commands(bundle, env, directory, jobs):
+def build_commands(bundle, env, directory, jobs, *, write_visibility=True):
     root, top, tools = bundle.root, bundle.manifest["hdl_top"], env["tools"]
     # Same top-port-only visibility as the original Bazel model; no all-net access.
     visibility = directory / "visibility.vlt"
-    visibility.write_text(VISIBILITY.format(top=top), encoding="utf-8")
+    if write_visibility:
+        visibility.write_text(VISIBILITY.format(top=top), encoding="utf-8")
     ldflags = f"-Wl,-rpath,{env['libs']} -L{env['libs']} -lcocotbvpi_verilator -rdynamic"
     args = [tools["perl"], tools["verilator"], "-cc", "--exe", "-Mdir", str(directory),
             "--top-module", top, "--vpi", "--prefix", "Vtop", "-o", top,
@@ -232,13 +239,34 @@ def model_hashes(bundle, directory):
     return {name: sha(directory / name) for name in names}
 
 
-def checked_build(bundle, state, identity):
+def checked_build(bundle, state, identity, env=None):
     record = json.loads((state / "current_build.json").read_text())
     directory = Path(record["directory"]).resolve(strict=True)
-    if directory.parent != (state / "builds").resolve() or record["identity"] != identity:
-        raise ValueError("model/environment changed: build a new Verilator model")
+    if directory.parent != (state / "builds").resolve():
+        raise ValueError("model is outside this package's private build directory")
     if record["model_files"] != model_hashes(bundle, directory):
         raise ValueError("compiled Verilator model changed; old evidence preserved")
+    if record["identity"] != identity:
+        # A runtime-only fix must not silently relabel an old executable as a new
+        # build. Accept the known old producer only when its FULL original
+        # identity matches this package/environment, and its saved compiler
+        # commands, visibility and successful build status still match exactly.
+        if env is None or record["identity"] != build_identity(
+                bundle, env, adapter_sha256=PREVIOUS_ADAPTER_SHA256):
+            raise ValueError("model/environment changed: build a new Verilator model")
+        commands = json.loads((directory / "compile-commands.json").read_text())
+        try:
+            jobs = int(commands[1][commands[1].index("-j") + 1])
+        except (IndexError, TypeError, ValueError, AttributeError) as error:
+            raise ValueError("invalid previous compile commands; model not reused") from error
+        if (jobs not in range(1, 9) or
+                commands != build_commands(bundle, env, directory, jobs, write_visibility=False) or
+                (directory / "visibility.vlt").read_text() != VISIBILITY.format(top=bundle.manifest["hdl_top"])):
+            raise ValueError("previous compile recipe differs; model not reused")
+        timing = json.loads((directory / "_build-status.json").read_text())
+        if (record != json.loads((directory / "build-record.json").read_text()) or
+                timing != record["timing"] or timing["exit_code"] != 0 or timing["timed_out"] is not False):
+            raise ValueError("previous build has no matching successful evidence")
     return record, directory
 
 
@@ -397,7 +425,7 @@ def main():
     with state_lock(state):
         if a.command == "build":
             try:
-                _, build = checked_build(bundle, state, identity)
+                _, build = checked_build(bundle, state, identity, env)
                 print("[TCM_VERILATOR_BUILD_REUSED] " + str(build))
                 return
             except (OSError, ValueError, KeyError):
@@ -417,7 +445,10 @@ def main():
             os.replace(temporary, pointer)
             print("[TCM_VERILATOR_BUILD_PASS] compile_seconds=" + str(round(timing["elapsed_seconds"], 3)))
             return
-        record, build = checked_build(bundle, state, identity)
+        record, build = checked_build(bundle, state, identity, env)
+        if record["identity"] != identity:
+            print("[TCM_VERILATOR_BUILD_REUSED] " + str(build), flush=True)
+            print("[TCM_VERILATOR_RUNTIME_FIX] waves_gui=unset model_and_build_records_unchanged=true", flush=True)
         if (a.tiles, a.delay) != (12, 0):
             check_pilot(bundle, env, state, record)
         elif a.reference_log is None:
@@ -440,7 +471,7 @@ def main():
         if model_hashes(bundle, build) != record["model_files"]:
             raise ValueError("model changed during simulation")
         result = dict(schema=1, status="PASS", simulator="verilator", tiles=a.tiles, delay=a.delay,
-                      dtcm_kib=bundle.manifest["dtcm_kib"], build_identity=identity, model_files=record["model_files"],
+                      dtcm_kib=bundle.manifest["dtcm_kib"], build_identity=record["identity"], model_files=record["model_files"],
                       manifest_sha256=sha(bundle.root / "manifest.json"), adapter_sha256=sha(__file__),
                       log_sha256=sha(run / "_test.log"), xml_sha256=sha(run / "results.xml"),
                       summaries=rows, reference=reference, timing=timing)

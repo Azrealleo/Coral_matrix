@@ -1,8 +1,8 @@
 # 服务器独立Verilator：原封不动读取已校验的TCM RTL包
 
-状态：服务器`coral-verilator`基础环境已回传PASS（Python3.11.17、Verilator5.052、Conda GCC15.3、glibc2.17）；本入口尚无真实RTL编译/仿真PASS，不能据此承诺速度。
+状态：服务器`coral-verilator`基础环境已回传PASS（Python3.11.17、Verilator5.052、Conda GCC15.3、glibc2.17）；1MiB模型已真实编译通过，用时434.214秒。首次T12在仿真启动前因错误的`--trace`参数退出255，尚无实际RTL仿真PASS，不能据此承诺速度。
 
-本地验证：新入口19项检查通过（含真实cocotb2.0公共test接口、保留Python时钟、真实原包只读验证、完整结果/精确参考比对、失败/超时保留及大测试门控）；原DTCM工具64项和原VCS工具40项回归通过。它们不替代服务器上的模型编译和RTL测试。
+本地验证：修正前19项检查通过，但当时的真实Runner测试未使用生产子进程环境，漏掉了`WAVES="0"`问题。补充生产环境到真实cocotb2.0接口的启动命令检查、旧模型只读复用和拒绝环境/命令/模型篡改等回归后，本入口25项通过。原DTCM工具64项和原VCS工具40项此前回归通过。这些检查不替代服务器上的RTL测试。
 
 最新已回传的DTCM工作集状态：Ubuntu1/2MiB的T384均完整PASS并配对比较；服务器1MiB/T384完整PASS（流程37619.46秒），2MiB/T12完整PASS（1187.676秒）；服务器2MiB/T384仅收到启动信息，尚无完成回传。ITCM新工具已暂缓，不把其几何检查当作模型性能验证。
 
@@ -20,6 +20,14 @@
 ## 隔离与验收
 
 每包使用独立同级`<包名>_verilator_runtime/{builds,runs}`。编译/运行失败、超时保留原始日志、命令和退出码，不自动清理、不覆盖旧模型。构建指纹包括入口、包、工具版本/哈希、Python/VPI库、编译环境和可见性策略；原指针只在新模型完整构建后更新。相同包的并发启动会被独立锁拒绝，不停止其他用户进程。
+
+### 2026-10-19：关闭错误启用的波形，不重编已有模型
+
+首次服务器T12目录`..._verilator_runtime/runs/t12_r0.zl1315rn`的进程1.777秒退出255、未超时，错误为`--trace requires the design to be built with trace support`。原因在包外入口：子进程设置`WAVES="0"`和`GUI="0"`，但[cocotb2.0的Runner源码](https://docs.cocotb.org/en/v2.0.0/_modules/cocotb_tools/runner.html)用`bool(os.getenv(...))`判断，两个非空字符串均为真，覆盖显式`waves=False, gui=False`并追加`--trace`。这不是RTL算术失败，也不是慢速仿真或编译失败。
+
+修复只从子进程环境移除WAVES/GUI，继续显式传False；不增加编译跟踪、不改RTL/DPI/固件/测试内容。除了当前入口自身的模型，额外仅允许复用原入口SHA256为`f502f30e17d75e408418e89e408aa115c156d5ef4907f8c0e6701c41c7ca3d0d`生成的模型，条件为：完整旧构建身份与当前包/环境匹配、模型文件哈希一致、保存的全部编译命令和顶层可见性与当前配方一致、保存的构建记录与退出0且未超时的状态一致。任何条件不符，`run`停止，不自动重编或更改校验值。
+
+已有模型目录`.../builds/e6ab26657e58.xbhdmzuj`、原构建记录和指针保持不变；新的T12使用新运行目录。成功结果保留实际旧`build_identity`，另记当前运行入口`adapter_sha256`，不把旧可执行文件冒充新编译。看到BUILD_REUSED只表示复用校验通过，最终仍须REFERENCE_MATCH和RUN_PASS。
 
 先用`verify`校验包，`check`核对环境/全部工作集向量/真实ELF布局，再`build`，然后`run --tiles 12 --delay 0 --reference-log <同容量已完整通过的日志>`。
 

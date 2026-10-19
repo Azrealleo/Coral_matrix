@@ -1,5 +1,6 @@
 """Local tests: do not claim to compile or simulate the NPU on Windows."""
 import copy
+from contextlib import nullcontext, redirect_stdout
 import importlib.util
 import io
 import json
@@ -151,7 +152,8 @@ class AdapterTests(unittest.TestCase):
 
     def test_child_environment_does_not_switch_clock_or_modify_parent(self):
         parent = dict(COCOTB_TESTCASE="other", GPI_EXTRA="bad", MAKEFLAGS="-j144",
-                      COCOTB_TRUST_INERTIAL_WRITES="1", COCOTB_ENABLE_PROFILING="1")
+                      COCOTB_TRUST_INERTIAL_WRITES="1", COCOTB_ENABLE_PROFILING="1",
+                      WAVES="0", GUI="1")
         with patch.dict(os.environ, parent):
             env = adapter.child_environment(self.bundle, self.env)
             self.assertEqual(os.environ["COCOTB_TRUST_INERTIAL_WRITES"], "1")
@@ -159,7 +161,7 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(env["CLOCK_NS"], "1.25")
         self.assertEqual(env["TCM_VCS_PACKAGE"], str(self.root))
         self.assertEqual(env["CXX"], "/conda/bin/cxx")
-        for name in ("COCOTB_TESTCASE", "GPI_EXTRA", "MAKEFLAGS", "COCOTB_ENABLE_PROFILING"):
+        for name in ("COCOTB_TESTCASE", "GPI_EXTRA", "MAKEFLAGS", "COCOTB_ENABLE_PROFILING", "WAVES", "GUI"):
             self.assertNotIn(name, env)
 
     def test_identity_changes_for_compiler_and_not_ldd_addresses(self):
@@ -201,6 +203,96 @@ class AdapterTests(unittest.TestCase):
         (build / self.bundle.manifest["hdl_top"]).write_text("changed")
         with self.assertRaises(ValueError):
             adapter.checked_build(self.bundle, state, "identity")
+
+    def create_previous_build(self):
+        """Synthetic model, exact previous identity and actual compiler recipe."""
+        state = adapter.state_directory(self.root)
+        build = state / "builds/previous"
+        build.mkdir(parents=True)
+        (build / self.bundle.manifest["hdl_top"]).write_text("synthetic model, NOT real HDL")
+        commands = adapter.build_commands(self.bundle, self.env, build, 2)
+        adapter.write_json(build / "compile-commands.json", commands)
+        timing = dict(exit_code=0, timed_out=False, elapsed_seconds=434.214)
+        adapter.write_json(build / "_build-status.json", timing)
+        record = dict(identity=adapter.build_identity(self.bundle, self.env,
+                      adapter_sha256=adapter.PREVIOUS_ADAPTER_SHA256), directory=str(build),
+                      model_files=adapter.model_hashes(self.bundle, build), timing=timing)
+        adapter.write_json(build / "build-record.json", record)
+        adapter.write_json(state / "current_build.json", record)
+        return state, build, record
+
+    def test_runtime_fix_reuses_exact_previous_model_without_writing_builds(self):
+        state, build, original = self.create_previous_build()
+        before = {str(p): adapter.sha(p) for p in state.rglob("*") if p.is_file()}
+        identity = adapter.build_identity(self.bundle, self.env)
+        self.assertNotEqual(identity, original["identity"])
+        record, directory = adapter.checked_build(self.bundle, state, identity, self.env)
+        self.assertEqual(directory, build)
+        self.assertEqual(record, original)  # Do not pretend the old model was recompiled.
+        self.assertEqual(before, {str(p): adapter.sha(p) for p in state.rglob("*") if p.is_file()})
+
+    def test_runtime_fix_does_not_reuse_other_environment_or_unknown_producer(self):
+        state, _, record = self.create_previous_build()
+        changed = copy.deepcopy(self.env)
+        changed["cxx_version"] = "different"
+        with self.assertRaises(ValueError):
+            adapter.checked_build(self.bundle, state, adapter.build_identity(self.bundle, changed), changed)
+        record["identity"] = adapter.build_identity(self.bundle, self.env, adapter_sha256="0" * 64)
+        (state / "current_build.json").write_text(json.dumps(record))
+        with self.assertRaises(ValueError):
+            adapter.checked_build(self.bundle, state, adapter.build_identity(self.bundle, self.env), self.env)
+
+    def test_runtime_fix_rejects_changed_binary_or_relabelled_compile_recipe(self):
+        state, build, record = self.create_previous_build()
+        (build / self.bundle.manifest["hdl_top"]).write_text("changed binary")
+        with self.assertRaises(ValueError):
+            adapter.checked_build(self.bundle, state, adapter.build_identity(self.bundle, self.env), self.env)
+        # Even updating a local model hash cannot authorize different compile args.
+        commands = json.loads((build / "compile-commands.json").read_text())
+        commands[0].append("--trace")
+        (build / "compile-commands.json").write_text(json.dumps(commands))
+        record["model_files"] = adapter.model_hashes(self.bundle, build)
+        for path in (state / "current_build.json", build / "build-record.json"):
+            path.write_text(json.dumps(record))
+        with self.assertRaisesRegex(ValueError, "compile recipe differs"):
+            adapter.checked_build(self.bundle, state, adapter.build_identity(self.bundle, self.env), self.env)
+
+    def test_runtime_fix_rejects_failed_or_unmatched_build_evidence(self):
+        state, build, record = self.create_previous_build()
+        timing = dict(record["timing"], exit_code=1)
+        (build / "_build-status.json").write_text(json.dumps(timing))
+        with self.assertRaises(ValueError):
+            adapter.checked_build(self.bundle, state, adapter.build_identity(self.bundle, self.env), self.env)
+
+    def test_runtime_fix_retains_actual_build_identity_for_large_test_gate(self):
+        state, build, record = self.create_previous_build()
+        self.bundle.library = types.SimpleNamespace(verify=Mock())
+        reference = self.root.parent / "reference.log"
+        reference.write_text(log(records()))
+        before = {str(p): adapter.sha(p) for p in build.rglob("*") if p.is_file()}
+
+        def synthetic_execute(bundle, env, command, directory, timeout, extra):
+            self.assertEqual(command, "_test")  # Must not request compilation.
+            (directory / "_test.log").write_text(log(records()))
+            (directory / "results.xml").write_text('<testsuite><testcase name="tcm_workset_test"/></testsuite>')
+            timing = dict(exit_code=0, timed_out=False, elapsed_seconds=1.0)
+            adapter.write_json(directory / "_test-status.json", timing)
+            return timing
+
+        argv = ["adapter", "--package", str(self.root), "run", "--reference-log", str(reference)]
+        with patch.object(sys, "argv", argv), \
+                patch.object(adapter, "load_package", return_value=self.bundle), \
+                patch.object(adapter, "environment", return_value=self.env), \
+                patch.object(adapter, "state_lock", return_value=nullcontext()), \
+                patch.object(adapter, "execute", side_effect=synthetic_execute), redirect_stdout(io.StringIO()):
+            adapter.main()
+        pilot = next((state / "runs").iterdir())
+        result = json.loads((pilot / "result.json").read_text())
+        self.assertEqual(result["build_identity"], record["identity"])
+        self.assertEqual(result["adapter_sha256"], adapter.sha(adapter.__file__))
+        adapter.check_pilot(self.bundle, self.env, state, record)
+        self.assertEqual(before, {str(p): adapter.sha(p) for p in build.rglob("*") if p.is_file()})
+        self.assertEqual(json.loads((state / "current_build.json").read_text()), record)
 
     def test_large_gate_requires_complete_reference_matched_pilot(self):
         state, _, record, pilot = self.create_build_and_pilot()
@@ -289,6 +381,29 @@ class RealDependencyTests(unittest.TestCase):
             self.assertEqual(runner.env["COCOTB_TRUST_INERTIAL_WRITES"], "0")
             self.assertEqual(Path(path), Path(temp) / "results.xml")
             self.assertEqual(runner._test_command(), [[str(Path(temp) / "Example")]])
+
+    def test_actual_phase_child_environment_never_requests_trace(self):
+        # Exercise production child_environment AND phase, not merely waves=False
+        # in isolation: a nonempty WAVES/GUI string overrides that argument.
+        from cocotb_tools.runner import Verilator
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            bundle, env = fake_bundle(directory), fake_env()
+            args = types.SimpleNamespace(command="_test", model_dir=directory,
+                                         directory=directory, tiles=12, delay=0)
+            for setting in ("0", "1"):
+                with self.subTest(inherited_waves_gui=setting), \
+                        patch.dict(os.environ, WAVES=setting, GUI=setting):
+                    child = adapter.child_environment(bundle, env)
+                    with patch.dict(os.environ, child, clear=True), \
+                            patch.object(adapter, "environment", return_value=env), \
+                            patch.object(Verilator, "_execute") as execute:
+                        adapter.phase(args, bundle)
+                    command = execute.call_args.args[0]
+                    self.assertEqual(command, [[str(directory / bundle.manifest["hdl_top"])]])
+                    self.assertNotIn("WAVES", child)
+                    self.assertNotIn("GUI", child)
+                    self.assertEqual(child["COCOTB_TRUST_INERTIAL_WRITES"], "0")
 
 
 if __name__ == "__main__":
