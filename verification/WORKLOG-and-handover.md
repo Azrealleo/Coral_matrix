@@ -1,10 +1,14 @@
 # CoralNPU 选型、验证、性能比较与 RTL 交接全程工作记录
 
-记录日期：2026-10-04。对象：接替 NPU 工作的同学、SoC 集成人员、综合及验证人员。
+初版日期：2026-10-04；本次更新：2026-10-19。对象：接替 NPU 工作的同学、SoC 集成人员、综合及验证人员。
 
 本记录汇总从两套工程下载、跨平台同步、网络与工具环境搭建，到矩阵功能测试、整核性能比较、团队候选仓库和 RTL 综合交付的工作。目标是让接手人不依赖聊天上下文也能继续。它不是流片签核报告，也不把未执行的工作写成已完成。
 
-本次整理开始时，比较仓库 `main` 与本地 `origin/main` 均为 `e3046dc`。文中的固定提交和压缩包哈希是历史基线；以后更新仓库时不要把它们自动替换为新版本。
+初版整理时比较仓库基线为 `e3046dc`；本次核对到的工具提交为 `c0b4b76098a88d5bace3c3fbdcef318c10e924f7`。两者都是工具仓库版本，不代替硬件源码提交、生成RTL或归档哈希。
+
+**当前主线已经变化：团队已选官方版本，不再继续两套矩阵单元选型。当前任务是单个官方NPU的DTCM容量/驻留性能实验，ITCM暂固定8KiB。** 用户告知团队已把单NPU集成到SoC并跑通测试，后续计划4核；本记录没有替团队重跑这些SoC测试。接手先读[当前项目交接指南](HANDOFF-current.md)及本文第1、20～26节。第4～19节保留早期工作及其原始证据，旧版“下一步比较fork”“尚未集成SoC”等阶段性表述不能覆盖这里的最新状态。
+
+截至本次更新：Ubuntu的1/2MiB、T384均完整PASS，配对后同一prefix策略的执行窗口减少17.07%；服务器VCS的1MiB/T384、2MiB/T12均PASS。服务器独立Verilator模型编译通过，但首次T12因启动脚本误启用trace而退出；`c0b4b76`已修复并提供只读复用模型方案，**尚未收到修复后RTL仿真PASS**。不把最新修复的本地检查当作服务器完成结果。
 
 ### 目录
 
@@ -27,6 +31,13 @@
 - [17. 文档、脚本、日志与未提交材料](#section-17)
 - [18. Git提交索引](#section-18)
 - [19. 交接验收清单](#section-19)
+- [20. 10月4日之后的工作与范围更新](#section-20)
+- [21. 新官方基线、TCM地址图与实验设计](#section-21)
+- [22. 六档容量、计算控制和实际工作集结果](#section-22)
+- [23. 独立VCS/Verilator、不可变包及排错经过](#section-23)
+- [24. 仿真速度、性能分析与运行可靠性](#section-24)
+- [25. ITCM讨论及暂停边界](#section-25)
+- [26. 当前接手步骤、证据缺口与新增提交索引](#section-26)
 
 <a id="section-1"></a>
 
@@ -38,21 +49,22 @@
 
 后来已经明确：**最终要集成整个 CoralNPU 核到 SoC，不是只拿一个独立矩阵阵列。** 因此选型不能只看 PE 的乘加周期，还要看整核指令、装载、结果读回、软件支持、RAM、AXI 和 SoC 集成成本。
 
-目前官方工程作为候选版本单独保存在团队组织中，并已准备保留原仿真配置的整核 RTL 给组员综合。它是候选基线，不是已经完成最终选型或签核的 IP。
+2026-10-04时官方工程作为候选版保存并交付RTL。之后团队已明确选择官方版本；Yangg152目录及失败记录保留为历史，不再作为当前待选方案。选型决定不等于所有功能、模型、PPA或流片签核已经完成。
 
 已经明确或暂定的事项：
 
 - Windows 修改代码，通过 Git 同步到 Linux，Linux 运行验证。
-- 实验室 CentOS 7 服务器主要用于 VCS 独立 MXU 测试；较新的 Ubuntu 虚拟机用于 Bazel、Chisel 生成及两套整核 Verilator/cocotb 仿真。
+- Ubuntu虚拟机用于Bazel/Chisel生成及当前单官方核Verilator/cocotb实验；实验室CentOS7已通过Conda建立独立VCS和独立Verilator环境，后者的首次完整T12验收仍待回传。
 - 本轮性能比较以 signed INT8 输入、INT32 累加/输出为主。真实 uint8 需求暂缓，不能据此说 uint8 问题已经解决。
 - 目标频率暂定 200 MHz，后续用 DC/实际工艺库评估；目前没有频率达标证据。
-- 综合组员先接收官方整核 RTL，再回传网表、库模型、约束等，之后准备门级仿真。
+- 用户报告团队已集成并跑通单NPU SoC，后续4核暂不在本人当前任务内。DC/网表/库模型/SDF/门仿没有新增完成证据，继续列为待团队交接。
+- 当前优先级：单NPU、DTCM扩到2/4MiB的收益与限制；ITCM容量实验工具已建立但用户要求暂缓，先继续DTCM。
 
 ### 1.2 当前结论一页表
 
-| 项目 | 当前状态 | 结论边界 |
+| 项目 | 截至2026-10-19的状态 | 结论边界 |
 | --- | --- | --- |
-| 官方整核 RTL 生成 | 已成功 | `VmeCoreMiniAxi`，外部 AXI 取指开启，ITCM 8 KiB / DTCM 32 KiB |
+| 早期官方整核RTL生成 | `870993f7`基线已成功 | `VmeCoreMiniAxi`、外取指开启、ITCM8KiB/DTCM32KiB；新容量实验另锁`8e4df09b` |
 | 官方原有 VME 基础回归 | 用户报告 12 个目标通过 | 不是仓库所有测试或所有 ISA 模式都已验证 |
 | 两套 signed INT8 正负数压力测试 | 同向量 32 个用例均通过，每套 8192 元素 | 已覆盖选定四符号组合、极值、随机模式；不是穷尽证明 |
 | 官方 K 边界 | Tk=1 路径，21 个 K 值通过 | 不是逐个验证全部 1～256，也不是优化尾部模式的性能测试 |
@@ -62,18 +74,27 @@
 | K>256 和多输出 tile | 2 个逻辑形状、5 个输出 tile 的分块/分段测试通过 | 不是完整模型，也不是两边同口径速度测试 |
 | 同端点整核 7 用例、22 用例扫描 | 用户返回完整比较结果 | 官方 Tk=4 在这些任务中周期更少；不同核和驱动，不是纯阵列/PPA 结论 |
 | 单次启动共享 B 的 9 组批处理 | 双方通过并返回比较 | 两边 B 复用策略不同，官方每 tile 重载 B，fork 复用权重 SRAM |
-| fork 权重每 tile 重载对照 | 代码和命令已准备 | 紧急 RTL 交付打断后，尚未收到执行结果，接下来可继续这里 |
-| 官方候选仓库 | 已建立团队私有候选仓库 | 没有把 NPU 集成到 Cheshire 主仓库的 RTL/互连 |
-| 当前推荐 RTL 包 | 已接收、核对哈希和 262 个包内文件 | 原始 RTL 未改；只保留已有通过日志，没有新跑功能仿真 |
+| fork 权重每 tile 重载对照 | 历史代码保留，未收到执行结果 | 官方已定型，不再列为当前下一步 |
+| 官方选型及SoC | 团队已选官方；用户报告单NPU SoC集成测试通过 | 本人当前未审计/重跑团队SoC全流程，4核不是本轮范围 |
+| 10月4日8/32KiB综合交付 | docs_v2原包身份及262文件核对记录保留 | 旧`870993f7`基线，不等于新的TCM容量实验或当前SoC RTL |
+| 新官方DTCM容量几何 | 32/128/512/1024/2048/4096KiB六档Ubuntu PASS | 选定AXI位置和mask，不是全地址March/MBIST |
+| 同ELF小工作集控制 | 六档PASS且完整日志配对检查通过 | K16/64/256均414/702/1854周期；不能推出大模型扩容无收益 |
+| T12权重驻留 | 32/128KiB及1MiB在Ubuntu PASS；1/2MiB在VCS PASS | 48KiB权重在128KiB已能全部驻留，不足以选2/4MiB |
+| T384跨1/2MiB | Ubuntu两档PASS，比较器PASS | 同prefix策略1MiB→2MiB少17.07%周期；固定调度合成负载，不是模型最优结果 |
+| 服务器VCS大测试 | 1MiB/T384完整PASS | 2MiB/T384仅收到启动信息，当前状态需查日志，不声称仍在跑或已通过 |
+| 1/2/4MiB独立包 | 三档均已在Ubuntu导出并核对RTL/ELF字节 | 1/2MiB已转服务器；4MiB未收到传输/构建/运行证据 |
+| 服务器独立Verilator | 环境检查PASS，1MiB模型编译434.214秒PASS | 首次T12因trace启动错误退出255；已修复，修复后结果待回传 |
+| ITCM扩容 | 8～128KiB前门几何工具已实现、本地14项检查PASS，当前暂停 | 没有本轮RTL执行PASS；1MiB需求需实际模型ELF/段布局决定 |
 | DC、STA、LEC、门仿、完整 AI 模型 | 尚未完成 | 不得把 RTL 打包成功或功能仿真 PASS 当作这些工作的结果 |
 
 ### 1.3 最短接手路线
 
-1. 拿到个人比较仓库及 Ubuntu 工作目录，不要先清理 Bazel 缓存。
-2. 阅读本记录第 8～11 节理解测试结论，尤其不要继续用早期“独立单元 vs 整核”的数字排名。
-3. 综合交接使用第 13 节的 `docs_v2` 仿真包，不能拿旧 `prod` 包替代。
-4. 保存 Ubuntu 和 EDA152 原始日志及当前提交，再执行第 16.5 节尚未完成的权重复用对照。
-5. 与团队确认模型、量化、RAM 工艺、SoC 地址映射等决策；网表回传后按第 15 节进入门仿。
+1. 先读[当前交接指南](HANDOFF-current.md)，核对固定`8e4df09b`基线、两个团队补丁、单核实验地址图和ITCM8KiB。
+2. 保留Ubuntu实验source、Bazel缓存、三档不可变包及所有成功/失败日志；不要重新clone上游最新版本替换。
+3. 按指南检查服务器2MiB/T384历史任务是否完成，收集结果；不要停掉其他人的simv。
+4. 使用`c0b4b76`修复入口先完成服务器Verilator的1MiB/T12与已有VCS精确比对；此步不是重新编译。
+5. 只有该档T12验收成功后再决定服务器Verilator的T384运行，并单独报告主机墙钟和NPU周期。
+6. 后续准备T768的2/4MiB配对、外部延迟敏感性和实际模型/备选调度；ITCM待用户重新决定，DC/门仿待团队提供实际材料。
 
 <a id="section-2"></a>
 
@@ -102,7 +123,7 @@ Windows 没有实际运行本文所有 RTL 仿真。大部分 Linux 仿真由用
 | 仓库 | 地址 | 当前用途 |
 | --- | --- | --- |
 | 个人比较/验证仓库 | https://github.com/Azrealleo/Coral_matrix | 两套源码并排保存，Windows/Linux 同步验证代码、脚本、工作记录 |
-| 团队 SoC 仓库 | https://github.com/cheshire-coral-soc/cheshire-coral-soc | 后续 SoC 主工程；本轮没有完成 NPU 接线集成 |
+| 团队 SoC 仓库 | https://github.com/cheshire-coral-soc/cheshire-coral-soc | 用户后续报告单NPU已集成并跑通；本轮容量实验固定读取其中两个生成补丁，不自动跟随main |
 | 团队官方候选仓库 | https://github.com/cheshire-coral-soc/coralnpu-official-candidate | 单独保存官方候选版，保留上游历史；创建时为私有，按团队主仓库私有属性处理 |
 
 最新详细 RTL 说明及当前工作记录位于个人 `Coral_matrix` 仓库的 `verification/`，**不是自动同步到团队 SoC 主仓库**。候选仓库中历史 `codex/rtl-handoff` 分支存的是旧生产包工具链，见第 13 节，不应据分支名以为那就是当前推荐包。
@@ -205,6 +226,8 @@ Windows 不必强求本地每条 symlink 都以 Linux 相同形式出现，但 G
 - WSL 曾尝试但启动失败 `HCS_E_HYPERV_NOT_INSTALLED`；没有通过修改系统虚拟化设置把它作为本轮执行平台。
 
 ### 5.2 实验室 EDA152
+
+本节表格是最初环境调查。2026-10-17～19新增的Conda/VCS/Verilator环境及服务器硬件见第23～24节；“当时缺少”不代表现在仍未安装。原生Bazel的glibc问题没有通过升级系统库解决，而是导出源码包、在服务器本地编译仿真模型。
 
 | 项目 | 实际报告值 |
 | --- | --- |
@@ -752,7 +775,7 @@ fork来自较旧官方基线，携带作者本地路径与较旧构建规则。�
 
 <a id="section-13"></a>
 
-## 13. RTL 交付：必须明确旧包、原始仿真包、文档版三个身份
+## 13. 10月4日历史RTL交付：旧包、原始仿真包、文档版三个身份
 
 ### 13.1 团队候选版与历史 prod 工具
 
@@ -803,7 +826,7 @@ Windows包:  E:\Projects\矩阵二选一\coralnpu_sim_rtl_20261004_042513.tar.gz
 
 `evidence/test_00.log` 的SHA256为 `fe8929650e6d61893029d1fb38a923a6a000e80c6c729db4aeb959f3862f735d`。它是官方shared-weight batch target的已有通过日志：9逻辑case×3次=27次，48384个INT32输出元素匹配，cocotb `TESTS=1 PASS=1 FAIL=0`。不是一份包含之前全部回归的日志合集。
 
-### 13.3 当前推荐文档更新版：给综合组员这一包
+### 13.3 10月4日推荐文档更新版：当时给综合组员这一包
 
 `e3046dc` 完善362行详细交接说明，并增加doc-only刷新工具。新包只改`HANDOFF.md`、`manifest.json`、`SHA256SUMS`；RTL、编译入口、原文件、证据日志不变。导出/刷新工具本地11个单元测试通过；这验证打包工具，不是新跑DUT。
 
@@ -927,7 +950,7 @@ AXI数据128bit、CSR32bit，PC写应落WDATA[63:32]，状态读RDATA[95:64]，�
 
 <a id="section-15"></a>
 
-## 15. 尚未完成的工作、团队决策和验证路线
+## 15. 历史截至10月4日的待办与验证路线（当前以第26节为准）
 
 ### 15.1 不应被接手人误认为已完成的事项
 
@@ -980,7 +1003,7 @@ AXI数据128bit、CSR32bit，PC写应落WDATA[63:32]，状态读RDATA[95:64]，�
 
 <a id="section-16"></a>
 
-## 16. 接手后的执行命令
+## 16. 早期两版本比较及8/32KiB交付的复现命令（历史用途）
 
 以下是操作入口，不要求把所有已通过测试立刻重跑一遍。先判断目的、确认环境和保存旧日志；**每个阶段失败就停，不连续执行后面的比较脚本。** 当前仓库的各专题README有更完整的guard与解释。
 
@@ -1364,9 +1387,9 @@ printf '日志快照：%s\n' "$log_snapshot"
 
 <a id="section-19"></a>
 
-## 19. 交接验收清单与更新约定
+## 19. 早期选型/RTL交付验收清单与更新约定
 
-接手时逐项确认，不要求现在就把所有后续工程做完：
+下列为10月4日原始检查清单，供复核历史工作；当前接手使用[HANDOFF-current.md](HANDOFF-current.md)的清单，不自动恢复fork比较任务：
 
 - [ ] 有个人比较仓库权限，知道团队SoC与候选仓库不是同一仓库。
 - [ ] 保存Windows当前修改和未跟踪交付材料，没有误clean/reset。
@@ -1384,3 +1407,344 @@ printf '日志快照：%s\n' "$log_snapshot"
 以后每次新增结果至少写：日期、执行机器、repo完整HEAD/工作树、target/命令、工具版本、输入与golden hash、RTL/ELF身份、PASS/FAIL与输出数、性能边界、完整日志路径、遗留问题。失败结果也保留，修复前后并列；不要用最后一次PASS覆盖最初失败的机制与契约。
 
 本记录不包含密码、Git token、私钥、商业license或PDK。后续交接权限与机密材料由团队既有流程处理。
+
+<a id="section-20"></a>
+
+## 20. 2026-10-04之后：任务切换及新增时间线
+
+### 20.1 已确定的范围变化
+
+1. 用户明确告知：团队已选官方矩阵版本，后续不再考虑Yangg152。
+2. 用户明确告知：团队已把一个NPU集成进SoC并跑通测试，之后计划四个NPU。这里记录团队进展，不把它冒充本实验的SoC回归证据。
+3. 用户当前任务是比较**单NPU**不同ITCM/DTCM规格的性能；“2M/4M”在讨论中明确为**每个DTCM的2/4MiB**，不是Mbit，也不是两块TCM之和。
+4. 先固定ITCM8KiB、只扫DTCM；短暂提出ITCM扩容后，用户又要求暂缓ITCM，回到DTCM并尝试服务器Verilator。
+
+fork既有uint8、K、输出停顿失败保留，未授权修复，也不再是接手后的必跑任务。原比较结果仍可用于解释选型过程，不再用来选择另一条主线。
+
+### 20.2 新阶段时间线
+
+| 日期/阶段 | 工作与关键版本 | 实际结果或边界 |
+| --- | --- | --- |
+| 10-14 | `a70f238`：读取团队较新官方基线及两个补丁，建立独立DTCM容量实验 | 不覆盖早期870版本，不修改团队SoC源码 |
+| 10-15 | HTTPS凭据/PAT pending问题后改SSH；`430551f`；关闭刷屏进度`1c68076` | 私有仓库读取用于提取补丁；密钥口令是本人设置值，不是服务器密码 |
+| 10-15～16 | 六档DTCM前门几何检查；随后加入同ELF计算控制组 | 六档均PASS；完整控制日志比较器PASS |
+| 10-16 | `128b077`：用Bazel cquery解析经过配置转换的RISC-V ELF位置 | 修复build成功后按错误bazel-bin路径复制ELF失败；不用伪造或手拷未知ELF |
+| 10-16 | `ddf2efa`：增加固定输入优先权重驻留、CSR阶段计数和AXI观察器 | 两策略、各3次，完整输出和流量判据 |
+| 10-16 | `deb148c`：cocotb超时单位修复；`181ba52`：局部忽略Python缓存 | 精确识别旧版本、备份迁移；不隐藏真实源码改动 |
+| 10-16～17 | 32/128KiB及1MiB的T12实际运行与配对 | 32→128KiB同prefix策略少29.32%周期；1MiB在此小负载没有额外驻留收益 |
+| 10-17 | 首次1MiB/T384遇Bazel一小时墙钟上限；`6a1f175` | 原运行INCOMPLETE；保存部分日志，未拼成PASS。后续显式6h/24h保护 |
+| 10-17 | `088b836`：Ubuntu只生成RTL/固件并导出独立VCS包 | 1/2/4MiB均导出、字节核对；不是VCS仿真PASS |
+| 10-17 | `d34fa2e`：旧VCS elaboration选项；系统/Conda编译器隔离 | 1MiB VCS模型60.523秒编译PASS，RTL及原SRAM源码未改 |
+| 10-17 | `23afde9`、`760bda8`：SGR颜色与ELF容器类型兼容 | 原T12无需重跑即可严格验收；不是删掉失败记录或改golden |
+| 10-17～18 | VCS T12正常测速、Python profiling、资源采样 | 正常流程约1178.5秒；profiling单独约1403.893秒，不混作速度基线 |
+| 10-18 | 服务器1MiB/T384夜间运行 | 完整PASS，流程37619.46秒；原始6条结构化记录及完成标记已回传 |
+| 10-18 | Windows自动关机导致VM重启 | 首次VM夜间任务中断，旧日志不能当PASS；之后新目录从头运行 |
+| 10-18 | Ubuntu顺序重跑1/2MiB、T384 | 两档均完整PASS；比较器输出1.205785周期比，队列17:20:45全部通过 |
+| 10-18 | 服务器2MiB传输、编译和T12 pilot | 编译54.893秒、T12流程1187.676秒，完整PASS |
+| 10-18 | 服务器2MiB/T384夜间任务启动 | 启动13:28:53；截至本次整理未收到最终结果，不能推定运行状态 |
+| 10-18 | `9019d91`：独立ITCM几何工具 | 本地14项PASS；没有用户RTL执行结果，随后暂停 |
+| 10-19 | 安装`coral-verilator`，`92937fe`：包外独立入口 | glibc2.17上环境基本检查PASS，1MiB模型434.214秒编译PASS |
+| 10-19 | 首次服务器Verilator T12退出255；`c0b4b76`修复WAVES/GUI | 1.777秒、未超时，尚未正式进入工作集；新入口本地25项PASS，修复后实际T12待回传 |
+
+没有因为夜间任务后台运行就减少验证次数；无checkpoint，断电后必须重跑完整六次，而不是把残缺日志拼接成完整证据。
+
+<a id="section-21"></a>
+
+## 21. 新官方实验基线、内存组织和测量契约
+
+### 21.1 与10月4日RTL包分开锁定
+
+| 身份 | 固定值 |
+| --- | --- |
+| 官方源码 | `8e4df09b4ea7e065e02d14ce3ae033d40dfd973a` |
+| 团队补丁来源提交 | `95e06e872bff13b3625721a837b4b739a93bed6f`，团队SoC仓库 |
+| 补丁1 | `rtl/npu-generator-patches/0001-order-core-csr-addresses.patch` |
+| 补丁1 SHA256 | `a3cb2de716d3c14c1675ddf5ff638af6ac96b159a8f1cb0859bbd03da8b93acc` |
+| 补丁2 | `rtl/npu-generator-patches/0002-fix-cvfpu-sticky-width-at-source.patch` |
+| 补丁2 SHA256 | `9bf28f7f33038ceb4c808910cde4da25d94a9bdea207bf4e664dabc7b1ef615b` |
+| 实验目录 | `/home/lqq/coral_tcm_capacity_8e4_v1` |
+| 官方源码实验副本 | 上述目录的`source/`，固定上游后应用受控实验变更 |
+| 团队Git对象 | `team.git`，用于读固定补丁，不是运行整个SoC |
+| Bazel | 9.1.0，实验目录内独立二进制及`bazel-user/`缓存 |
+
+上游提交、团队提交、个人工具提交、生成SV哈希、ELF哈希是五种不同身份；任何一个不能代替另外几个。10月4日`870993f7`的8/32KiB docs_v2综合交付包继续保留原身份，不因为本轮更新文档就变成`8e4df09b`的MiB级实验包。
+
+### 21.2 地址和参数
+
+| 区域 | 当前单核实验地址/容量 | 说明 |
+| --- | --- | --- |
+| ITCM | `0x00000000`起，8KiB | 程序装入前完整NOP填充；性能窗口不含主机装载 |
+| DTCM | `0x01000000`起，32～4096KiB | 4MiB末地址`0x013FFFFF` |
+| CSR | `0x02000000`起 | 统一避开所有DTCM档位；不是旧包`0x30000` |
+| fixture外部存储 | `0x20000000`起，16MiB backing | 主机NumPy代理，不是片上SRAM或DDR规格 |
+
+原高容量默认图的DTCM与CSR不适合本轮2/4MiB容量直接共用，实验统一修改生成入口和linker地址。**这些地址不是建议直接覆盖团队SoC全局地址图**；真实SoC窗口、路由、软件和启动协议需另行同步。
+
+其他参数：XLEN32、VLEN128、AXI数据128bit/ID6bit、fetch/LSU128bit，RVV/VME/FP/BF16开启，verification=false、AXI外部取指=true、FetchL0=false。行为RAM仍按一周期响应。每个逻辑bank为512×128bit、8KiB、1RW、16bit字节mask；DTCM六档分别4/16/64/128/256/512个bank。扩大bank数不是增加同等数量的独立端口，也不是已经找到对应的大容量工艺宏。
+
+### 21.3 三阶段为什么必须分开
+
+1. **前门几何**：核停止，经AXI访问每个8KiB DTCM bank首/中/尾与mask。验证抽样地址不镜像，不启动计算，不是性能测试或March/MBIST。
+2. **同ELF小常驻控制**：低32KiB放得下的相同数据，前门预载，比较相同程序/输入。验证改变容量本身没有让这一小窗口改变周期，不能推出大模型不需要容量。
+3. **跨容量工作集**：不预载正式权重到DTCM，由NPU自己通过CPU向量load/store搬运。固定调度和外部代理，观察多保留权重能省多少真实AXI事务及执行周期。
+
+### 21.4 T12、T384、T768与重复次数
+
+`T`是**不同权重块数**，不是K、测试编号或重复次数。K始终256，每个B块256×16 INT8=4096字节。三个不同A块各16×256，程序顺序为输入轮次在外、权重块在内；总逻辑形状M48、N=16T、K256。
+
+| 名称 | 权重集 | M/N/K | 每次输出INT32元素 | 每次有用MAC |
+| --- | --- | --- | ---: | ---: |
+| T12 | 48KiB | 48/192/256 | 9216 | 2359296 |
+| T384 | 1.5MiB | 48/6144/256 | 294912 | 75497472 |
+| T768 | 3MiB | 48/12288/256 | 589824 | 150994944 |
+
+两策略为stream和prefix_cache；每个策略独立复位重复3次，每次程序内又有3个输入轮次。完整一档是6次运行，T384共检查1769472个输出元素，不能把“3个round”误作“3份独立重复”。
+
+低DTCM16KiB留给软件、输入/输出暂存与栈。剩余4KiB槽数`S=(DTCM字节数-16384)/4096`。prefix若能全容纳则驻留T块，否则驻留`S-1`块、留一个流式槽；三轮权重读取量为`4096×(T+2×(T-R))`。因此1MiB/T384驻留251块，2MiB/T384驻留384块；2MiB/T768预计507块，4MiB/T768预计768块。后两个是静态计划，不是实际PASS。
+
+### 21.5 不可放宽的验收和性能边界
+
+每次检查完整输出、ELF/段/符号、向量SHA、CSR阶段及轮次计数、AXI请求/响应/实际有效字节；所有3次重复必须稳定，有完整完成标记和XML无FAIL/SKIP。输出读回/主机初始化不计入等待halt窗口；正式权重/输入搬运、计算、外部输出属于该窗口。阶段计数含软件/CSR/fence开销，阶段之和不要求恰等于总周期。
+
+同频、同负载时可用NPU周期比较；模拟器墙钟仅用于安排仿真资源。固定输入优先不是最优模型调度：当前输入总共只有12KiB，重排循环或缓存多输入可能让小DTCM少读权重。实验有意固定策略，不据此断言所有模型必须2/4MiB。
+
+<a id="section-22"></a>
+
+## 22. 新阶段实际结果汇总（截至2026-10-19）
+
+证据来自用户回传的Linux终端摘要和保存的粘贴日志；本次复查了这些附件中的原始记录，但没有直接登录两台Linux遍历磁盘。完整文件仍须按下述路径交接，不能说个人仓库已带齐全部测试报告。
+
+### 22.1 六档几何及小常驻计算
+
+六档DTCM32/128/512/1024/2048/4096KiB均前门几何PASS；同ELF小控制也均PASS，K16/64/256及极值K16周期分别414/702/1854/414。每档4例×3次×256输出，六档合计72次、18432元素。六份完整日志比较PASS，文件`/home/lqq/coral_tcm_capacity_8e4_v1/control_compare.L0Pxte.log`。
+
+完整目录见[STAGE1-results.md](google_tcm_capacity/STAGE1-results.md)和[CONTROL-results.md](google_tcm_capacity/CONTROL-results.md)。控制ELF为`8e2032348a4148ea22cf2b0c5010aad8bb0e148047c09099fc0f5f8535815ed8`，不要与工作集ELF混用。
+
+### 22.2 工作集数据身份
+
+| 材料 | SHA256 |
+| --- | --- |
+| 共同工作集ELF | `a8aa2d6feaefd56a5901f8bcca4f8f6bbf5394932add092243aff8f5eb497192` |
+| T12输入/golden | `5f48b97cefb656ad1e4a96dc80a3f42804ed86d9c0553dade288d14519ebeb93` |
+| T384输入/golden | `e32a9e3d4b09c5dae8706a34fbc35f061b60d78d146e49861c31f728ee08fe0d` |
+
+ELF装载段为ITCM从0起1664字节、DTCM从`0x01000000`起16384字节；运行时权重池利用更高DTCM地址，固件不是按每档重新链接。
+
+### 22.3 T12：小权重集已饱和，不能替代MiB级测试
+
+| 执行环境 | DTCM | stream等待halt | prefix等待halt | prefix外部权重字节 | 状态 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Ubuntu Verilator | 32KiB | 225219 | 205177 | 122880 | PASS |
+| Ubuntu Verilator | 128KiB | 225219 | 145026 | 49152 | PASS；与32KiB完整日志比较PASS |
+| Ubuntu Verilator | 1MiB | 225222 | 145029 | 49152 | PASS |
+| EDA152 VCS | 1MiB | 225222 | 145029 | 49152 | 初次验收及正常复测均PASS |
+| EDA152 VCS | 2MiB | 225226 | 145033 | 49152 | PASS |
+| EDA152 独立Verilator | 1MiB | — | — | — | 模型编译PASS，修复后T12待回传 |
+
+32→128KiB同prefix策略周期少29.3166%，权重字节少60%；stream完全相同。128KiB已经能全部保存T12权重，更大容量的同一测试没有额外权重收益。1MiB与128KiB、2MiB与1MiB之间，内部CSR计数、轮次和AXI数据相同，等待halt窗口分别多3/4周期；只知道差异位于该CSR窗口之外，原因未定位，不擅自校正，也不解释为阵列或SRAM物理频率变化。
+
+### 22.4 T384：Ubuntu1/2MiB完整配对
+
+| 指标 | 1MiB stream | 1MiB prefix | 2MiB stream | 2MiB prefix |
+| --- | ---: | ---: | ---: | ---: |
+| pool槽数 | 252 | 252 | 508 | 508 |
+| 驻留权重块 | 0 | 251 | 0 | 384 |
+| 等待halt周期 | 6885516 | 5208090 | 6885520 | 4319251 |
+| 内部总CSR周期 | 6885263 | 5207833 | 6885263 | 4318994 |
+| 输入阶段周期 | 10002 | 10002 | 10002 | 10002 |
+| 权重阶段周期 | 3852288 | 2177114 | 3852288 | 1289472 |
+| 计算及读出周期 | 1930752 | 1930752 | 1930752 | 1930752 |
+| 输出阶段周期 | 1028736 | 1028736 | 1028736 | 1028736 |
+| 第0轮周期 | 2295074 | 2295828 | 2295074 | 2296227 |
+| 第1/2轮各周期 | 2295074 | 1455982 | 2295074 | 1011363 |
+| 外部权重读取字节 | 4718592 | 2662400 | 4718592 | 1572864 |
+| AXI完成读字节 | 4730880 | 2674688 | 4730880 | 1585152 |
+| AXI读事务/拍数 | 295680 | 167168 | 295680 | 99072 |
+| AXI写事务/拍数 | 73728 | 73728 | 73728 | 73728 |
+
+四列输入均12288字节、输出均1179648字节，每次294912元素检查；ELF与T384向量SHA相同。Ubuntu结果目录：
+
+```text
+/home/lqq/coral_tcm_capacity_8e4_v1/workset_d1024_t384_r0.AMFGqg
+/home/lqq/coral_tcm_capacity_8e4_v1/workset_d2048_t384_r0.xymg0S
+/home/lqq/coral_tcm_capacity_8e4_v1/overnight_vm.Qy9tDJ/console.log
+```
+
+1MiB于10月18日14:51:40结束，2MiB及配对队列于17:20:45全部通过。比较器回传同prefix策略周期比`1.205785`：1→2MiB少888839周期，减少**17.0665%**；外部权重少1089536字节，减少**40.9231%**。第1/2热轮次各少30.5374%；总窗口含首轮冷加载，因此不能把热轮改善当完整运行加速比。
+
+1MiB的stream/prefix内部策略比较少24.36%周期；2MiB的内部策略比较少37.27%。这些不是容量比较的17.07%，不要混报。2MiB stream比1MiB等待窗口多4周期，但内部总CSR和各阶段不变，同样保留差异，不凭空解释。
+
+### 22.5 同配置VCS结果与还未完成的矩阵
+
+服务器1MiB/T384完整6条记录的周期、CSR、AXI、数据身份与Ubuntu1MiB摘要一致，已收到`TCM_VCS_RUN_PASS`和`OVERNIGHT_ALL_PASS`。日志在：
+
+```text
+/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_runtime/runs/t384_r0.pyg9qm5e
+```
+
+服务器2MiB/T384仅收到`/home2/lqq/coral_vcs_tools/overnight_vcs.TdW8Yk`、10月18日13:28:53启动、当时launcher PID344971；PID只是历史定位线索，不能拿它现在直接kill。查完成日志后才更新结论。
+
+| 尚无完成证据的项目 | 状态 |
+| --- | --- |
+| EDA152 VCS 2MiB/T384 | 已启动，最终结果未回传；不是断言当前还在运行 |
+| EDA152 独立Verilator 1MiB/T12 | trace启动错误已修复，待重跑/精确参考验收 |
+| EDA152 独立Verilator T384、2/4MiB | 尚无实际PASS；各包须先自己的T12 |
+| T768的2/4MiB容量配对 | 尚未进行，不能从T384推导4MiB收益 |
+| 附加读延迟8周期配对 | 尚无完整PASS，只有0等待结果 |
+| 真实AI模型、四NPU竞争、物理SRAM/PPA | 当前实验未验证 |
+
+<a id="section-23"></a>
+
+## 23. 服务器独立仿真：包、环境及修复经过
+
+### 23.1 导出与复用原则
+
+Ubuntu只负责生成并核对对应容量的SV/ZIP/参数头、共同ELF和原始SRAM/fixture源码。传给CentOS后**本地编译模型**，不运行Bazel，也不搬Ubuntu仿真可执行文件来赌glibc兼容。每种容量一个RTL包、一个或多个独立构建身份；同包改变T或读延迟可复用模型，但源码/参数/编译环境/可见性变化必须重新审查身份。
+
+| DTCM | Ubuntu导出目录后缀 | 原归档SHA256 | 服务器状态 |
+| --- | --- | --- | --- |
+| 1MiB | `vcs_export_d1024.yzU5z6` | `0e969183cd48d3f7a9eaa062e31aded9d89b011fa8fcddee58febd69823b8cb8` | 已传输；VCS及独立Verilator已编译，运行状态见第22节 |
+| 2MiB | `vcs_export_d2048.T5HEGi` | `499a7c31d97d06cb39ff8dcebe1ac2c6232605943d044af5d2eaa83ebe27d768` | 已传输并VCS编译/T12通过；T384完成证据待回传 |
+| 4MiB | `vcs_export_d4096.W2JmMH` | `272a4e81560856660801d9c7dbcf28b40d8d290b3d1886395aa5f0c46d5269a5` | 仅确认Ubuntu导出，不声称服务器已有 |
+
+归档名为`coral_tcm_vcs_d<KiB>.tar.gz`，路径和组成见[EXPORT-results.md](google_tcm_vcs/EXPORT-results.md)。包名含vcs不限制其源码给Verilator使用。包内`vcs_simulation=NOT_RUN`是**导出时**事实，后续仿真结果写包外，不修改旧manifest来宣布通过。
+
+### 23.2 服务器三个互不混用的环境
+
+| 环境 | 用途 | 已确认工具 |
+| --- | --- | --- |
+| 系统CentOS7 | VCS生成C代码构建 | glibc2.17；`/bin/gcc`、`/bin/g++`4.8.5 |
+| `$HOME/coral_vcs_tools/miniforge3/envs/coral-vcs` | VCS+cocotb及独立SRAM DPI C++17 | Python3.11.9；Conda GCC/G++15.3；cocotb2.0.0、NumPy1.26.4、pyelftools0.32、find-libpython0.5.1 |
+| 同Miniforge下`coral-verilator` | 独立Verilator模型编译/运行 | Python3.11.17；Verilator5.052；Conda GCC/G++15.3；make4.4.1；同四个Python依赖版本 |
+
+VCS构建时系统PATH优先，但先保存Conda Python和SRAM DPI G++绝对路径；DPI独立使用C++17/匹配VCS DPI头，不用GCC4.8硬编原SRAM源码。Verilator则用Conda新版GCC/G++及Verilator自己的DPI头，不套VCS的系统编译器PATH，也不加载VCS DPI SO。新版Conda库安装在用户目录，没有替换系统glibc；原生Bazel不兼容问题仍由导出方案绕开。
+
+两边都是编译型仿真流程；不能解释成“VCS解释执行、Verilator编译执行”。同一原SRAM C++存储语义、同一Python时钟策略及完整输出判据保留，不能为提速改SYNTHESIS、初始化全零、删断言或减少重复。
+
+### 23.3 故障、原因、修复与尚缺的验收
+
+| 现象 | 定位/修复 | 目前证据 |
+| --- | --- | --- |
+| 私有团队仓库HTTPS认证失败、403/pending | 不用账号密码当PAT；最后采用SSH及本地私钥代理读取固定补丁 | 已能建立实验；不包含凭据，不能把SSH私钥口令当服务器密码 |
+| build成功后找不到`control_program.elf` | 配置转换改变实际输出路径，改cquery+ELF32/RISC-V身份验证 | 六档控制组后续PASS |
+| cocotb超时单位`s`非法 | 改`2000ms`；严格识别旧SHA后备份迁移 | 后续T12/T384通过，不回写旧失败日志 |
+| T384只跑出两条stream后Bazel TIMEOUT | `eternal`仍有默认1h上限；显式6h/24h并保留退出/原始日志 | 完整新目录重跑后PASS，部分旧运行仍INCOMPLETE |
+| VCS elaboration `$fatal`要求选项 | 加`-assert svaext`，为旧包新建`svaext_v1`副本 | 原RTL/固件不变；后续VCS构建PASS |
+| rmapats.c隐式函数声明被新版GCC当错误 | VCS内部C构建实际受PATH默认编译器影响，改系统GCC优先；保留Conda DPI C++ | 1/2MiB VCS构建PASS；不修改VCS生成C文件 |
+| VCS T12 `Extra data` | JSON末尾SGR颜色复位码；包外严格解析器仅去显示边界颜色 | 复用旧运行验收PASS，原日志不改 |
+| 首版ANSI入口仍报ELF/layout不匹配 | 元组/列表表示差异；统一容器表示，不放宽地址/长度/hash | `760bda8`入口验收PASS |
+| Verilator T12 `--trace requires...` | 旧入口把WAVES/GUI设成字符串0，cocotb2把非空串视为真；`c0b4b76`移除变量 | 本地25项PASS；服务器修复后T12尚无回传 |
+
+1MiB原包保留，VCS升级副本是`coral_tcm_vcs_d1024_svaext_v1`。VCS状态在`..._runtime`，独立Verilator状态在`..._verilator_runtime`，不相互覆盖。旧VCS ANSI入口是包外`/home2/lqq/coral_vcs_tools/ansi_fix_v2.bzKDlm/vcs_workset.py`，SHA为`e2668cd25e690177dea89087f4804b7fb4a426c8c9e8a2a2d19c9effb04999f0`。
+
+### 23.4 最新Verilator接手断点
+
+```text
+包：/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1
+已通过构建：同级 coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/builds/e6ab26657e58.xbhdmzuj
+首次失败运行：同级 coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/runs/t12_r0.zl1315rn
+原入口：/home2/lqq/coral_vcs_tools/verilator_runner.JdVpsd/verilator_workset.py
+原控制台：/home2/lqq/coral_vcs_tools/verilator_pilot.fenT2T.log
+```
+
+初次编译434.214秒PASS；失败运行`_test-status.json`记录exit_code255、timed_out=false、elapsed_seconds=1.7773396475240588。新脚本提交`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`，脚本SHA256为`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。
+
+修复入口仅允许在完整旧构建身份/包/环境、二进制与编译命令/visibility哈希、成功构建状态全部一致时只读复用前版模型；保留实际旧build_identity和当前运行adapter_sha256，不改旧指针或伪造重编。新运行需匹配同容量VCS参考`..._runtime/runs/t12_r0.mraudje0/_test.log`，逐项核对周期/CSR/AXI/ELF/向量。必须同时有REFERENCE_MATCH及RUN_PASS才解锁大测试，未知差异立即停止。
+
+<a id="section-24"></a>
+
+## 24. 主机仿真速度调查、后台任务与网络可靠性
+
+### 24.1 已测墙钟：不等于NPU性能
+
+| 执行环境/配置 | 测试墙钟 | 构建/边界说明 |
+| --- | ---: | --- |
+| Ubuntu Verilator 1MiB/T12 | Bazel test 292.4秒 | test命令elapsed299.707秒；RTL/固件此前另构建 |
+| EDA152 VCS 1MiB/T12正常复测 | wrapper1178.5秒；cocotb1172.38秒 | 编译60.523秒另计；profiling关闭 |
+| EDA152 VCS 1MiB/T12 profiling | wrapper1403.893秒 | 开销分析用，不作正常速度基线 |
+| EDA152 VCS 1MiB/T384 | wrapper37619.46秒；cocotb37605.01秒 | 约10h27；完整运行PASS |
+| Ubuntu Verilator 1MiB/T384 | Bazel test6736.5秒 | 约1h52m；command elapsed6739.349秒 |
+| Ubuntu Verilator 2MiB/T384 | Bazel test8789.0秒 | 约2h26m；command elapsed8940.854秒含新模型动作 |
+| EDA152 VCS 2MiB/T12 | wrapper1187.676秒 | 编译54.893秒另计 |
+| EDA152独立Verilator1MiB | 编译434.214秒；首次启动失败约1.777秒 | **没有通过的仿真墙钟，不排名** |
+
+VCS/VM的T384观察墙钟比约5.58，但CPU、系统、编译器和计时边界不同，不能当纯仿真引擎加速比。VCS从T12到T384的仿真逻辑时间增长约32.31倍，正常wrapper增长约31.92倍（37619.46/1178.5），在已测范围近似线性；不能保证T768线性，也没有“大测试会自动反超”的证据。
+
+2MiB的NPU计算窗口更短，但VM完成整项仿真墙钟比1MiB更长约30.47%。行为模型大小、主机资源、编译及测试平台开销都可能影响仿真速度，这不等于硬件扩容后变慢；2MiB生成报告中的62.048秒是Verilator转换时间，不是整项仿真时间。
+
+### 24.2 资源采样和Python profiling事实
+
+EDA152报告Xeon Gold6240，4socket×18core×2线程=144在线逻辑CPU，内存251GiB。当时可用内存约224GiB，vmstat无持续换入换出或明显I/O等待。空闲时CPU MHz约1000不能证明仿真持续以1GHz运行；`Cpus_allowed_list=0-367`也不等于368在线核。
+
+对本次自身进程的采样约99.77% CPU，主要用户态、无major page fault，RSS约203～245MiB。支持所测过程主要占一核、不是明显交换等待，但Python内嵌于simv，不能把CPU全部归RTL内核。总CPU只有1%也可能是一核满载，不能认为144核自动并行这项仿真。
+
+profile目录为1MiB运行`..._runtime/runs/t12_r0.xluxpvy5`，文件实际叫`cocotb.pstat`。记录638658902次函数调用，profile总433.861秒；event_loop累计364.588秒、代理monitor56.235秒、AXI probe52.677秒、Python时钟44.771秒、halt轮询22.779秒。调用路径嵌套，累计时间**不能相加**，wrapper减去profile也不是精确RTL内核时间。VPI读写/回调约千万级，说明测试平台调度成本值得关注，但没有已测的关闭检查优化收益。
+
+VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来源，不是已经量化的根因。保留原可见性和行为，先用同服务器、同包、同T12建立Verilator可复核结果，再决定性能改进。两者都需要VPI与cocotb，不是把Python彻底移除了。
+
+### 24.3 运行安全与恢复
+
+- 后台/nohup本身不会使计算明显变慢；共享CPU、内存、主机休眠/重启、profiling、波形才是需要分别核对的条件。nohup不能保证断电重启后继续，VM首次夜间任务已实际被宿主关机打断。
+- `tail -f`只跟踪日志，不是任务本身，Ctrl+C退出tail不会结束仿真；已收到结束标记后也不必让tail继续等。
+- 查询自己的VCS用`pgrep -a -u "$(id -u)" -x simv`。曾用`ps -u ... -C simv`误把筛选当交集，该命令实际可包含他人simv；看到长时间运行PID不代表是自己的任务，严禁据此kill。
+- Windows到EDA152仍用SSH22反向转发17908→本地7908。断网可能留下旧sshd持有端口；检查UID/进程归属且确认不是当前连接后才TERM该旧会话。PID32796等仅为历史，不能复用为当前目标；不killall sshd、不动gzc会话。
+- 代理只用于下载，不应是本地仿真运行条件。VM直接使用`192.168.58.1:7908`是另一条链路；RDP3390和SSH22、远程桌面剪贴板是独立问题。
+- Bazel默认安静输出，长时间无新摘要不等于卡死。看正确的运行目录、自己的进程CPU时间、原始日志和退出状态，不每几秒刷Analyzing，也不只按控制台最后一行判断。
+- VM磁盘最后报告99G总量、67G已用、28G可用，是当时快照，后续模型可能增加。不要为ITCM/新后端复制整套Bazel cache，也不擅自删除旧缓存和证据。
+
+<a id="section-25"></a>
+
+## 25. ITCM扩容讨论：已准备什么、没有验证什么
+
+`9019d91`新增[google_itcm_capacity](google_itcm_capacity/README.md)：DTCM固定2MiB，ITCM8/16/32/64/128KiB，独立`itcm_geometry_manifest.json`及新测试包，复用旧source/cache但不更改旧DTCM文件和manifest。核停止，仅前门地址/别名/mask检查。本地14项静态/合成测试通过，**没有用户实际RTL PASS**；后续代码工作集/取指性能阶段尚未实现。用户已暂停此线，接手不自动启动它。
+
+当前DTCM workset的ITCM加载段仅1664字节，8KiB足以容纳这份程序及其当前布局。DTCM容量从32KiB扩到4MiB，不会自然要求指令容量等比例扩大；这个事实不能外推为完整AI软件也只需8KiB。
+
+用户提出完整MobileNet约1001分类的需求。核对固定`8e4df09b`源码后发现：官方`tests/npusim_examples:run_full_mobilenet_v1_binary`目标明确设ITCM=1024KiB、DTCM=1024KiB，依赖MobileNetV1 0.25/224的dummy示例；它不是已经验证过的用户1001分类模型，也不是1MiB最小需求证明。本项目尚未运行该完整模型。
+
+需要纠正过于简单的“模型权重都在DTCM”表述：官方`toolchain/coralnpu_tcm.ld.tpl`把`.text`、`.rodata`、init/fini段放ITCM；若模型const数组未指定外部段，也可能计入ITCM。示例另有外部arena安排，不能把整个软件需求等同DTCM大小。应先拿实际模型、算子实现和编译选项生成ELF/map，统计真实加载段、常量、栈/arena，再决定ITCM候选；不要从分类数猜容量，也不要把1MiB一概判为没必要。
+
+<a id="section-26"></a>
+
+## 26. 接手断点、剩余任务与新增提交索引
+
+### 26.1 当前第一件事
+
+按[HANDOFF-current.md](HANDOFF-current.md)先做只读环境/任务检查与证据保存，然后用固定`c0b4b76`入口完成服务器1MiB Verilator T12。该命令已在本次对话给用户，但截至记录截止**还未收到执行结果**。不能从下载、25项本地测试、BUILD_REUSED或编译PASS推导RTL通过。
+
+同时从服务器2MiB/T384的固定旧队列目录取最终日志/退出码；不要再启动重复任务来覆盖它，也不要因为时间过去就写ALL_PASS。服务器路线成功后，才安排同机速度对照和大工作集。Ubuntu1/2MiB T384不需要为了换模拟器重新跑一遍。
+
+### 26.2 后续任务按依赖排序
+
+1. 归档现有1/2MiB完整工作集日志、参数、ELF、向量、退出码/命令和包身份；完整原始报告不全在Git里。
+2. 服务器Verilator1MiB T12精确参考验收；失败先看新`_test.log`和`_test-status.json`，不删旧包/日志、不手改manifest/hash。
+3. 确认VCS2MiB T384历史结果；同一服务器、同一包做可比墙钟时，记录并发用户、profiling/波形、模型编译器及计时边界。
+4. 各容量先T12合格后，再决定服务器Verilator的T384；必须依旧两策略各3次、全部输出和AXI检查。
+5. T768的2MiB/4MiB配对：先传4MiB不可变包并自己的T12；这才是区分2/4MiB驻留收益的后续工作集。当前只有静态预期，未测结果。
+6. 附加读等待8周期、真实SoC外存条件、备选循环调度和真实模型：需分别控制变量，不把代理0等待当真实零延迟SRAM/DDR。
+7. ITCM实验等用户重新排期；完整模型先编ELF/map，不能拿现有1664字节微基准证明模型ITCM需求。
+8. 200MHz、物理RAM宏、DC/STA/门仿、四NPU竞争仍须团队提供实际配置/库/网表与单独验证。
+
+### 26.3 新增提交速查
+
+| 提交 | 用途 |
+| --- | --- |
+| `a70f238`、`430551f`、`1c68076` | 固定官方单核容量、SSH、安静进度 |
+| `baad5f6`、`128b077`、`4295642` | 控制组、配置ELF定位、六档控制PASS记录 |
+| `ddf2efa`、`181ba52`、`deb148c` | 权重驻留与AXI、局部Python缓存、超时单位迁移 |
+| `07c0eb9`、`1a50873`、`ca5beb2` | T12实际结果、跨容量审计与MiB阈值检查 |
+| `6a1f175` | Bazel墙钟上限及不完整日志保留 |
+| `088b836`、`34877f2` | 独立VCS包、1MiB导出记录 |
+| `d34fa2e`、`3112b6b` | VCS svaext升级、2/4MiB导出进展 |
+| `23afde9`、`760bda8`、`e4944de` | ANSI/ELF表示修复及验收记录 |
+| `9019d91` | ITCM前门几何工具，当前暂停 |
+| `92937fe` | 独立Verilator入口，首次版本存在WAVES/GUI问题 |
+| `c0b4b76098a88d5bace3c3fbdcef318c10e924f7` | 最新trace启动修复、严格只读复用已编译模型 |
+
+本次更新只完善记录/交接文档，不运行Linux仿真，不重新生成RTL/ELF，不改变上述固定包和任何已回传结果；个人仓库文档更新也不自动推送团队SoC仓库。未跟踪的旧RTL压缩包、`.gitignore`修改和`verification/rtl_handoff/`仍按第17节保护，不混入本次文档提交。
+
+### 26.4 本次文档完善的核对范围
+
+更新当前总记录、独立接手指南及专题入口/结果说明，共14份Markdown；检查本地链接和锚点、代码围栏，并对48个Bash代码块执行仅语法检查（不执行命令）。历史RTL导出/文档刷新工具11项本地合成回归通过，测试临时包不是新的NPU仿真或交付包。
+
+原始10月4日RTL归档仍为`0a7d737dc1c18d49781b9cdb246a4fe0bf11ffeb1db509ca8263bca255f271ed`；最新固定Verilator脚本仍为`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。当前记录不能弥补尚缺的Linux原始证据，尤其不能把VCS2MiB/T384或修复后Server Verilator T12补写为通过。

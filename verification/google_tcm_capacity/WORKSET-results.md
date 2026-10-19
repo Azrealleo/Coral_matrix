@@ -2,6 +2,8 @@
 
 依据用户回传的Ubuntu真实RTL仿真摘要整理；Windows侧没有直接读取完整原始test.log。本记录不替代Ubuntu目录内的原始日志、manifest、ELF和产物指纹。
 
+2026-10-19更新：本次补入Ubuntu1/2MiB T384、服务器VCS1MiB T384及2MiB T12的实际完成结果。前面的首次TIMEOUT保留为历史INCOMPLETE，不覆盖；修复后新运行PASS见文末。服务器独立Verilator只完成模型编译，首次T12因启动trace失败，运行修复已提交但实际结果尚未回传。当前接手入口见[HANDOFF-current.md](../HANDOFF-current.md)。本次复查已保存的用户附件，不声称直接读取服务器完整目录。
+
 ## 32KiB、12权重块、外部附加读等待0：PASS
 
 - 官方源码：`8e4df09b4ea7e065e02d14ce3ae033d40dfd973a`，保留团队两个生成补丁及实验统一地址图。
@@ -125,7 +127,7 @@ Bazel报告测试`PASSED in 292.4s`，test命令elapsed299.707秒；此前仅RTL
 
 VCS原流程墙钟1185.423秒，cocotb testcase时间1178.2477581501007秒，编译另计60.523秒。它们与Ubuntu/Verilator的Bazel测试292.4秒是不同机器、略有不同统计边界的数据，不能完全归因于仿真器；但目前没有换VCS加速的证据。建议大工作集主线回Ubuntu/Verilator，保留固定VCS模型用于交叉验证。1MiB小工作集PASS不代表2/4MiB VCS通过，也不代表T384/T768已通过。
 
-## MiB级权重跨容量阈值（1MiB/T384首次运行超时，尚未完整PASS）
+## MiB级权重跨容量阈值：初始计划及首次INCOMPLETE（后续完整PASS见末节）
 
 仍使用同一个workset ELF、ITCM8KiB、固定输入优先顺序、三轮输入及两策略各3次重复；先固定外部附加读等待0。只改变DTCM容量和选定权重块数；每一组内部块数相同，不跨组比较加速比。
 
@@ -136,7 +138,7 @@ VCS原流程墙钟1185.423秒，cocotb testcase时间1178.2477581501007秒，编
 | T768，权重3MiB | 2MiB | 507 / 768 | 5283840 |
 | T768，权重3MiB | 4MiB | 768 / 768 | 3145728 |
 
-这是静态计划而不是实测结果，不预报PASS或周期。保留16KiB软件区，装不下全部权重时另保留一槽流式周转，因此驻留块数不是容量直接除以4KiB。所有输入/权重/输出仍在既定16MiB外部代理范围内，权重池不越DTCM边界。
+上表是最初制定的静态计划：T384后来已经完整实测PASS，T768仍只有计划，不预报其PASS或周期。保留16KiB软件区，装不下全部权重时另保留一槽流式周转，因此驻留块数不是容量直接除以4KiB。所有输入/权重/输出仍在既定16MiB外部代理范围内，权重池不越DTCM边界。
 
 进入本轮前，新增MiB级阈值/外部地址边界检查，以及T384/T768中跨第256块及末块的独立Python整数点积校验，本地完整回归58项通过、Shell语法通过。未改变RTL、RISC-V程序或安装工具指纹；这些静态/合成检查不代表MiB级实际RTL已PASS。
 
@@ -162,3 +164,84 @@ ELF仍为`a8aa2d6feaefd56a5901f8bcca4f8f6bbf5394932add092243aff8f5eb497192`；T3
 Bazel报告`TIMEOUT in 3600.1s`、总elapsed3793.264秒；外层`time`报告real63m52.923s、user1.905s、sys3.265s。后两项不能当作整个持久化Bazel服务器/仿真进程树的CPU或利用率数据；日志也没有提供峰值RSS。结束标记为2026-10-16 17:16:17 UTC，即香港时间2026-10-17 01:16:17。用户没有给出该次独立运行目录后缀，不猜测路径。
 
 此次由Bazel一小时墙钟上限终止，不是已观察到的算术失败，也不能据此排除未执行部分潜在问题。修复只在运行器显式传`--test_timeout=21600`（6小时保护上限，非耗时预测），并改为失败时也保存原始test.log、时间和退出码。旧目录与缓存不删除，RTL/固件/安装工具指纹/六次运行及所有判据不变；实际仿真仍需重跑完整流程。
+
+## 2026-10-18：Ubuntu的1/2MiB、T384完整运行与配对PASS
+
+首次夜间VM任务又曾因宿主Windows自动关机重启而中断；该残缺日志仍不算PASS。新队列`/home/lqq/coral_tcm_capacity_8e4_v1/overnight_vm.Qy9tDJ`从12:59:01开始，先1MiB、再2MiB，不并行。实际运行目录：
+
+```text
+/home/lqq/coral_tcm_capacity_8e4_v1/workset_d1024_t384_r0.AMFGqg
+/home/lqq/coral_tcm_capacity_8e4_v1/workset_d2048_t384_r0.xymg0S
+```
+
+1MiB在14:51:40完整通过；2MiB及比较队列17:20:45输出ALL_PASS。共同官方/团队补丁、ITCM8KiB、ELF和T384向量SHA与初始计划相同，固定输入优先、read_delay_cycles=0。每策略3次，完整一档6次；每次294912个输出元素、75497472个有用MAC，各重复计数稳定。
+
+| 指标 | 1MiB stream | 1MiB prefix_cache | 2MiB stream | 2MiB prefix_cache |
+| --- | ---: | ---: | ---: | ---: |
+| pool_slots | 252 | 252 | 508 | 508 |
+| resident_tiles | 0 | 251 | 0 | 384 |
+| used_slots | 1 | 252 | 1 | 384 |
+| wait_for_halt_cycles | 6885516 | 5208090 | 6885520 | 4319251 |
+| ws_total_cycles | 6885263 | 5207833 | 6885263 | 4318994 |
+| ws_input_cycles | 10002 | 10002 | 10002 | 10002 |
+| ws_weight_cycles | 3852288 | 2177114 | 3852288 | 1289472 |
+| ws_compute_cycles | 1930752 | 1930752 | 1930752 | 1930752 |
+| ws_output_cycles | 1028736 | 1028736 | 1028736 | 1028736 |
+| round_cycles[0] | 2295074 | 2295828 | 2295074 | 2296227 |
+| round_cycles[1/2]各 | 2295074 | 1455982 | 2295074 | 1011363 |
+| 外部输入读取字节 | 12288 | 12288 | 12288 | 12288 |
+| 外部权重读取字节 | 4718592 | 2662400 | 4718592 | 1572864 |
+| 输出写入字节 | 1179648 | 1179648 | 1179648 | 1179648 |
+| AXI读请求/完成/拍数（各） | 295680 | 167168 | 295680 | 99072 |
+| AXI完成读字节 | 4730880 | 2674688 | 4730880 | 1585152 |
+| AXI写请求/完成/拍数（各） | 73728 | 73728 | 73728 | 73728 |
+
+比较器两条`[TCM_WORKSET_COMPARE]`已回传：第一容量1024，prefix周期5208090；第二容量2048，prefix4319251，周期比1.205785。
+
+- **容量收益**：同prefix策略1→2MiB，少888839周期，即17.0665%；权重少1089536字节，即40.9231%。输入、计算及输出阶段相同，主要差异在权重阶段。
+- **热轮而非整次**：后两轮每轮少444619周期，即30.5374%，不能把这个比例当含首轮冷加载的总收益。
+- **同容量策略对照**：1MiB stream/prefix少24.36%，2MiB stream/prefix少37.27%；这不是跨容量的17.07%。
+- **保留小差异**：2MiB stream等待窗口比1MiB多4周期，内部CSR总周期/阶段及AXI全部相同。只确认是窗口外差异，不归因物理RAM速度、不扣减计数。
+
+结论只覆盖该固定调度、原CPU向量搬运/一周期行为RAM/外部代理条件，不证明真实模型最优，更不证明4MiB必要。2MiB在T384已能全驻留，继续只增加容量跑T384不能替代T768的2/4MiB阈值比较。
+
+### 主机墙钟与NPU周期分开记录
+
+| 运行 | Bazel test时间 | command elapsed | 备注 |
+| --- | ---: | ---: | --- |
+| VM 1MiB/T384 | 6736.5秒 | 6739.349秒 | 约1h52m，完整PASS |
+| VM 2MiB/T384 | 8789.0秒 | 8940.854秒 | 约2h26m，含不同新模型动作 |
+
+2MiB的NPU执行更短，整项仿真墙钟却长约30.47%；大模型、主机和测试平台开销与NPU性能不是同一指标。Verilator转换报告62.048秒、1856.539MB内存、146份C++只是转换阶段，不是本测试仿真时间/峰值仿真RSS。
+
+## 2026-10-18：服务器VCS1MiB/T384完整PASS
+
+目录`/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_runtime/runs/t384_r0.pyg9qm5e`。用户回传6条完整原始JSON、完整工作集CHECK、cocotb1/1 PASS、`[TCM_VCS_RUN_PASS]`和`[OVERNIGHT_ALL_PASS]`。两策略的等待周期/CSR/轮次/AXI/ELF及向量与上述Ubuntu1MiB摘要一致。
+
+流程墙钟37619.46秒，cocotb37605.01秒，仿真逻辑时间45608321.25ns；02:21启动，12:47:53仿真结束、12:48:02外层ALL_PASS。约10h27m不是NPU实际执行时间。与VM1MiB Bazel test观察墙钟比约5.58，机器/编译环境/计时边界不同，不作为纯引擎加速比。
+
+## 2026-10-18：服务器VCS2MiB/T12完整PASS及T384待回传
+
+2MiB已传输核对原归档SHA，包根`/home2/lqq/Desktop/coral_tcm_vcs_packages/d2048_499a7c31/coral_tcm_vcs_d2048`。VCS编译54.893秒；T12目录为包同级`coral_tcm_vcs_d2048_runtime/runs/t12_r0.e0u9djj4`，流程1187.676秒，输出RUN_PASS及PILOT_ALL_PASS。
+
+| 指标 | stream | prefix_cache |
+| --- | ---: | ---: |
+| wait_for_halt_cycles | 225226 | 145033 |
+| ws_total_cycles | 224975 | 144782 |
+| ws_weight_cycles | 120384 | 40296 |
+| 权重外读字节 | 147456 | 49152 |
+| 驻留权重块 | 0 | 12 |
+| pool_slots | 508 | 508 |
+| 三轮周期 | 74978 / 74978 / 74978 | 75015 / 34863 / 34863 |
+
+全部输入/计算/输出阶段、AXI及数据身份与1MiB T12对应结果相同，等待窗口多4周期，原因未定位。每策略3次、每次9216输出，不能把小测试通过当T384已经通过。
+
+2MiB/T384的历史队列为`/home2/lqq/coral_vcs_tools/overnight_vcs.TdW8Yk`，10月18日13:28:53启动；截至2026-10-19整理未收到最终日志，不推断现在是否仍在跑。先查原队列console及实际run目录再更新，不新建重复任务覆盖结果。
+
+## 2026-10-19：服务器独立Verilator进展与仍待完成项目
+
+Conda环境在glibc2.17上检查PASS，1MiB模型编译434.214秒PASS。首次T12位于`.../coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/runs/t12_r0.zl1315rn`，因入口误置WAVES/GUI字符串0触发`--trace`、模型未编跟踪而exit255，1.777秒、未超时。不是完整RTL测试失败，也没有可接受的速度结果。
+
+`c0b4b76`修正子进程环境并严格只读复用原模型，25项本地测试通过；**修复后实际T12、参考比对及服务器Verilator大测试均未回传**。详见[Verilator入口](../google_tcm_verilator/README.md)与[当前交接命令](../HANDOFF-current.md)。
+
+剩余：VCS2MiB/T384最终证据；Server Verilator同机T12/T384；T768的2/4MiB；延迟8；真实模型/备选调度/SoC外存条件；真实SRAM宏/200MHz/PPA。4MiB目前只有几何/小控制PASS及导出包，不已有T768收益证据。ITCM工具暂缓，当前所有上述DTCM结果仍ITCM8KiB。

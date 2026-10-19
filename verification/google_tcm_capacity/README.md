@@ -2,14 +2,20 @@
 
 团队已选官方矩阵版本，不再运行fork对比。单位固定为KiB/MiB；本轮2M/4M分别是每个DTCM的2MiB/4MiB。先固定ITCM=8KiB，DTCM扫描32/128/512/1024/2048/4096KiB；不测试4核SoC，不修改团队已通过的单核SoC基线。
 
+## 最新接手状态（2026-10-19）
+
+先读[当前项目交接指南](../HANDOFF-current.md)。六档几何/同ELF控制均PASS；Ubuntu1/2MiB的T384均完整PASS且配对通过，同prefix策略2MiB比1MiB少17.07%周期、少40.92%权重外读。服务器VCS1MiB/T384和2MiB/T12已PASS，2MiB/T384仅有启动回传。三档独立包均已导出；服务器独立Verilator模型编译PASS，但首次T12因启动trace参数失败，修复后实际结果仍待回传。ITCM新扫描暂停，T768/延迟8/真实模型没有完整结果。
+
+本页下文保留各阶段建立时的进度说明；如“2/4MiB待测试”“建议回VM”等与后续不一致，以[最新工作集结果](WORKSET-results.md)、[导出及服务器记录](../google_tcm_vcs/EXPORT-results.md)和当前交接指南为准，不重复启动已完成的旧测试。
+
 ## 基线和本阶段范围
 
 - 团队仓库固定`95e06e872bff13b3625721a837b4b739a93bed6f`，官方源码固定`8e4df09b4ea7e065e02d14ce3ae033d40dfd973a`，Bazel9.1.0。
 - 保留团队CSR排序和cvfpu sticky位宽两个生成补丁，以Git对象读取并验证原始补丁SHA；不复制旧`870993f7`产物来冒充新基线。
 - 保持RVV/VME/FP/BF16、VLEN128、外部取指true、FetchL0=false、verification=false和读一周期/128bit/byte mask。没有选择高容量verification目标改变ROB配置。
-- **阶段1六档容量检查和阶段2a六档小工作集控制组均已收到Ubuntu实际RTL仿真PASS摘要，六份控制组完整日志也已在Ubuntu比较通过**，见[容量记录](STAGE1-results.md)与[计算控制组记录](CONTROL-results.md)。小控制组各档周期相同，尚无大工作集扩容收益结论。
-- [阶段2b固定调度权重驻留实验](WORKSET.md)已收到32/128KiB及1MiB、T12、等待0的Ubuntu实际RTL PASS。32/128KiB两份完整日志已在Ubuntu通过跨容量比较器复核；同一prefix策略扩容后少29.32%周期，权重读取从120KiB降至48KiB。后补1MiB测试耗时292.4秒、内部CSR周期/流量与128KiB完全一致，等待halt窗口多3周期，原因未定位；没有额外容量收益证据。见[工作集结果及MiB级测试计划](WORKSET-results.md)。这不是整模型或2/4MiB收益结论。
-- 2026-10-17新增[独立VCS包入口](../google_tcm_vcs/README.md)：1/2/4MiB均已实际导出并核对RTL/固件字节，服务器不需要Bazel。1MiB使用系统GCC与独立Conda DPI编译器后VCS编译通过；通过包外SGR兼容与加载段表示修复，现已收到T12/等待0的TCM_VCS_ACCEPT_PASS，原日志不改、原仿真不重跑，两条汇总与Verilator一致。VCS流程墙钟1185.423秒、Ubuntu测试292.4秒，不证明仿真器本身速度比，但建议大工作集主线优先使用Ubuntu。2/4MiB服务器编译/运行待验证。详见[导出记录](../google_tcm_vcs/EXPORT-results.md)；不修改本目录已安装的基线或旧结果。
+- **阶段1六档容量检查和阶段2a六档小工作集控制组均已收到Ubuntu实际RTL仿真PASS摘要，六份控制组完整日志也已在Ubuntu比较通过**，见[容量记录](STAGE1-results.md)与[计算控制组记录](CONTROL-results.md)。小控制组周期相同，它本身不提供大工作集扩容结论。
+- [阶段2b固定调度权重驻留实验](WORKSET.md)的32/128KiB T12完整比较PASS，同prefix策略少29.32%周期；1MiB T12也PASS且无额外驻留收益。后续Ubuntu1/2MiB T384完整比较PASS，同prefix策略2MiB少17.07%周期、40.92%权重字节。等待halt窗口有3/4周期的档位差异、内部控制CSR相同处未擅自修正，原因未定位。详见[结果及后续计划](WORKSET-results.md)，不推导4MiB或整模型结论。
+- [独立VCS包入口](../google_tcm_vcs/README.md)使服务器不需要Bazel：三档导出均已核对RTL/固件；1MiB VCS T12/T384、2MiB T12已通过，2MiB T384最终回传待补，4MiB服务器未确认。新[独立Verilator入口](../google_tcm_verilator/README.md)编译已通过，修复trace启动问题后的T12验收待回传。主机墙钟不等于纯仿真器速度或NPU周期；当前不承诺换后端提速。详见[导出记录](../google_tcm_vcs/EXPORT-results.md)，不修改旧基线/包/结果。
 
 本地验证：10项几何/独立向量/参数/BUILD语法/假fixture正反控制/日志解析及SSH入口、进度输出静态测试通过；另在临时稀疏Git副本用真实`8e4df09b`和团队真实补丁核验完整prepare、六package/22文件校验、拒绝覆盖和篡改检测；Git Bash `bash -n`通过。这些都不是实际SV编译或RAM仿真PASS，也不证明Ubuntu的SSH网络和账号权限已通过。
 

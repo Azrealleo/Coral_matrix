@@ -2,6 +2,8 @@
 
 状态：仅新增阶段1工具，尚无本轮真实RTL PASS；Windows上的单元测试不能替代Ubuntu仿真。
 
+2026-10-19更新：用户已要求暂停ITCM，先回DTCM并尝试服务器独立Verilator；不要自动启动下方扫描。当前工作集ITCM段1664字节，8KiB够这份小程序，不代表完整模型只需8KiB。官方固定源码的完整MobileNet示例设ITCM/DTCM各1MiB，但不是用户1001分类模型或最小容量证明，且默认`.rodata`可能占ITCM。完整模型应先核对实际ELF/map和常量/arena布局。当前接手见[HANDOFF-current.md](../HANDOFF-current.md)。
+
 本地验证：新增14项静态/合成检查通过，包含直接运行测试协程的正常、地址镜像和错误字节掩码反例；原DTCM工具64项通过，原VCS工具38项检查完成（其中2项可选依赖检查跳过）。新runner通过Git Bash语法检查。没有在Windows生成/仿真本轮RTL，也没有修改服务器任务。
 
 沿用官方提交`8e4df09b4ea7e065e02d14ce3ae033d40dfd973a`、团队两个补丁、单NPU和原实验地址图。DTCM固定2MiB，ITCM扫描8/16/32/64/128KiB，AXI外部取指开启，FetchL0关闭，其他RVV/VME/浮点参数与DTCM实验一致。这里的档位是本轮候选，不是宣称官方最大容量。

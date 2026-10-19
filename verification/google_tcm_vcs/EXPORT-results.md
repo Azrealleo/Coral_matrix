@@ -1,5 +1,7 @@
 # 固定RTL包实际导出记录
 
+更新至2026-10-19。各小节按事件发生时保留状态；本页末尾是后续完成结果。当前已确认：三档导出，服务器1/2MiB传输与VCS编译，1MiB T12/T384和2MiB T12完整PASS。2MiB T384仅收到启动，4MiB服务器传输/构建/运行未回传。独立Verilator1MiB构建PASS、首次T12启动失败已修复，修复后运行待回传。当前接手见[项目交接指南](../HANDOFF-current.md)，不修改任何旧包manifest。
+
 ## 2026-10-17：DTCM 1MiB
 
 依据：用户回传的Ubuntu导出及实验室服务器终端输出；Windows工作区未直接读取该归档。
@@ -47,7 +49,7 @@
 - 两策略各重复3次，每次9216输出元素；ELF SHA为`a8aa2d6feaefd56a5901f8bcca4f8f6bbf5394932add092243aff8f5eb497192`，向量SHA为`5f48b97cefb656ad1e4a96dc80a3f42804ed86d9c0553dade288d14519ebeb93`。两条汇总中的全部字段（包括AXI计数、各阶段/轮次周期）与Ubuntu1MiB/T12摘要一致。
 - **1MiB VCS T12/等待0已正式验收PASS**，仅适用于该固定配置和工作集，不是整模型、2/4MiB或物理时序的PASS。
 
-下一步：VCS路线已具备继续跑该模型大工作集的前置小用例证据，但当前实际主机耗时不支持其比虚拟机Verilator更快。建议大工作集主线优先回Ubuntu/Verilator（先1MiB/T384、再2MiB/T384），保留服务器固定包和已编译模型用于交叉验证；这是运行安排建议，尚未收到大工作集重跑结果。若选择服务器继续运行，使用包外入口和相同编译器隔离设置，不能直接用旧包runtime.py解析彩色pilot；6小时默认上限也不是耗时保证。2/4MiB VCS仍需各自小用例，不能拿1MiB包冒充。
+当时的下一步建议是回Ubuntu顺序跑1/2MiB T384，并保留VCS交叉验证；后来这些Ubuntu任务和服务器1MiB T384已完整通过，2MiB小用例也已通过，见文末，不再重复启动旧计划。VCS继续运行仍使用包外入口和相同编译器隔离，6小时默认上限不是耗时保证；4MiB需要自己的小用例，不能拿1MiB包冒充。
 
 本记录位于源码仓库，独立于已导出的不可变包；不要为更新状态而修改包内文件或其manifest。
 
@@ -61,7 +63,7 @@
 - SHA256：`499a7c31d97d06cb39ff8dcebe1ac2c6232605943d044af5d2eaa83ebe27d768`。
 - `[TCM_VCS_EXPORT_VERIFIED]`：`dtcm_kib=2048`，`control_rtl_bytes_equal=true`，`firmware_bytes_equal=true`，`vcs_simulation="NOT_RUN"`。
 - Bazel构建28.024秒；两条Chisel枚举转换warning未阻止生成，不将其解释为完整设计已无问题。
-- 状态：Ubuntu导出与字节核验已通过，尚未回传服务器传输校验、VCS编译或VCS仿真结果。
+- 导出当时状态：Ubuntu导出与字节核验已通过；后续服务器传输、VCS编译/T12 PASS见下节，不能改写导出时包内NOT_RUN声明。
 
 ## 后续回传：DTCM 4MiB导出
 
@@ -76,3 +78,43 @@
 - 状态：Ubuntu导出与字节核验已通过，尚未回传服务器传输校验、VCS编译或VCS仿真结果。
 
 三档导出仅证明包内RTL与对应容量的已通过控制组产物一致、固件与已通过工作集一致；不代表这些独立VCS包已通过仿真。2/4MiB导出耗时不是容量性能数据，包内`vcs_simulation="NOT_RUN"`是导出时的声明，不因后来服务器编译而修改原包。
+
+## 后续已回传：VCS正常T12测速与profiling
+
+1MiB正常复测目录`.../coral_tcm_vcs_d1024_svaext_v1_runtime/runs/t12_r0.mraudje0`，两策略完整PASS，周期/CSR/AXI/数据身份与首次验收结果相同；wrapper1178.5秒，cocotb1172.38秒，逻辑仿真时间1411740ns。它是新的正常速度参考，不覆盖首次运行。
+
+profiling目录`.../runs/t12_r0.xluxpvy5`也完整PASS，wrapper1403.893秒；实际文件`cocotb.pstat`，638658902次函数调用、profile总433.861秒。不同层级的cumtime有包含关系，不能相加或把wrapper减profile当精确RTL内核时间。详细调查见[全程记录第24节](../WORKLOG-and-handover.md#section-24)。profiling运行不作为正常速度基线。
+
+## 2026-10-18：1MiB/T384 VCS完整PASS
+
+原运行根：
+
+```text
+/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_runtime/runs/t384_r0.pyg9qm5e
+```
+
+用户提供6条原始JSON、完整工作集CHECK、cocotb1/1 PASS及外层RUN_PASS/OVERNIGHT_ALL_PASS。stream等待6885516周期，prefix5208090周期；CSR总分别6885263/5207833，权重字节分别4718592/2662400。每策略3次、每次294912输出，全部计数与随后Ubuntu同容量摘要一致。
+
+wrapper37619.46秒，cocotb37605.01秒，逻辑仿真时间45608321.25ns；10月18日02:21启动、12:47:53仿真结束、12:48:02外层ALL_PASS。不是NPU实际执行10小时，也不是所有容量/模型通过。完整容量结果见[工作集记录](../google_tcm_capacity/WORKSET-results.md)。
+
+## 2026-10-18：2MiB服务器传输、VCS编译/T12 PASS
+
+- 原归档`coral_tcm_vcs_d2048.tar.gz`服务器SHA检查OK，用户回传`TCM_2M_TRANSFER_PASS`。
+- 包根：`/home2/lqq/Desktop/coral_tcm_vcs_packages/d2048_499a7c31/coral_tcm_vcs_d2048`。
+- 完整pilot控制台：`/home2/lqq/coral_vcs_tools/d2048_pilot.LfpAwL.log`。
+- 构建：包同级`coral_tcm_vcs_d2048_runtime/builds/5f9c6915a993.06j4djj0`；编译54.893秒PASS。
+- T12：同级`coral_tcm_vcs_d2048_runtime/runs/t12_r0.e0u9djj4`；wrapper1187.676秒，RUN_PASS及PILOT_ALL_PASS。
+- stream等待225226、prefix145033周期，内部总CSR224975/144782、权重阶段120384/40296、权重外读147456/49152字节，其他阶段/AXI/轮次/ELF和T12向量身份与1MiB小负载对应一致。
+- 两策略各3次、每次9216输出检查；pool508、prefix驻留12块。比1MiB两个halt窗口均多4周期，内部CSR不变，原因未定位，不擅自修正。
+
+随后2MiB/T384后台任务日志目录`/home2/lqq/coral_vcs_tools/overnight_vcs.TdW8Yk`，10月18日13:28:53启动，当时launcher PID344971。**当前没有最终回传**，不能推定已通过、仍在跑或使用此过时PID执行kill。
+
+4MiB仍只有Ubuntu导出及字节一致性结果，未收到服务器传输/编译/运行；后续新建独立目录、自己的T12，通过后才允许T768，不复用其他容量二进制。
+
+## 2026-10-19：同包新增独立Verilator后端，不动VCS材料
+
+服务器`coral-verilator`环境基本检查PASS，采用用户态Conda新版工具而不改系统glibc；独立入口不需要Bazel，使用同包原始单文件SV、原SRAM C++和同fixture/ELF/向量。模型和日志另存`<包名>_verilator_runtime`，不覆盖VCS `_runtime`。
+
+1MiB构建目录`.../coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/builds/e6ab26657e58.xbhdmzuj`，编译434.214秒PASS。首次T12目录`.../runs/t12_r0.zl1315rn`在1.777秒退出255：`--trace requires the design to be built with trace support`。原入口WAVES/GUI字符串0被cocotb当真，不是RTL算术结果或超时。
+
+修复提交`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`，脚本SHA`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。本地25项检查通过；严格核验后可复用既有模型而不改包/构建记录。**修复后真实T12尚未回传**，也没有服务器Verilator大测试速度结果。完整续接见[当前交接指南第9节](../HANDOFF-current.md#current-verilator-pilot)。

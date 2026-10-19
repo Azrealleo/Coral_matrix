@@ -2,9 +2,11 @@
 
 ## 当前状态
 
+2026-10-19更新：Ubuntu的1/2MiB、T384已经完整PASS并通过配对；同prefix策略周期减少17.07%，权重外读减少40.92%。服务器VCS1MiB/T384、2MiB/T12亦PASS，2MiB/T384最终状态待回传；服务器独立Verilator的首次T12启动错误已修复、重跑待回传。ITCM仍8KiB，T768和延迟8未有完整结果。以下早期进展/超时段保留为历史，最新数字见[结果记录](WORKSET-results.md)，当前续接命令见[交接指南](../HANDOFF-current.md)。
+
 阶段1容量检查与阶段2a计算控制组六档均收到Ubuntu实际RTL PASS，六份完整控制日志也已由用户在Ubuntu比较通过，结果日志为`/home/lqq/coral_tcm_capacity_8e4_v1/control_compare.L0Pxte.log`。
 
-**Ubuntu已回传32KiB和128KiB、T12、额外读等待0的实际工作集RTL PASS，两份完整日志也已通过跨容量比较器复核**：每档两策略各重复3次、输出及软件/AXI计数校验通过。两档stream均225219周期；同一prefix策略从32KiB的205177降到128KiB的145026周期，减少29.32%，对应权重读取从120KiB降到48KiB。原始目录、详细计数及MiB级下一轮计划见[工作集结果](WORKSET-results.md)。暂无本工作集2/4MiB实测或整模型结论。
+**早期T12结果**：Ubuntu32/128KiB均完整PASS并通过跨容量比较；每档两策略各重复3次、输出及软件/AXI计数通过。两档stream均225219周期；同prefix策略由205177降到145026周期，少29.32%，权重读取由120KiB降到48KiB。后来1/2MiB T384亦完整PASS，见[工作集结果](WORKSET-results.md)；没有4MiB工作集或整模型结论。
 
 仍只测一个官方NPU，ITCM固定8KiB，DTCM保持32/128/512/1024/2048/4096KiB，一周期RAM行为模型。准备器验证两个旧阶段及六档完整控制日志身份后，在单独`tests/cocotb/tcm_workset/`增加包和独立manifest，不改已通过的源码或两个旧manifest。新测试目标需要emit同参数RTL/编译模型，复用下载和编译依赖缓存，不用旧870版本产物替代。通常任何残缺安装/文件指纹变化都会停止；下面仅为已知超时笔误提供严格、带备份的一次性升级，不清缓存。
 
@@ -30,7 +32,7 @@ cocotb 2.0的秒单位是`"sec"`而不是`"s"`；本次选择通用的`timeout_t
 
 ## 工作负载及策略边界
 
-2026-10-17：为避免CentOS7的Bazel/glibc限制，新增[Ubuntu导出、服务器独立VCS运行](../google_tcm_vcs/README.md)工具。原始单文件RTL必须与对应容量控制组PASS的SHA一致；同一ELF、SRAM C++源码、cocotb fixture/观察器与严格判据均保留。服务器本地编译DPI和VCS，先小工作集完整通过再允许大工作集；不是纯SV测试平台，也不承诺加速。实际Ubuntu包导出和服务器VCS验证尚未完成，本轮Verilator结果及manifest不因此改变。
+2026-10-17：为避免CentOS7的Bazel/glibc限制，新增[Ubuntu导出、服务器独立VCS运行](../google_tcm_vcs/README.md)工具。原始单文件RTL必须与对应容量控制组PASS的SHA一致；同一ELF、SRAM C++源码、cocotb fixture/观察器与严格判据均保留。服务器本地编译DPI和VCS，先小工作集完整通过再允许大工作集；不是纯SV测试平台，也不承诺加速。导出建立时未完成VCS验证；后续实际导出、编译和运行状态见[导出记录](../google_tcm_vcs/EXPORT-results.md)，本轮旧Verilator结果及manifest不因此改写。
 
 权重由T个4096字节块组成，每块K256×N16；三个不同输入块各M16×K256，对每个权重块产生16×16 INT32输出。整体相当于M48、N16T、K256的分块GEMM，输出按`输入轮次,权重块,行,列`排列。所有输出均用先扩展INT64的NumPy golden逐元素校验，输入+golden SHA跨容量不变。
 

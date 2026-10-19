@@ -2,6 +2,8 @@
 
 文档版本：v2，2026-10-04。交接对象：负责综合的组员；后续网表回传给 NPU 验证人员。
 
+> 2026-10-19范围说明：本文件继续描述10月4日旧`870993f7`来源、ITCM8KiB/DTCM32KiB的已交付快照，不把旧包改成新的容量实验。团队之后已选官方版，用户报告单NPU SoC集成测试通过；当前工作为`8e4df09b`基线的单核DTCM研究，接手先读仓库中的[当前项目交接指南](https://github.com/Azrealleo/Coral_matrix/blob/main/verification/HANDOFF-current.md)。该指南不在历史压缩包内。本仓库说明更新不重打包、不改旧包内HANDOFF/manifest/RTL，也没有新的DC/网表/门仿完成证据。
+
 本次交付是完整 NPU 核 `VmeCoreMiniAxi`，保留此前仿真的生成配置。直接导出 Ubuntu 已有生成物，没有重新生成硬件，没有修改原始 RTL，也没有切换到 `prod/` 目标。此前关闭 AXI 外部取指的生产包不作为本次综合基线。
 
 ## 1. 接手后先做什么
