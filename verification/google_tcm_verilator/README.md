@@ -1,8 +1,19 @@
 # 服务器独立Verilator：原封不动读取已校验的TCM RTL包
 
-状态：服务器`coral-verilator`基础环境已回传PASS（Python3.11.17、Verilator5.052、Conda GCC15.3、glibc2.17）；1MiB模型已真实编译通过，用时434.214秒。首次T12在仿真启动前因错误的`--trace`参数退出255，尚无实际RTL仿真PASS，不能据此承诺速度。
+状态：2026-10-19已收到服务器1MiB/T12完整RTL PASS及与VCS参考的精确比对PASS，实际运行429.077秒；复用了434.214秒编译通过的原模型。首次trace启动失败保留，修复后的新运行另存，不覆盖失败证据。环境为Python3.11.17、Verilator5.052、Conda GCC15.3、glibc2.17。
 
-2026-10-19文档整理：最新修复后运行仍未回传，不再将旧`92937fe`入口作为新启动版本。固定`c0b4b76`脚本的完整下载、SHA校验及不重编T12命令在[当前项目交接指南](../HANDOFF-current.md#current-verilator-pilot)；它还列出两机结果、不可变包与后续优先级。本次只更新外层说明，不修改已导出包或运行证据。
+固定`c0b4b76`脚本及本次PASS已满足相同包/模型/环境的大测试前置条件；下一步可以复用该1MiB模型跑T384，尚未收到Server Verilator T384结果。续跑命令见[当前项目交接指南](../HANDOFF-current.md#server-verilator-t384)，不重新导出或编译。只更新外层说明，不修改已导出包或运行证据。
+
+## 2026-10-19：修复后的T12实际PASS
+
+- 已使用的修复入口：`/home2/lqq/coral_vcs_tools/verilator_trace_fix.S7nNd7/verilator_workset.py`；脚本SHA256仍为`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。
+- 控制台：同目录`console.log`。
+- 实际运行：`/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/runs/t12_r0.fmvgge7f`。
+- 复用模型`.../builds/e6ab26657e58.xbhdmzuj`；输出BUILD_REUSED和RUNTIME_FIX，原模型及构建记录未改。
+- 两策略各3次、每次9216个输出检查，合计55296元素；stream等待225222周期，prefix145029周期。对应CSR总224975/144782、权重外读147456/49152字节、AXI读9984/3840拍、写2304拍，其他阶段/轮次及数据身份与原VCS参考相同。
+- 用户回传`TCM_VERILATOR_REFERENCE_MATCH cycles_counters_axi_elf_vectors=EXACT`及`TCM_VERILATOR_RUN_PASS simulation_wall_seconds=429.077`。不是只凭编译或两条摘要推定PASS，完整外层验收已执行。
+- 同服务器当前配置/T12下，对比正常VCS wrapper1178.5秒，观察速度比2.74659、墙钟减少63.5913%；两个流程均不把编译时间算入运行值。不是所有模型的仿真器理论比，也不承诺T384/T768同比例。
+- Ubuntu同容量T12的Bazel test292.4秒仍是不同机器/略不同边界，不用来评价服务器CPU优劣或纯引擎速度。服务器其他容量尚需自己的T12。
 
 本地验证：修正前19项检查通过，但当时的真实Runner测试未使用生产子进程环境，漏掉了`WAVES="0"`问题。补充生产环境到真实cocotb2.0接口的启动命令检查、旧模型只读复用和拒绝环境/命令/模型篡改等回归后，本入口25项通过。原DTCM工具64项和原VCS工具40项此前回归通过。这些检查不替代服务器上的RTL测试。
 
@@ -51,6 +62,6 @@ python -B /包外路径/verilator_workset.py --package /已有包目录 run \
   --tiles 12 --delay 0 --reference-log /同容量完整通过的_test.log
 ```
 
-看到`[TCM_VERILATOR_REFERENCE_MATCH]`和`[TCM_VERILATOR_RUN_PASS]`才代表这轮跨后端验收成功。check/Python导入/工具单元测试均不是RTL PASS。首次模型要在服务器重新编译，不传Ubuntu可执行文件以免glibc不兼容；编译时间与运行时间分开报告。实际提速待服务器实测，不以虚拟机结果替代。
+看到`[TCM_VERILATOR_REFERENCE_MATCH]`和`[TCM_VERILATOR_RUN_PASS]`才代表跨后端验收成功；本次1MiB/T12两者已实际收到。check/Python导入/工具单元测试均不是RTL PASS。新增容量首次模型仍在服务器本地编译，不传Ubuntu可执行文件；编译与运行分开记录。其他工作集和容量的提速仍待实测，不用T12或VM结果替代。
 
 之后才能在同一模型上`run --tiles 384 --delay 0 --timeout 86400`等。4MiB必须先传输其独立RTL包并完成自己的T12验收，不复用1/2MiB模型。

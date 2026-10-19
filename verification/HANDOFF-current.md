@@ -9,7 +9,7 @@
 - 当前ITCM固定8KiB；DTCM候选32/128/512KiB和1/2/4MiB。“2M/4M”指每个DTCM的MiB，不是Mbit。
 - 六档DTCM几何和同ELF小计算控制均Ubuntu PASS。T384的1/2MiB在Ubuntu完整PASS并配对：同prefix策略2MiB少17.07%周期、少40.92%权重外读。
 - 服务器VCS的1MiB/T384、1/2MiB T12均PASS；服务器2MiB/T384只有启动回传，须取最后日志，不能推定仍在运行或已通过。
-- 服务器独立Verilator环境检查和1MiB模型编译PASS（434.214秒）；首个T12被错误的`--trace`启动参数终止。`c0b4b76`已修复，**接手的第一项未完成验证是修复后的T12精确比对**。
+- 服务器独立Verilator的1MiB/T12修复后已完整PASS且精确匹配VCS，429.077秒，复用原434.214秒构建的模型；首次trace失败另存。**当前下一项是复用该模型运行T384并与既有VCS T384比对**，尚无本后端T384结果。
 - ITCM8～128KiB几何工具已写并本地自测，用户要求暂缓，实际RTL运行未回传；T768、读延迟8、完整模型、DC/200MHz、门仿都没有本轮完成结果。
 
 先接手现有环境和证据，不重新clone上游最新版、不清Bazel cache、不删除失败目录、不修改包内manifest/hash、不停止其他人的仿真。
@@ -134,7 +134,7 @@ VCS特殊要求：先保存Conda Python和DPI G++绝对路径，再让系统`/us
 | 六档32KiB～4MiB几何 | 全PASS | 非本轮运行项目 | 非本轮运行项目 |
 | 六档同ELF小控制 | 全PASS、完整日志比较PASS | 未做这一suite | 未做这一suite |
 | T12/32、128KiB | PASS、配对PASS | 未做 | 未做 |
-| T12/1MiB | PASS | 首次验收、正常复测、profile均PASS | 编译PASS；首次启动失败；修复后待回传 |
+| T12/1MiB | PASS | 首次验收、正常复测、profile均PASS | 修复后完整PASS、VCS精确参考匹配；429.077秒 |
 | T12/2MiB | 本轮未收到该容量T12独立结果 | PASS | 未做 |
 | T384/1MiB | 新完整运行PASS | PASS | 未做 |
 | T384/2MiB | PASS、与1MiB比较PASS | 已启动，最终结果未回传 | 未做 |
@@ -222,6 +222,8 @@ tcm_p2=/home2/lqq/Desktop/coral_tcm_vcs_packages/d2048_499a7c31/coral_tcm_vcs_d2
 | VCS2MiB T384任务日志 | `/home2/lqq/coral_vcs_tools/overnight_vcs.TdW8Yk/console.log` |
 | 独立Verilator1MiB构建PASS | `${tcm_p1}_verilator_runtime/builds/e6ab26657e58.xbhdmzuj` |
 | 独立Verilator首次T12失败 | `${tcm_p1}_verilator_runtime/runs/t12_r0.zl1315rn/_test.log`及`_test-status.json` |
+| 独立Verilator修复后T12 PASS | `${tcm_p1}_verilator_runtime/runs/t12_r0.fmvgge7f`；429.077秒 |
+| 本次已通过修复入口/控制台 | `/home2/lqq/coral_vcs_tools/verilator_trace_fix.S7nNd7/verilator_workset.py`及同目录`console.log` |
 | 旧Verilator外部入口 | `/home2/lqq/coral_vcs_tools/verilator_runner.JdVpsd/verilator_workset.py`，包含trace问题，不再作为新运行入口 |
 
 VCS和Verilator后端拥有独立状态树，不能互换模型二进制/成功指针。旧包内导出时`vcs_simulation=NOT_RUN`保持原样，新的运行证明在包外`result.json`、进程状态、XML和原始日志中。
@@ -250,7 +252,9 @@ fi
 
 <a id="current-verilator-pilot"></a>
 
-## 9. 当前实际下一步：修复后Verilator T12
+## 9. 已完成的Verilator T12验收与当前T384续跑入口
+
+2026-10-19后续回传：`t12_r0.fmvgge7f`已完整通过，REFERENCE_MATCH为EXACT、RUN_PASS为429.077秒；两策略各3次、共55296输出检查。stream225222周期、prefix145029周期，各阶段/轮次、AXI、ELF和向量与VCS正常T12参考完全匹配。当前不需要再复测T12，下一步见本节9.4。
 
 ### 9.1 为什么不重新编译
 
@@ -258,9 +262,9 @@ fi
 
 修复脚本SHA256：`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。它严格校验旧模型生产者SHA、完整环境/包身份、二进制及编译命令/visibility、成功状态，满足才只读复用；失败就停止，不能手改当前构建指针/哈希。
 
-### 9.2 服务器可直接执行的完整命令
+### 9.2 已通过T12的复现命令（不是当前默认下一步）
 
-下面**前台只重跑1MiB/T12**，不是后台队列；为保证速度观察，若自己的VCS还在跑会停止启动，不影响原任务。下载需要反向代理，实际仿真不依赖代理。命令已给用户，但修复后的结果截至本次整理没有回传。
+下面是已通过T12的原复现入口，前台运行；没有必要为了续跑T384重复执行。新接手机器若缺文件，下载需要反向代理，实际仿真不依赖代理。正式续跑使用9.4已经存在且核过SHA的修复入口。
 
 ```bash
 (
@@ -295,7 +299,9 @@ echo "[VERILATOR_CONSOLE_LOG] $tcm_fix_dir/console.log"
 )
 ```
 
-应先有`TCM_VERILATOR_BUILD_REUSED`。最终必须同时出现：
+### 9.3 T12验收要求与失败保留
+
+复现时应先有`TCM_VERILATOR_BUILD_REUSED`。最终必须同时出现：
 
 ```text
 [TCM_VERILATOR_REFERENCE_MATCH] cycles_counters_axi_elf_vectors=EXACT
@@ -305,6 +311,43 @@ echo "[VERILATOR_CONSOLE_LOG] $tcm_fix_dir/console.log"
 它要完整6次输出/CSR/AXI/ELF/向量与同容量VCS参考精确相同，外层还要求退出0、未超时、XML无失败/跳过、模型及包未变。**不得为“跨后端有差异”擅自容忍/扣除周期或改golden。** 只有该模型自己的T12证据通过，才解锁T384等大工作集；其他容量还要自己的T12。
 
 若报错，保留新`TCM_VERILATOR_RUN_DIRECTORY`，先回传其`_test.log`末120行和`_test-status.json`。若是模型/环境不匹配，不自动加build；先核对环境变量和旧`environment.json`，判断是否只是启动环境变化。不要再次把旧trace错误理解成RTL编译失败。
+
+<a id="server-verilator-t384"></a>
+
+### 9.4 当前下一步：同模型1MiB/T384，并精确比对原VCS大测试
+
+只使用已通过T12的入口、包、模型和环境。下面前台运行，日志保存到新文件；不需Git/Bazel、下载或重编。reference指向既有1MiB VCS T384，先检查完整性，结束后再做全部严格汇总字段比对。T384尚未实际运行通过，24小时只是保护上限，不能承诺实际耗时或2.75倍大测试提速。
+
+```bash
+(
+set -eo pipefail
+source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-verilator
+export CC="$(command -v gcc)"
+export CXX="$(command -v g++)"
+unset COCOTB_ENABLE_PROFILING WAVES GUI
+
+if pgrep -a -u "$(id -u)" -x simv; then
+    echo '自己的VCS仍在运行，稍后再测速；未停止任何进程。'
+    exit 1
+fi
+
+tcm_adapter=/home2/lqq/coral_vcs_tools/verilator_trace_fix.S7nNd7/verilator_workset.py
+printf '%s  %s\n' \
+    9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855 \
+    "$tcm_adapter" | sha256sum -c -
+tcm_package=/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1
+tcm_reference="${tcm_package}_runtime/runs/t384_r0.pyg9qm5e/_test.log"
+test -f "$tcm_reference"
+tcm_console=$(mktemp "$HOME/coral_vcs_tools/verilator_t384.XXXXXX.log")
+echo "[VERILATOR_T384_CONSOLE_LOG] $tcm_console"
+"$CONDA_PREFIX/bin/python" -B "$tcm_adapter" --package "$tcm_package" run \
+    --tiles 384 --delay 0 --timeout 86400 --reference-log "$tcm_reference" \
+    2>&1 | tee "$tcm_console"
+)
+```
+
+完成需回传两条SUMMARY、REFERENCE_MATCH、RUN_PASS及新目录；T384的NPU周期若与既有VCS记录不同，必须排查，不只凭输出PASS接受速度排名。其他容量仍需自己的独立模型和T12，不能用本次1MiB前置证明解锁2/4MiB。
 
 ## 10. 后续执行入口与运行安排
 
@@ -374,11 +417,11 @@ ssh -N -T -p 22 -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerA
 | VM Verilator 2MiB/T384 | Bazel test8789.0秒 |
 | Server VCS 1MiB/T384 | wrapper37619.46秒、cocotb37605.01秒 |
 | Server VCS 2MiB/T12 | wrapper1187.676秒 |
-| Server独立Verilator | 编译434.214秒；尚无通过的仿真墙钟 |
+| Server独立Verilator 1MiB/T12 | 429.077秒；编译434.214秒另计，复用模型 |
 
 不同主机/编译器/边界下不把约5.58倍T384观察差异写成纯模拟器差异。VCS profiling的638658902次调用、433.861秒profile、百万到千万级VPI/时钟/观察器回调显示平台有成本，但累计时间嵌套不能相加，wrapper减profile不等于精确RTL时间；profile运行1403.893秒不作基线。
 
-VCS debug/ACC可见性、Python逐周期时钟/AXI观察、旧CPU单线程和不同编译器都值得查，不等于已定量证实。当前不关断言、不减检查、不改SRAM，只先完成同服务器/同包的Verilator T12。不要承诺服务器装Verilator就一定快于VM或VCS；服务器这条路线还缺运行证据。
+VCS debug/ACC可见性、Python逐周期时钟/AXI观察、CPU单线程和不同编译器都值得查，不等于已定量证实。当前不关断言、不减检查、不改SRAM。同服务器/同包的T12现已验收，Verilator429.077秒对比正常VCS1178.5秒，观察快2.74659倍、墙钟少63.5913%；没有同一时刻主机负载控制，不宣称纯内核比或所有工作集比。T384及其他容量仍待实测。
 
 ## 12. ITCM与完整模型：暂缓但不要丢失判断依据
 
@@ -393,8 +436,8 @@ ITCM工具新增时DTCM固定2MiB、ITCM8/16/32/64/128KiB。只测核停止状�
 ### 13.1 待办优先级
 
 1. 保存现有Linux完整证据，核对服务器2MiB/T384最终状态。
-2. 用第9节修复入口完成1MiB Server Verilator T12，回传REFERENCE_MATCH、RUN_PASS及墙钟；失败保留新日志/状态。
-3. 小用例合格后再安排Server Verilator T384；各容量各自建立T12前置，不把1MiB模型用于2/4MiB。
+2. 保留已经通过的1MiB Server Verilator T12目录`.../runs/t12_r0.fmvgge7f`和修复入口，不重跑旧失败或伪造重编。
+3. 按第9.4节复用同模型跑Server Verilator T384并参考比对既有VCS；各容量各自建立T12前置，不把1MiB模型用于2/4MiB。
 4. T768做2/4MiB配对；4MiB先核对/传输原归档、环境、编译和自己的T12。记录可用磁盘和预计队列，不能承诺一夜内完成。
 5. 再讨论延迟8、真实SoC外存带宽/仲裁、备选调度和实际模型；ITCM等用户另排期。
 6. SRAM宏、200MHz、DC/STA/GLS、四NPU竞争交给团队明确配置和责任，再安排验证。当前没有网表/SDF/库返回证据。
@@ -415,7 +458,8 @@ ITCM工具新增时DTCM固定2MiB、ITCM8/16/32/64/128KiB。只测核停止状�
 - [ ] 区分两个上游基线、五种版本身份、VCS与Verilator的编译器/状态目录。
 - [ ] 找到并备份Ubuntu1/2MiB T384完整日志及比较器结果，知道17.07%结论的固定调度边界。
 - [ ] 查明VCS2MiB T384当前真实状态；不把启动输出、过时PID或别人simv当自己的运行。
-- [ ] 最新Server Verilator T12实际通过或仍明确挂起；没有REFERENCE_MATCH/RUN_PASS就不填完成。
+- [x] 1MiB Server Verilator T12已回传REFERENCE_MATCH/RUN_PASS，429.077秒；原始文件在服务器，接手仍需核对/备份。
+- [ ] Server Verilator T384实际运行并与原VCS参考匹配，当前尚未回传。
 - [ ] 知道4MiB仅导出、T768和延迟8未完成，ITCM已暂停，完整模型/200MHz/门仿均缺本轮证据。
 - [ ] 没有清除旧结果、篡改manifest、放宽golden/重复/AXI/周期判据，且接手材料不含凭据或商业库。
 

@@ -4,7 +4,7 @@
 
 1/2/4MiB包已在Ubuntu导出并核对RTL/固件；服务器1/2MiB均已传输和编译，1MiB T12/T384、2MiB T12完整PASS。服务器2MiB/T384只有启动回传，4MiB服务器运行未确认。Ubuntu的1/2MiB T384亦完整PASS并比较，同prefix策略2MiB少17.07%周期/40.92%权重字节。
 
-当前新增[独立服务器Verilator入口](../google_tcm_verilator/README.md)，读取同一不可变包，不动VCS状态。环境和1MiB编译PASS，首次T12因误启trace失败；`c0b4b76`修复后实际结果仍待回传。当前任务不是重跑旧VCS pilot，而是该Verilator T12精确参考验收，并收集VCS2MiB/T384最终状态。详见[当前项目交接](../HANDOFF-current.md)、[完整导出/服务器记录](EXPORT-results.md)；以下带日期的首次构建/验收段为历史过程。
+新增[独立服务器Verilator入口](../google_tcm_verilator/README.md)读取同一不可变包，不动VCS状态。首次T12 trace失败经`c0b4b76`修复，现1MiB/T12完整PASS并精确匹配VCS，429.077秒（原VCS正常流程1178.5秒）；当前可续跑Verilator T384，同时收集VCS2MiB/T384最终状态。详见[当前项目交接](../HANDOFF-current.md)、[导出/服务器记录](EXPORT-results.md)。不同负载速度仍待测，以下首次构建/验收段保留为历史。
 
 首次验收历史：1MiB使用系统GCC与独立DPI编译器后60.523秒构建PASS；SGR颜色和ELF元组/列表误比较由包外入口修复，原T12无需重跑即完整验收，原流程1185.423秒。周期/计数/数据身份与Ubuntu同容量T12相同，Ubuntu的Bazel test为292.4秒。它们不构成同机纯引擎速度比。后续正常测速、大运行、2MiB pilot和当前Verilator进展见上方最新状态及[导出记录](EXPORT-results.md)；不要把此历史首跑当最新结果。原包、旧实验副本和团队仓库均不修改。
 

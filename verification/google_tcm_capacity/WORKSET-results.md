@@ -2,7 +2,7 @@
 
 依据用户回传的Ubuntu真实RTL仿真摘要整理；Windows侧没有直接读取完整原始test.log。本记录不替代Ubuntu目录内的原始日志、manifest、ELF和产物指纹。
 
-2026-10-19更新：本次补入Ubuntu1/2MiB T384、服务器VCS1MiB T384及2MiB T12的实际完成结果。前面的首次TIMEOUT保留为历史INCOMPLETE，不覆盖；修复后新运行PASS见文末。服务器独立Verilator只完成模型编译，首次T12因启动trace失败，运行修复已提交但实际结果尚未回传。当前接手入口见[HANDOFF-current.md](../HANDOFF-current.md)。本次复查已保存的用户附件，不声称直接读取服务器完整目录。
+2026-10-19更新：Ubuntu1/2MiB T384、服务器VCS1MiB T384及2MiB T12均已完成。服务器独立Verilator修复后1MiB/T12现也完整PASS，精确匹配VCS，429.077秒，详见文末。前面首次TIMEOUT/trace失败保留，不覆盖。当前接手见[HANDOFF-current.md](../HANDOFF-current.md)；依据用户回传日志/摘要，不声称直接读取Linux完整目录。
 
 ## 32KiB、12权重块、外部附加读等待0：PASS
 
@@ -242,6 +242,19 @@ Bazel报告`TIMEOUT in 3600.1s`、总elapsed3793.264秒；外层`time`报告real
 
 Conda环境在glibc2.17上检查PASS，1MiB模型编译434.214秒PASS。首次T12位于`.../coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/runs/t12_r0.zl1315rn`，因入口误置WAVES/GUI字符串0触发`--trace`、模型未编跟踪而exit255，1.777秒、未超时。不是完整RTL测试失败，也没有可接受的速度结果。
 
-`c0b4b76`修正子进程环境并严格只读复用原模型，25项本地测试通过；**修复后实际T12、参考比对及服务器Verilator大测试均未回传**。详见[Verilator入口](../google_tcm_verilator/README.md)与[当前交接命令](../HANDOFF-current.md)。
+`c0b4b76`修正子进程环境并严格只读复用原模型，25项本地测试通过；当时实际运行还未回传。随后用户提供修复后完整T12结果，见下一节；Server Verilator大测试仍未回传。
 
-剩余：VCS2MiB/T384最终证据；Server Verilator同机T12/T384；T768的2/4MiB；延迟8；真实模型/备选调度/SoC外存条件；真实SRAM宏/200MHz/PPA。4MiB目前只有几何/小控制PASS及导出包，不已有T768收益证据。ITCM工具暂缓，当前所有上述DTCM结果仍ITCM8KiB。
+剩余：VCS2MiB/T384最终证据；Server Verilator T384；T768的2/4MiB；延迟8；真实模型/备选调度/SoC外存条件；真实SRAM宏/200MHz/PPA。4MiB只有几何/小控制PASS及导出包，不已有T768收益证据。ITCM暂停，所有上述DTCM结果仍ITCM8KiB。
+
+## 2026-10-19后续回传：Server Verilator1MiB/T12完整PASS且VCS参考EXACT
+
+- 原模型`e6ab26657e58.xbhdmzuj`只读复用，BUILD_REUSED/RUNTIME_FIX均已回传；未重新编译、未更改包或构建记录。
+- 入口`/home2/lqq/coral_vcs_tools/verilator_trace_fix.S7nNd7/verilator_workset.py`，同目录`console.log`。
+- 结果：`/data/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/runs/t12_r0.fmvgge7f`。
+- ITCM8KiB、DTCM1MiB、T12/read_delay0，仍同ELF/T12向量身份，每策略3次、每次9216输出，合计55296元素。
+- stream等待225222、CSR总224975、权重阶段120384周期、权重外读147456字节；prefix分别145029、144782、40296周期、49152字节。轮次、输入/计算/输出计数及全部AXI拍/事务/字节与原VCS参考完全相同。
+- 正式标记：`TCM_VERILATOR_REFERENCE_MATCH cycles_counters_axi_elf_vectors=EXACT`及`TCM_VERILATOR_RUN_PASS simulation_wall_seconds=429.077`。严格外层过程已经通过，不是仅凭两条摘要或模型编译推定。
+
+同服务器正常VCS T12 wrapper1178.5秒；本次Verilator429.077秒，当前配置/负载观察速度比2.74659、墙钟少63.5913%。编译434.214秒另计且本次没有重编；不外推到T384/T768，也不混用Ubuntu292.4秒作为同机速度。
+
+当前可复用此模型跑1MiB/T384，推荐同时指定既有VCS T384完整日志作为精确参考，见[续跑命令](../HANDOFF-current.md#server-verilator-t384)。尚无Server Verilator大测试结果，其他容量仍需自己的T12。

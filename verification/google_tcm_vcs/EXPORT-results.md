@@ -1,6 +1,6 @@
 # 固定RTL包实际导出记录
 
-更新至2026-10-19。各小节按事件发生时保留状态；本页末尾是后续完成结果。当前已确认：三档导出，服务器1/2MiB传输与VCS编译，1MiB T12/T384和2MiB T12完整PASS。2MiB T384仅收到启动，4MiB服务器传输/构建/运行未回传。独立Verilator1MiB构建PASS、首次T12启动失败已修复，修复后运行待回传。当前接手见[项目交接指南](../HANDOFF-current.md)，不修改任何旧包manifest。
+更新至2026-10-19。各小节按发生时保留状态；文末为后续结果。当前三档导出，服务器1/2MiB传输与VCS编译，1MiB T12/T384及2MiB T12均PASS。2MiB T384仅收到启动，4MiB服务器未回传。独立Verilator1MiB/T12修复后已完整PASS、精确匹配VCS，429.077秒；本后端T384待跑。接手见[项目交接指南](../HANDOFF-current.md)，不修改旧包manifest。
 
 ## 2026-10-17：DTCM 1MiB
 
@@ -117,4 +117,12 @@ wrapper37619.46秒，cocotb37605.01秒，逻辑仿真时间45608321.25ns；10月
 
 1MiB构建目录`.../coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/builds/e6ab26657e58.xbhdmzuj`，编译434.214秒PASS。首次T12目录`.../runs/t12_r0.zl1315rn`在1.777秒退出255：`--trace requires the design to be built with trace support`。原入口WAVES/GUI字符串0被cocotb当真，不是RTL算术结果或超时。
 
-修复提交`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`，脚本SHA`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。本地25项检查通过；严格核验后可复用既有模型而不改包/构建记录。**修复后真实T12尚未回传**，也没有服务器Verilator大测试速度结果。完整续接见[当前交接指南第9节](../HANDOFF-current.md#current-verilator-pilot)。
+修复提交`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`，脚本SHA`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。本地25项检查通过；严格核验后可复用既有模型而不改包/构建记录。最初此处还未收到实际运行；随后T12正式通过，见后续记录。Server Verilator大测试速度仍无回传。
+
+### 后续1MiB Verilator T12实际验收PASS
+
+入口`/home2/lqq/coral_vcs_tools/verilator_trace_fix.S7nNd7/verilator_workset.py`，控制台同目录`console.log`；运行根为同级`coral_tcm_vcs_d1024_svaext_v1_verilator_runtime/runs/t12_r0.fmvgge7f`。原`e6ab26657e58.xbhdmzuj`模型/记录不变，回传BUILD_REUSED/RUNTIME_FIX。
+
+用户回传两条SUMMARY及REFERENCE_MATCH=EXACT、RUN_PASS=429.077秒。stream225222周期、prefix145029周期，CSR/轮次/AXI/ELF/向量与VCS1MiB正常T12参考全部相同；每策略3次，合计55296输出。此为真实RTL+严格参考验收，不是环境检查或单元测试。
+
+相比同服务器VCS正常T12 wrapper1178.5秒，当前流程观察快2.74659倍、墙钟减少63.5913%，编译另计。主机当时负载未完全受控，不外推纯引擎、其他容量或T384。当前可用同一模型跑T384并参考既有VCS1MiB大日志；[续跑命令](../HANDOFF-current.md#server-verilator-t384)，不改任何不可变包。

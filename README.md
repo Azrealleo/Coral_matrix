@@ -47,10 +47,12 @@ and 2 MiB T12 have passed. The 2 MiB T384 job was started, but its completion ha
 not been reported. No server 4 MiB run is confirmed.
 
 The [standalone server Verilator flow](verification/google_tcm_verilator/README.md)
-has a working Conda environment and a compiled 1 MiB model. The initial T12 run
-failed before simulation because the launcher mistakenly enabled tracing. The
-runtime-only fix is committed; the corrected T12/reference acceptance is still
-pending. Do not count compilation or local tool tests as RTL simulation passes.
+has passed the corrected 1 MiB T12 test with exact VCS-reference agreement. It
+reused the existing model and ran in 429.077 seconds versus the previous normal
+VCS run's 1178.5 seconds on the same server (about 2.75x for this configuration).
+The earlier trace-launch failure is retained separately. Server Verilator T384
+is next; no larger-workload speedup is assumed. Compilation or local tool tests
+alone are still not RTL simulation passes.
 The separate [ITCM sweep tools](verification/google_itcm_capacity/README.md) are
 prepared but paused, with no reported RTL pass. The current DTCM runs keep ITCM
 at 8 KiB. Real-model, physical SRAM timing, 200 MHz and gate-level validation
