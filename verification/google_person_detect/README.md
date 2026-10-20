@@ -101,6 +101,6 @@ bash verification/google_person_detect/export_rtl.sh \
 
 产物在新建`person_rtl_export.XXXXXX/coral_person_i256_d512.tar.gz`及`.sha256`；包含原始单文件SV、ZIP依赖、参数头、SRAM DPI、原ELF、两张BMP和无需Pillow的原始INT8输入、主机分数及资源证据。包内`portable.py`可只读校验，运行输出放包外；SHA校验不等于RTL通过，也不是数字签名。
 
-**本阶段没有启动VCS/Verilator，也尚未包含新的完整模型独立仿真runner。** 下一步再准备服务器前门加载、fault/状态/arena检查、耗时采样及单图推理入口；不要拿旧TCM workset runner套用新ELF，不自动启动整网过夜重复。
+**导出阶段没有启动VCS/Verilator。** 2026-10-20用户已回传真实新RTL导出通过，归档SHA `a83bd98bd92157163223b75d74a25e5f426a59937354fb3784d830be4f130726`。下一步是[服务器传包及Verilator短窗口](SERVER.md)：新独立runner只在包外运行，先前门加载/读回和20万周期观察，检查fault/状态/arena/栈底canary；这不是完整模型PASS，不拿旧TCM workset runner套用新ELF，不自动启动整网过夜重复。服务器实际运行尚未回传。
 
-新增7项导出合成检查通过（与原有15项合计22项）：配置/路径拒绝、官方BMP解码与Pillow一致、证据配对、256KiB段边界、拒绝覆盖/篡改、归档及只读校验。合成包不是真实生成的RTL包；Bash语法检查通过，真实RTL生成等待用户执行。
+新增7项导出合成检查通过（与原有15项合计22项）：配置/路径拒绝、官方BMP解码与Pillow一致、证据配对、256KiB段边界、拒绝覆盖/篡改、归档及只读校验。这些合成包不是真实RTL产物；随后用户实际生成的新包与服务器下一步见上节及[SERVER.md](SERVER.md)，加入新入口后本地检查合计29项。

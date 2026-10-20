@@ -1816,3 +1816,13 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 用户希望长任务在稳定服务器运行，采用VM仅生成RTL/固件、服务器独立Verilator路线，避免服务器原生Bazel兼容问题。新增`export_rtl.sh`/`export_person.py`/`portable.py`：复核已通过的原主机/ELF证据，新建256KiB ITCM/512KiB DTCM导出目标，不重编/修改原ELF；检查各实际段都放得下、公共参数/ZIP、固定资产字节、INT8 BMP解码和归档校验。保留原8KiB ITCM的旧TCM包，不沿用其新配置通过资格。新包明确标NOT_RUN，尚无完整模型仿真runner，不运行旧workset bench。
 
 新增7项合成导出测试，与原有15项合计22项通过；官方两BMP的标准库解码与Pillow逐字相同，Bash语法检查通过。真实新RTL生成尚待用户在VM执行，服务器编译/单图耗时采样为后续步骤；完整NPU推理/VME加速/性能仍不记PASS。专题结果见`google_person_detect/FIRMWARE-results.md`。
+
+### 28.2 2026-10-20：真实RTL导出及服务器单图试运行入口
+
+用户回传VM RTL构建34.698秒，新参数/导出校验通过，原ELF和模型字节一致。目录`/home/lqq/coral_tcm_capacity_8e4_v1/person_rtl_export.r9bhUw`，包`coral_person_i256_d512.tar.gz`，SHA `a83bd98bd92157163223b75d74a25e5f426a59937354fb3784d830be4f130726`。256KiB ITCM/512KiB DTCM的实际SV已经生成；仍没有NPU推理通过记录。
+
+新增包外`person_runner.py`/`person_bench.py`/`server_pilot.sh`，固定SHA复用旧独立Verilator构建器通用编译函数，重新编新顶层，不复用其他容量可执行文件。核验包中原ELF/资源、原模型、依赖版本/C++17/动态库；输出和锁放包外，不覆盖原包；环境清除WAVES/GUI/profiling，包括字符串0。
+
+服务器先校验/编译，然后前门完整装载/模型读回、官方有人图输入读回及20万周期有界观察。0/1/2阶段、fault、自然halt、arena、invoke周期、两分数、栈底64字节canary及执行/装载墙钟分开记录。预算到达后以原CSR halt接口停止一次性实例，非恢复checkpoint。仅窗口观察时输出OBSERVED_NOT_INFERENCE，cocotb完成不等于模型通过；自然halt/status3/实际arena/原生两分数精确一致才可INFERENCE_PASS。栈底检查不是完整水位证明，status0不宣称有效程序进展。
+
+新增7项本地入口/结果判据测试，与旧22项合计29项通过，含原模型合成ELF重审计、失败XML/JSON/窗口/状态/栈/模型身份拒绝、环境清理和固定构建器命令。无本地RTL编译/运行。下一步[SERVER.md](google_person_detect/SERVER.md)先传包再服务器前台pilot，各阶段超时1800秒，不自动启动完整标量整网或其他用户任务。根据pilot再定完整单图预算；旧模型/TCM结果不变。

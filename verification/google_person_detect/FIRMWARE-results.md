@@ -36,7 +36,7 @@ host日志SHA256：`d04c93fb6c3a140cb5c38ee2dd96a0beb54828c3d6f4e9fccad303a56931
 ## 尚未通过/尚未执行
 
 - NPU实际执行、完整单图Invoke、NPU输出与主机参考精确对照。
-- 256KiB ITCM新配置的RTL生成和服务器Verilator模型编译/运行。
+- 服务器Verilator新模型编译/运行。256KiB ITCM新配置的RTL生成及归档导出随后已实际完成，见[服务器入口与导出身份](SERVER.md)。
 - 运行时`pd_arena_used`、栈水位、实际推理周期及仿真墙钟。
 - 数据集准确率与VME矩阵算子加速。当前后端为`pinned_TFLM_INT8_not_VME_offload`，不能用此基线证明矩阵加速效果。
 

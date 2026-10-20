@@ -6,6 +6,8 @@
 
 **后续用户已将首个完整模型改为预训练“有人／无人”二分类MobileNetV1，1001类暂缓。** DTCM仍512KiB，ITCM评估后<=512KiB、优先Verilator，外部行为存储获准。当前入口是[二分类模型](google_person_detect/README.md)。**2026-10-20用户回传配套原生TFLM主机两图测试和RISC-V固件/ELF资源审计均通过**，结果目录`person_firmware.AD3nfw`；ITCM加载136080字节，候选256KiB，DTCM静态474432字节/堆33472字节/栈16KiB。原模型未改；桌面LiteRT旧加载失败保留。下一步VM只导出256/512KiB的新RTL和同一ELF，再准备服务器独立Verilator单图入口；NPU执行、实际arena/栈/性能仍未验证。新导出工具与旧检查合计22项本地合成/静态测试通过，不等于实际RTL生成/推理PASS。详见[本轮结果](google_person_detect/FIRMWARE-results.md)。
 
+2026-10-20追加：用户已实际完成256/512KiB RTL生成及原ELF/模型导出，目录`person_rtl_export.r9bhUw`、归档SHA `a83bd98bd92157163223b75d74a25e5f426a59937354fb3784d830be4f130726`，不是RTL运行PASS。当前下一步为[服务器传包、编译及20万周期试运行](google_person_detect/SERVER.md)，先观察而非直接过夜完整推理。新runner和旧检查合计29项本地合成检查通过，服务器传输/编译/运行均待用户执行。
+
 以下1001类是本日稍早阶段记录，模型与golden保留，不是当前默认执行目标：
 
 用户根据团队面积评估将本轮DTCM暂定为**512KiB**，接下来运行单NPU完整预训练MobileNetV1、1001分类；ITCM评估后选择、不得超过512KiB，优先Verilator。下文2/4MiB T768及固定ITCM8KiB是上一阶段的历史计划，不再自动启动；旧结果/包仍保留。
