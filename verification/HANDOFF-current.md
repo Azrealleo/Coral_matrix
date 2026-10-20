@@ -4,6 +4,8 @@
 
 ## 最新任务覆盖说明：2026-10-19
 
+**2026-10-20最新主线：开始实际接入团队VME算子，而不是继续只跑默认内核。** 用户指出此前要求的SoC优化库仅完成审查、没有落实，已确认这一遗漏。新增[Person VME独立候选](google_person_vme/README.md)：14个1×1 Conv2D接入团队预打包/Tk4/tile调度，补INT8零点修正和TFLM逐通道量化，其他算子暂时默认。主机算术336组、RISC-V汇编编译、新7项及旧34项工具测试通过；完整固定TFLM主机候选/交叉链接/RTL优化推理均尚未执行。下一步VM运行新目录 `build.sh`，先主机逐层比对，再审计256/512KiB候选ELF；不直接启动优化版长仿真。服务器默认版完整推理已由用户启动（console `person_full.wQGGQC/console.log`，启动PID309672仅作历史记录、不得盲目kill），本轮未操作/停止。原runner/bench/固件/模型及旧不可变包不改，新ELF不得直接替换旧包。
+
 **后续用户已将首个完整模型改为预训练“有人／无人”二分类MobileNetV1，1001类暂缓。** DTCM仍512KiB，ITCM评估后<=512KiB、优先Verilator，外部行为存储获准。当前入口是[二分类模型](google_person_detect/README.md)。**2026-10-20用户回传配套原生TFLM主机两图测试和RISC-V固件/ELF资源审计均通过**，结果目录`person_firmware.AD3nfw`；ITCM加载136080字节，候选256KiB，DTCM静态474432字节/堆33472字节/栈16KiB。原模型未改；桌面LiteRT旧加载失败保留。下一步VM只导出256/512KiB的新RTL和同一ELF，再准备服务器独立Verilator单图入口；NPU执行、实际arena/栈/性能仍未验证。新导出工具与旧检查合计22项本地合成/静态测试通过，不等于实际RTL生成/推理PASS。详见[本轮结果](google_person_detect/FIRMWARE-results.md)。
 
 2026-10-20追加：用户已实际完成256/512KiB RTL生成及原ELF/模型导出，目录`person_rtl_export.r9bhUw`、归档SHA `a83bd98bd92157163223b75d74a25e5f426a59937354fb3784d830be4f130726`，不是RTL运行PASS。当前下一步为[服务器传包、编译及20万周期试运行](google_person_detect/SERVER.md)，先观察而非直接过夜完整推理。新runner和旧检查合计29项本地合成检查通过，服务器传输/编译/运行均待用户执行。
