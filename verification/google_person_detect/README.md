@@ -2,7 +2,7 @@
 
 2026-10-19。用户同意先跑完整预训练“有人／无人”网络，以降低完整RTL仿真成本，再考虑1001类网络。单官方NPU、DTCM512KiB、ITCM实际评估且<=512KiB、优先Verilator；外存未定时允许AXI行为存储。历史1001类模型、主机golden和容量实验保留，不覆盖。
 
-**当前只完成固定模型/样本静态核对和本地工具测试。原始模型的桌面LiteRT参考失败；原生TFLM主机测试、NPU固件编译、实际ITCM/arena测量及NPU RTL均尚未执行。** 本目录不是已有的NPU推理PASS报告。
+**2026-10-20更新：用户在Ubuntu虚拟机完成原生TFLM两张图片测试及NPU固件交叉编译/ELF资源审计，均通过。** 桌面LiteRT加载失败仍保留；实际arena使用量、栈水位与NPU RTL推理仍未执行。详见[本轮结果](FIRMWARE-results.md)。下一步导出ITCM256KiB / DTCM512KiB的新RTL和原样ELF；本目录不是已有的NPU推理PASS报告。
 
 ## 固定来源与模型
 
@@ -23,7 +23,7 @@ Windows原始资产缓存`.upstream-git/model-cache/person_detect_b75c6ff4`，�
 
 原模型14个depthwise bias张量为一维，但quantized_dimension=3。当前固定桌面LiteRT2.1.4在创建Interpreter时拒绝（Tensor33/36/40等；`quantized_dimension must be in range [0,1). Was 3`），尚未invoke，未产生参考PASS。官方主分支模型的Git blob也仍为`8159d01e5b5971605fbd2d8a22d16a74b4ec178b`，与本原始文件相同。
 
-**没有改量化轴、权重或模型SHA，没有用另一个模型冒充原模型。** `reference.py`保留原始路径和明确NOT_ACCEPTED状态。下一步用模型配套固定TFLite Micro的官方原生C++测试核对两张图；它采用不同于桌面Interpreter的加载/算子路径，仍须实际核对兼容性。当前仅完成源码核对，不能预先宣称它在本机/VM已经PASS。
+**没有改量化轴、权重或模型SHA，没有用另一个模型冒充原模型。** `reference.py`保留原始路径和明确NOT_ACCEPTED状态。2026-10-20模型配套固定TFLite Micro的官方原生C++测试已在VM实际通过：有人图的[no_person,person]=[-113,113]，无人图=[57,-57]。这证明该原生TFLM路径能运行原模型，不会把桌面LiteRT的旧失败改写为通过，也不是NPU RTL或数据集准确率验证。
 
 ## 固件及内存评估方案
 
@@ -40,7 +40,7 @@ Windows原始资产缓存`.upstream-git/model-cache/person_detect_b75c6ff4`，�
 
 包放在现有实验源新增`tests/cocotb/person_detect_baseline/`，独立manifest；验证原有几何实验指纹和真实512KiB几何PASS，不修改已验证的Core.scala、链接规则、旧测试或旧manifest。发现同名非本工具目录/身份变化时拒绝覆盖。同一source不得与其他Bazel任务并行；锁忙时立即停止，不杀进程。
 
-## 下一条命令：在Ubuntu虚拟机执行，先不跑服务器RTL
+## 已完成步骤：Ubuntu虚拟机主机测试与固件测量
 
 代码同步到个人仓库后，从VM仓库根目录执行：
 
@@ -73,3 +73,34 @@ bash verification/google_person_detect/build_firmware.sh
 4. 记录逐层输出、算子后端、周期/搬运和RTL身份；两张图分类正确不等于整套数据集准确率。
 
 本机15项合成/静态检查通过（含ELF预算与拒绝反例、模型数组字节相同、原始样本编码、安装器只写新目录和拒绝覆盖改动）；不是主机原生C++或NPU RTL PASS。另有19项1001类工具回归通过。
+
+## 当前下一步：仅生成并导出RTL，不重跑主机测试/固件编译
+
+已测固件目录`/home/lqq/coral_tcm_capacity_8e4_v1/person_firmware.AD3nfw`。新导出器复核该目录的host参考、ELF/资源报告和原固件manifest，按实际段地址确认原ELF可装入256KiB ITCM；不改链接脚本、固件或模型，不覆盖既有包。
+
+在Ubuntu VM运行（Windows工具提交后先同步）：
+
+```bash
+(
+set -eo pipefail
+source "$HOME/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-matrix
+cd "$HOME/桌面/Coral_matrix"
+if [ -n "$(git status --porcelain)" ]; then
+    git status --short
+    echo "存在未提交修改，未更新。"
+    exit 1
+fi
+git pull --ff-only origin main
+bash verification/google_person_detect/export_rtl.sh \
+  "$HOME/coral_tcm_capacity_8e4_v1/person_firmware.AD3nfw"
+)
+```
+
+只新增source包`tests/cocotb/person_detect_rtl_i256_d512`和独立manifest，顶层`VmeCoreMini_ITCM256KB_DTCM512KBAxi`，沿用旧实验8e4源/两补丁/地址图以及开启外部AXI取指的公共参数。不是prod配置，不能沿用旧ITCM8KiB的RTL仿真资格。
+
+产物在新建`person_rtl_export.XXXXXX/coral_person_i256_d512.tar.gz`及`.sha256`；包含原始单文件SV、ZIP依赖、参数头、SRAM DPI、原ELF、两张BMP和无需Pillow的原始INT8输入、主机分数及资源证据。包内`portable.py`可只读校验，运行输出放包外；SHA校验不等于RTL通过，也不是数字签名。
+
+**本阶段没有启动VCS/Verilator，也尚未包含新的完整模型独立仿真runner。** 下一步再准备服务器前门加载、fault/状态/arena检查、耗时采样及单图推理入口；不要拿旧TCM workset runner套用新ELF，不自动启动整网过夜重复。
+
+新增7项导出合成检查通过（与原有15项合计22项）：配置/路径拒绝、官方BMP解码与Pillow一致、证据配对、256KiB段边界、拒绝覆盖/篡改、归档及只读校验。合成包不是真实生成的RTL包；Bash语法检查通过，真实RTL生成等待用户执行。

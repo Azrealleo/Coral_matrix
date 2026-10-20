@@ -4,7 +4,7 @@
 
 ## 最新任务覆盖说明：2026-10-19
 
-**后续用户已将首个完整模型改为预训练“有人／无人”二分类MobileNetV1，1001类暂缓。** DTCM仍512KiB，ITCM评估后<=512KiB、优先Verilator，外部行为存储获准。当前入口是[二分类模型及VM固件资源步骤](google_person_detect/README.md)：固定原模型300568字节，31算子、最大特征36KiB；LiteRT2.1.4拒绝其14个一维bias量化轴3元数据，原模型未修改，不记主机参考PASS。下一步VM执行配套固定TFLM官方有人/无人原生C++测试，再只编译固件并审计ITCM/DTCM，暂不启动服务器RTL。新增15项本地工具/合成检查通过，不等于C++/固件或RTL通过。
+**后续用户已将首个完整模型改为预训练“有人／无人”二分类MobileNetV1，1001类暂缓。** DTCM仍512KiB，ITCM评估后<=512KiB、优先Verilator，外部行为存储获准。当前入口是[二分类模型](google_person_detect/README.md)。**2026-10-20用户回传配套原生TFLM主机两图测试和RISC-V固件/ELF资源审计均通过**，结果目录`person_firmware.AD3nfw`；ITCM加载136080字节，候选256KiB，DTCM静态474432字节/堆33472字节/栈16KiB。原模型未改；桌面LiteRT旧加载失败保留。下一步VM只导出256/512KiB的新RTL和同一ELF，再准备服务器独立Verilator单图入口；NPU执行、实际arena/栈/性能仍未验证。新导出工具与旧检查合计22项本地合成/静态测试通过，不等于实际RTL生成/推理PASS。详见[本轮结果](google_person_detect/FIRMWARE-results.md)。
 
 以下1001类是本日稍早阶段记录，模型与golden保留，不是当前默认执行目标：
 

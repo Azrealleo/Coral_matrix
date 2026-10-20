@@ -1804,3 +1804,15 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 新增[二分类专题](google_person_detect/README.md)、固定资产获取/本地尝试路径、固件源、现有source增量安装器、ELF预算/原模型字节审计、安静的VM构建入口。固件先使用原始TFLM INT8五类注册，不是VME加速版。模型原字节拟放DTCM `.data.pd_model`，arena预留160KiB、输入9KiB、栈16KiB；ITCM先按512KiB链接上限测真实加载大小，再建议有余量的容量，不生成RTL或直接宣称需要512KiB。模型/输入/arena/栈均由真实ELF再次检查，未链接前不保证满足预算。主机预载输入非BSS，避免启动清零擦除。
 
 本机15项静态/合成测试通过：固定资产/生成数组相同、样本字节、输出判据负向、ELF资源预算/模型hash/CRT擦除/错误架构与路径拒绝，以及安装器拒绝覆盖已有目录/改动。另有19项1001类工具回归通过。未在Windows编译NPU固件、未实际执行原生TFLM C++或NPU RTL。下一步用户在Ubuntu运行`verification/google_person_detect/build_firmware.sh`，只做原生主机测试和固件资源测量；得到报告后再准备选定ITCM/DTCM512KiB的Verilator模型，不直接启动未经评估的长标量仿真。
+
+### 28.1 2026-10-20：VM原生主机参考与固件资源实际通过
+
+资源下载初次在Python urllib TLS握手时被reset，尚未开始测试；指导VM使用Windows VMnet8主机`192.168.58.1:7908`的HTTP(S)代理重跑，不是服务器17908隧道，不关闭TLS/模型SHA检查。
+
+随后用户回传`person_firmware.AD3nfw`完整成功摘要：固定TFLM官方person/no_person原生测试1/1通过，构建380.413秒、测试0.4秒；按模型输出顺序[no_person,person]，有人图[-113,113]、无人图[57,-57]。日志SHA `d04c93fb6c3a140cb5c38ee2dd96a0beb54828c3d6f4e9fccad303a56931e19e`。这与桌面LiteRT旧失败属于不同加载实现，不修改原模型，也不把两个样本通过外推数据集准确率。
+
+固件交叉编译341.416秒，ELF检查通过但不是NPU执行。ITCM加载末地址136080字节（约132.89KiB），128KiB不足；25%余量规则推荐256KiB候选。DTCM静态474432字节（包含160KiB arena预留）、堆33472字节、栈16384字节，合计524288字节。原始模型字节一致；运行arena用量、栈水位、实际Invoke/输出/周期仍未完成，完整ELF SHA待从远程resources.json读取，不凭摘要猜填。
+
+用户希望长任务在稳定服务器运行，采用VM仅生成RTL/固件、服务器独立Verilator路线，避免服务器原生Bazel兼容问题。新增`export_rtl.sh`/`export_person.py`/`portable.py`：复核已通过的原主机/ELF证据，新建256KiB ITCM/512KiB DTCM导出目标，不重编/修改原ELF；检查各实际段都放得下、公共参数/ZIP、固定资产字节、INT8 BMP解码和归档校验。保留原8KiB ITCM的旧TCM包，不沿用其新配置通过资格。新包明确标NOT_RUN，尚无完整模型仿真runner，不运行旧workset bench。
+
+新增7项合成导出测试，与原有15项合计22项通过；官方两BMP的标准库解码与Pillow逐字相同，Bash语法检查通过。真实新RTL生成尚待用户在VM执行，服务器编译/单图耗时采样为后续步骤；完整NPU推理/VME加速/性能仍不记PASS。专题结果见`google_person_detect/FIRMWARE-results.md`。
