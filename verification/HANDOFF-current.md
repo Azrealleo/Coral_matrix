@@ -16,6 +16,8 @@
 
 最新回传：DM诊断`pc.ts77oz3y`已实际CAPTURED；20万附近3份DPC落在AlignPointerUp、InitializeTfLiteTensorFromFlatbuffer、PopulateConvolutionQuantizationParams，minstret192834→195037→197809，有真实执行进展且无异常记录，仍status1。**不能据此证明200万时点正常或后续必能完成**；下一步同诊断首采样改200万/timeout1800秒，不重编。见[诊断实际结果及命令](google_person_detect/DIAGNOSTIC.md)。
 
+最新200万DM回传`pc.tyngamx6`：PC落在`__divdf3`/`__fixdfdi`，调用者是卷积量化准备/QuantizeMultiplier，minstret1509687→1513222→1516732，仍有真实执行进展，无异常记录。固定源码核对表明INT8准备仍计算double量化参数，发现一个明确耗时热点，但不是占比剖析/完成保证。下一步复用同模型给原基线1000万周期窗口（粗约1小时，墙钟上限7200秒），检查进入Invoke/实际arena；不改精度、模型、RAM或脚本，不重编，详见[DIAGNOSTIC.md末节](google_person_detect/DIAGNOSTIC.md)。
+
 用户根据团队面积评估将本轮DTCM暂定为**512KiB**，接下来运行单NPU完整预训练MobileNetV1、1001分类；ITCM评估后选择、不得超过512KiB，优先Verilator。下文2/4MiB T768及固定ITCM8KiB是上一阶段的历史计划，不再自动启动；旧结果/包仍保留。
 
 已下载官方V1 1.0/224量化候选并核对归档/模型SHA，静态确认UINT8、31算子、1001输出；最大特征张量784KiB、模型约4.078MiB，必须分块/外部存储，不能直接套用团队简化量化/固定小缓冲。用户已确认单核阶段先用外部AXI行为存储，实际SoC外存尚未确定。模型盘点12项检查通过，随后LiteRT BUILTIN_REF完整主机推理三组合成输入各两次、31节点输出逐位稳定，golden已生成；不是识别准确率或NPU PASS。交叉编译、ITCM测量和RTL均未完成，入口见[新任务与静态盘点](google_mobilenet_v1/README.md)。

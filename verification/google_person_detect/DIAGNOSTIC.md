@@ -75,3 +75,30 @@ pd_package=/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn/cor
 ```
 
 不用更新代码、不重编，预计粗约12分钟（按已测200万执行窗口预算，不保证）。回传PC/函数/退休数后再选择修复或长运行，不能提前把本次结果定性为“只是慢”。
+
+## 200万实际DM结果：卷积量化准备的软件double热点
+
+用户回传`diagnostics/pc.tyngamx6`，3样本CAPTURED；DPC89856/97220/89840分别落入`__divdf3`(+460)、`__fixdfdi`(+252)、`__divdf3`(+444)。调用者由ELF范围定位为`PopulateConvolutionQuantizationParams`或`QuantizeMultiplier`。minstret1509687→1513222→1516732，增加3535、3510；无fault，mepc/mcause/mtval=0，可选CSR均成功，仍status1/arena_used0/invoke0。
+
+据此确认该采样段有真实指令进展，且正在执行量化准备的软件双精度运算；不能称为CPU停机，也不能用3个点当作时间占比剖析或证明后续必完成。s0/其他GPR变化只记录，不未经反汇编就认定为通道下标。
+
+依据[GCC运行库说明](https://gcc.gnu.org/onlinedocs/gccint/Soft-float-library-routines.html)，`__divdf3`为double除法、`__fixdfdi`为double到整数的转换。固定TFLM [kernel_util.cc](https://github.com/tensorflow/tflite-micro/blob/b75c6ff4e2270047f2b48fa01f833c8101c31f43/tensorflow/lite/kernels/kernel_util.cc)逐通道用double计算input_scale*filter_scale/output_scale，再调用[QuantizeMultiplier](https://github.com/tensorflow/tflite-micro/blob/b75c6ff4e2270047f2b48fa01f833c8101c31f43/tensorflow/lite/kernels/internal/quantization_util.cc)生成整数参数。源码已通过固定原始URL只读核对。现有Coral目标编译配置有F/向量FP32而无D；不能把此现象概括为“整个NPU没有FPU”。INT8模型的准备阶段有double并不矛盾，尚未运行的卷积Invoke性能不能由这些初始化样本代表。
+
+下一步不改变原模型/固件、不切换float精度或定义TFLITE_EMULATE_FLOAT、不增加RAM；先让原基线在1000万周期有界窗口运行，观察准备是否返回并进入Invoke（状态2），或是否提前自然halt且分数精确匹配。`arena_used`仅在AllocateTensors返回后赋值，因此当前0不是实际占用0或内存不足的证据。按已测窗口速度估算该预算约1小时，不是整网完成时间预测；设置7200秒墙钟上限，可能因执行阶段负载变化而不同。
+
+```bash
+(
+set -eo pipefail
+source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-verilator
+unset WAVES GUI COCOTB_ENABLE_PROFILING
+export CC="$CONDA_PREFIX/bin/gcc"
+export CXX="$CONDA_PREFIX/bin/g++"
+cd /home2/lqq/Desktop/Coral_matrix
+pd_package=/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn/coral_person_i256_d512
+"$CONDA_PREFIX/bin/python" -B verification/google_person_detect/person_runner.py \
+  --package "$pd_package" smoke --case person --cycles 10000000 --timeout 7200
+)
+```
+
+本轮仅文档更新，脚本/模型身份保持不变；不用重编，不再反复200万处暂停诊断。窗口未完成时仍NOT_INFERENCE，发生异常即停止分析；1000万窗口尚未执行/回传。

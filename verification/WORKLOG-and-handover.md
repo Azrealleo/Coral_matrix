@@ -1850,3 +1850,11 @@ ITCM256KiB/DTCM512KiB，ELF SHA `e3078c156fd03315be2796c95044558cc3722854c077d6d
 minstret192834→195037→197809，分别增加2203、2772，说明20万附近采样区间有真实CPU执行与准备流程变化，不是核心停机；仍status1、arena_used/invoke均0。mcycle包含调试握手/扰动，不据此算IPC或模型性能。此证据不覆盖200万现场，不能直接断言此前200万结果“只是正常慢”，也不排除晚些时候循环/错误。
 
 下一步不改任何运行代码/模型身份、不重编，将同诊断首次采样点改2000000周期、3样本/4096间隔、timeout1800秒。粗按已测执行窗口预算约12分钟；是为了取得此前未完成时的PC/异常/指令进展，而非盲目加长无诊断运行。当前仅更新记录，200万DM诊断尚未执行/回传，完整模型仍未通过。
+
+### 28.6 200万DM确认软件双精度量化准备仍在执行
+
+用户回传`diagnostics/pc.tyngamx6`，3样本均CAPTURED，DCSR cause3、未复位/改固件，无fault，异常CSR均0。DPC89856/97220/89840分别落在`__divdf3`、`__fixdfdi`、`__divdf3`，ra调用点为PopulateConvolutionQuantizationParams/QuantizeMultiplier；minstret1509687→1513222→1516732（+3535/+3510），表明该窗口确在执行量化准备，不是核心停机。不能凭3点断言全程正常、占比或最终成功。
+
+只读核对GCC运行库文档和固定TFLM b75的`tensorflow/lite/kernels/kernel_util.cc`/`internal/quantization_util.cc`：INT8准备阶段按通道用double计算scale乘除并生成整数乘数/移位，可调用软件double除法/转整数；当前编译目标有F/向量FP32无D。发现初始化慢的一个具体来源，不能泛称整个NPU无浮点，也不能把它当VME/Invoke性能。尚未做任何数值优化、TFLITE_EMULATE_FLOAT或精度替换。
+
+下一步保留正确性基线，原模型/RTL/ELF/runner/bench身份不动，直接复用模型运行1000万周期窗口、timeout7200秒，粗按已测速度预算约1小时，不保证整网完成。检查是否从状态1进入Invoke/输出实际arena或提前完整结束；如异常停止，不直接加RAM。当前仅同步文档，1000万运行尚未回传，模型仍未记PASS。
