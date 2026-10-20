@@ -1826,3 +1826,11 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 服务器先校验/编译，然后前门完整装载/模型读回、官方有人图输入读回及20万周期有界观察。0/1/2阶段、fault、自然halt、arena、invoke周期、两分数、栈底64字节canary及执行/装载墙钟分开记录。预算到达后以原CSR halt接口停止一次性实例，非恢复checkpoint。仅窗口观察时输出OBSERVED_NOT_INFERENCE，cocotb完成不等于模型通过；自然halt/status3/实际arena/原生两分数精确一致才可INFERENCE_PASS。栈底检查不是完整水位证明，status0不宣称有效程序进展。
 
 新增7项本地入口/结果判据测试，与旧22项合计29项通过，含原模型合成ELF重审计、失败XML/JSON/窗口/状态/栈/模型身份拒绝、环境清理和固定构建器命令。无本地RTL编译/运行。下一步[SERVER.md](google_person_detect/SERVER.md)先传包再服务器前台pilot，各阶段超时1800秒，不自动启动完整标量整网或其他用户任务。根据pilot再定完整单图预算；旧模型/TCM结果不变。
+
+### 28.3 服务器模型编译及20万周期观察完成，尚未完成推理
+
+用户回传`/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn`核验/环境检查通过，新Verilator模型`builds/a5d0fd5aca9a.g9pa3q0w`编译439.989秒。`runs/smoke_person.8xymkq4w`完整有界观察200000周期，执行67.977322秒，装载/原模型与输入读回17.818258秒，测试总87.178秒。
+
+ITCM256KiB/DTCM512KiB，ELF SHA `e3078c156fd03315be2796c95044558cc3722854c077d6d8702100c18dd2b877`，模型原SHA不变，输入SHA `d4ebdafe351a7b7851c3d087fb7ec798c739badcd7e248dcb81fa92dd572aaed`。读回一致、无fault、栈底64字节canary未变；状态1证明已到main准备/分配阶段，但arena_used=0/invoke_cycles=0，输出[37,53]仍是哨兵，未自然halt，验收仅OBSERVED_NOT_INFERENCE，不能宣称模型跑通，也不能仅凭无fault排除死循环。
+
+下一步保留当前runner/bench/模型身份，不重跑会解新包/重编的pilot脚本；在同环境直接重新初始化并观察200万周期，粗按已测窗口预算约12分钟，非完整模型时间预测/性能结论。若仍状态1，再定位初始化/分配进展。当前只更新文档，未执行该200万周期任务或修改任何RTL/固件/脚本。

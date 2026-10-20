@@ -8,7 +8,7 @@
 
 `a83bd98bd92157163223b75d74a25e5f426a59937354fb3784d830be4f130726`
 
-**服务器传输、Verilator新模型编译、20万周期观察和完整推理均尚未回传通过结果。** 新配置不能沿用旧ITCM8KiB的仿真资格。
+**服务器传输/校验和Verilator新模型编译已实际通过，20万周期观察已完成但不是完整推理。** 状态1、无fault、arena_used=0、输出仍为哨兵，详见第5节；完整模型推理尚未通过。新配置不能沿用旧ITCM8KiB的仿真资格。
 
 ## 1. VM传包（不是Windows终端）
 
@@ -73,3 +73,33 @@ verify重查全部文件、原模型、原ELF资源及实际256/512KiB边界；c
 入口亦支持`person_runner.py --package <路径> infer --case person --cycles <预算> --timeout <秒>`，**当前先不启动**；根据pilot的阶段、异常及cycles/wall再定完整单图预算。完整图通过后才运行另一图、逐层核验及矩阵内核优化。
 
 本地29项工具/合成检查通过（原22项、新7项），包括原模型字节的合成ELF审计、失败结果拒绝、环境清理和构建命令。bench Python及Bash语法已核对；没有在Windows编译/运行此RTL，也不提前记服务器通过。
+
+## 5. 首次服务器pilot实际结果（2026-10-20）
+
+用户回传：`/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn`。
+
+- verify/check通过，原包不变；Python3.11、Verilator5.052、Conda gcc/g++，依赖版本与旧验证环境相符。
+- 新模型`builds/a5d0fd5aca9a.g9pa3q0w`编译439.989秒。不是旧TCM模型复用。
+- `runs/smoke_person.8xymkq4w`观察200000周期，执行窗口67.977322秒、前门装载/模型及输入读回17.818258秒，整个测试87.178秒。
+- 原模型和输入前门读回一致，栈底64字节canary未变，未观察到fault；`firmware_status=1`、`arena_used_bytes=0`、`invoke_cycles=0`、`natural_halt=false`。
+- 输出[37,53]仍是初始化哨兵，不是分类结果。状态1证明已到main的准备/分配阶段，尚未记录AllocateTensors完成，不能仅凭无fault排除卡住。
+- ELF SHA：`e3078c156fd03315be2796c95044558cc3722854c077d6d8702100c18dd2b877`；有人图输入SHA：`d4ebdafe351a7b7851c3d087fb7ec798c739badcd7e248dcb81fa92dd572aaed`。
+
+下一步不运行会新解包/重编的`server_pilot.sh`，也不改runner/bench；直接复用同一包和已编模型，重新初始化后观察2000000周期。不是在旧停止点继续。按本次窗口速度只作运行预算，粗约12分钟，非完成整网的承诺。若仍状态1，进一步定位准备/分配流程，不无上限增加预算或宣称硬件错误。
+
+```bash
+(
+set -eo pipefail
+source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-verilator
+unset WAVES GUI COCOTB_ENABLE_PROFILING
+export CC="$CONDA_PREFIX/bin/gcc"
+export CXX="$CONDA_PREFIX/bin/g++"
+cd /home2/lqq/Desktop/Coral_matrix
+pd_package=/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn/coral_person_i256_d512
+"$CONDA_PREFIX/bin/python" -B verification/google_person_detect/person_runner.py \
+  --package "$pd_package" smoke --case person --cycles 2000000 --timeout 1800
+)
+```
+
+若构建身份不匹配，先回传错误，不删除状态/修改hash或自动重编。这一轮仅文档更新，未修改模型身份相关脚本。
