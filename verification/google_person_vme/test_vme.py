@@ -18,6 +18,43 @@ audit_spec.loader.exec_module(audit)
 
 
 class CandidateContracts(unittest.TestCase):
+    @staticmethod
+    def symbol_table(names, **overrides):
+        class Symbol(dict):
+            def __init__(self, name):
+                super().__init__(st_value=0x01010000, st_size=4, st_shndx=2)
+                self.name = name
+                self.update(overrides.get(name, {}))
+        return SimpleNamespace(iter_symbols=lambda: [Symbol(n) for n in names])
+
+    def test_fast_accepts_only_validation_symbol_garbage_collection(self):
+        table = self.symbol_table(audit.COMMON_COUNTERS)
+        found = audit.diagnostic_symbols(table, "fast", 0x01070000)
+        self.assertEqual(set(found), audit.COMMON_COUNTERS)
+        with self.assertRaisesRegex(ValueError, "pd_vme_first_bad_index"):
+            audit.diagnostic_symbols(table, "validate", 0x01070000)
+
+    def test_all_common_counters_remain_mandatory_in_both_modes(self):
+        known = audit.COMMON_COUNTERS | audit.VALIDATION_COUNTERS
+        for name in audit.COMMON_COUNTERS:
+            for mode in ("fast", "validate"):
+                with self.subTest(counter=name, mode=mode):
+                    with self.assertRaisesRegex(ValueError, name):
+                        audit.diagnostic_symbols(self.symbol_table(known - {name}), mode, 0x01070000)
+
+    def test_retained_optional_symbols_still_have_to_be_valid(self):
+        known = audit.COMMON_COUNTERS | audit.VALIDATION_COUNTERS
+        for change in ({"st_size": 8}, {"st_value": 0x01070000}, {"st_value": 0}):
+            table = self.symbol_table(known, pd_vme_first_bad_index=change)
+            with self.assertRaisesRegex(ValueError, "invalid=.*pd_vme_first_bad_index"):
+                audit.diagnostic_symbols(table, "fast", 0x01070000)
+
+    def test_undefined_common_symbol_does_not_satisfy_audit(self):
+        known = audit.COMMON_COUNTERS | audit.VALIDATION_COUNTERS
+        table = self.symbol_table(known, pd_vme_commands={"st_shndx": "SHN_UNDEF"})
+        with self.assertRaisesRegex(ValueError, "missing=.*pd_vme_commands"):
+            audit.diagnostic_symbols(table, "fast", 0x01070000)
+
     def test_resource_audit_distinguishes_candidate_and_rejects_oversized_itcm(self):
         class Symbol(dict):
             def __init__(self, name):

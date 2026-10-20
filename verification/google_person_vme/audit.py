@@ -9,7 +9,38 @@ from elftools.elf.elffile import ELFFile
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "google_person_detect"))
 import firmware_report
-from spec import DTCM_BASE, sha
+from spec import DTCM_BASE
+
+COMMON_COUNTERS = frozenset({"pd_vme_conv_calls", "pd_vme_fallback_calls",
+                             "pd_vme_commands", "pd_vme_mismatches"})
+VALIDATION_COUNTERS = frozenset({"pd_vme_validated_layers", "pd_vme_first_bad_index"})
+
+
+def diagnostic_symbols(table, mode, static_end):
+    if mode not in ("validate", "fast"):
+        raise ValueError("Unknown candidate mode")
+    if table is None:
+        raise ValueError("Missing candidate symbol table")
+    known = COMMON_COUNTERS | VALIDATION_COUNTERS
+    # With PD_VME_VALIDATE=0 there are no references to the validation-only
+    # variables. --gc-sections may legitimately discard those two definitions.
+    # Keep all four counters used by the fast main() acceptance gate mandatory.
+    required = known if mode == "validate" else COMMON_COUNTERS
+    found = {}
+    for symbol in table.iter_symbols():
+        if symbol.name not in known or symbol["st_shndx"] == "SHN_UNDEF":
+            continue
+        value = dict(address=int(symbol["st_value"]), bytes=int(symbol["st_size"]))
+        if symbol.name in found and found[symbol.name] != value:
+            raise ValueError("Conflicting VME diagnostic symbol: " + symbol.name)
+        found[symbol.name] = value
+    missing = sorted(required - found.keys())
+    invalid = sorted(name for name, value in found.items() if value["bytes"] != 4 or not
+                     DTCM_BASE <= value["address"] < value["address"]+4 <= static_end)
+    if missing or invalid:
+        raise ValueError("VME diagnostic symbols: mode=" + mode +
+                         " missing=" + str(missing) + " invalid=" + str(invalid))
+    return found
 
 
 def inspect(data, mode):
@@ -20,16 +51,10 @@ def inspect(data, mode):
            for s in report["segments"]):
         raise ValueError("Candidate does not fit the existing 256KiB ITCM")
     table = ELFFile(io.BytesIO(data)).get_section_by_name(".symtab")
-    counters = {"pd_vme_conv_calls", "pd_vme_fallback_calls", "pd_vme_commands",
-                "pd_vme_validated_layers", "pd_vme_mismatches", "pd_vme_first_bad_index"}
-    found = {s.name: dict(address=int(s["st_value"]), bytes=int(s["st_size"]))
-             for s in table.iter_symbols() if s.name in counters and s["st_shndx"] != "SHN_UNDEF"}
-    if set(found) != counters or any(v["bytes"] != 4 or not
-            DTCM_BASE <= v["address"] < v["address"]+4 <= report["symbols"]["__heap_start__"]["address"]
-            for v in found.values()):
-        raise ValueError("Missing/out-of-range VME diagnostic symbols")
+    found = diagnostic_symbols(table, mode, report["symbols"]["__heap_start__"]["address"])
     report.update(kernel_backend="VME_pointwise_INT8_reference_other_ops", candidate_mode=mode,
                   validation_executes_reference=(mode == "validate"), vme_symbols=found,
+                  validation_symbols_not_linked=sorted(VALIDATION_COUNTERS - found.keys()),
                   NPU_RTL="NOT_RUN", itcm_selected_kib=256)
     return report
 

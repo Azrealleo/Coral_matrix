@@ -1876,3 +1876,9 @@ minstret192834→195037→197809，分别增加2203、2772，说明20万附近�
 新增主机emulated全模型两图/28层全输出字节比较目标、真实VME validate固件和不重复reference计算的fast固件，三者身份分开；fallback与软件矩阵发射计数显式记录，主机模拟计数不冒充硬件。validate使用arena scratch保存优化输出后再调用原卷积全字节比较。主机PASS不等于硬件PASS，validate周期不能用作加速结果。新增VM脚本先主机验证后交叉链接审计，不运行RTL、不改旧包。
 
 实际本地验证：共享C++核心336组raw累加逐项一致（含负数/极值/零点/通道与空间尾块/无bias/输出guard/拒绝溢出），MinGW GCC6.2编译执行；本地玄铁GCC14.3真实编译VME汇编probe为RISC-V ELF目标文件，非固定官方工具链完整链接。7项新工具/资源审计测试、34项原测试及脚本语法通过；固定模型与两样本生成12份候选文件并核SHA。完整TFLM候选主机测试、候选完整链接、资源测量、真实VME RTL及性能均未执行，不标通过。服务器任务原封不动继续，原runner/bench/program及不可变包不改；接下来用户在VM运行新build.sh，回传主机/ELF结果后再做独立优化包。
+
+### 28.9 VME候选主机逐层匹配及链接通过，修复测速版符号审计
+
+用户回传VM `person_vme_v1.acWcT3`：核心336组PASS，固定TFLM主机完整原模型两图PASS，有人[-113,113]、无人[57,-57]，每图14层候选卷积全输出逐字节匹配reference，共28层；host arena_used122000，非NPU实测。validate真实交叉链接及审计PASS，ELF SHA `980b3373ad9a0ad8ab00e820eaa3dd10d6bae9eaf6612d832276eb03cb8b0cb7`，ITCM139760、DTCM静态483760、heap24144字节，栈16KiB，适配256/512配置。fast也实际链接成功，但审计报Missing/out-of-range后停止，因此该次整体脚本不标PASS，fast资源尚未回传。
+
+源码核对发现audit错误地对fast要求六个符号，而PD_VME_VALIDATE=0移除了validated_layers及first_bad_index的全部引用，链接垃圾回收可正常移除其定义。仅修改audit按模式设必需集合：校验版六个、测速版main门限实际使用的四个；可选项若保留仍严格检查，缺必需项/越界/错误大小/未定义符号继续失败，并输出具体名称。未改生成器/固件/模型/RTL/安装manifest，不强行保留死变量或跳过检查。新增4项回归，11项候选工具测试与原34项通过；下一步用户拉取后重跑原build.sh命中链接缓存并重新审计，新结果目录不覆盖旧失败证据。实际优化VME RTL运行及整网性能仍未执行。
