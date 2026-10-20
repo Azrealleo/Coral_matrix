@@ -1834,3 +1834,11 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 ITCM256KiB/DTCM512KiB，ELF SHA `e3078c156fd03315be2796c95044558cc3722854c077d6d8702100c18dd2b877`，模型原SHA不变，输入SHA `d4ebdafe351a7b7851c3d087fb7ec798c739badcd7e248dcb81fa92dd572aaed`。读回一致、无fault、栈底64字节canary未变；状态1证明已到main准备/分配阶段，但arena_used=0/invoke_cycles=0，输出[37,53]仍是哨兵，未自然halt，验收仅OBSERVED_NOT_INFERENCE，不能宣称模型跑通，也不能仅凭无fault排除死循环。
 
 下一步保留当前runner/bench/模型身份，不重跑会解新包/重编的pilot脚本；在同环境直接重新初始化并观察200万周期，粗按已测窗口预算约12分钟，非完整模型时间预测/性能结论。若仍状态1，再定位初始化/分配进展。当前只更新文档，未执行该200万周期任务或修改任何RTL/固件/脚本。
+
+### 28.4 200万周期仍未进入Invoke，独立DM诊断准备
+
+用户回传`runs/smoke_person.ttnd8y5g`2000000周期结果，执行698.728060秒、装载/读回18.492447秒，总718.555秒。原ELF/模型/输入身份相同；无fault、栈底64字节canary完好，但status1、arena_used/invoke均0、[37,53]哨兵、未自然halt。记录NOT_INFERENCE，不据此宣称卡死或硬件错误。状态1横跨多个准备步骤，仅靠摘要无法精确归因AllocateTensors。
+
+不盲目扩大预算，新增`diagnose_person.py`/`person_diag_bench.py`：固定原runner和bench SHA、复核同一build身份/模型hash/包/环境，只读复用已有Verilator可执行文件，不修改原脚本或原包，不构建RTL。新进程前门初始化后先20万周期，在原CSR halt/reset之前通过官方DM halt/读取DPC、DCSR、GPR/异常CSR与可选计数器，映射原ELF函数；恢复4096周期再取样，共最多3次。ra/栈代码地址只标候选，不伪造完整回溯。可选CSR失败显式保留，核心寄存器失败停止；无reset兜底掩盖现场。
+
+该侵入式调试不作性能测试，不把CAPTURED/cocotb PASS当作模型通过。旧smoke进程已复位退出，不能从旧日志恢复PC，需重新运行短诊断。新增5项软件契约检查，合计34项本地测试通过，语法通过；服务器DM诊断未执行/未回传，后续命令及范围见[DIAGNOSTIC.md](google_person_detect/DIAGNOSTIC.md)。

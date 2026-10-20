@@ -12,6 +12,8 @@
 
 当前断点再更新：服务器`person_pilot.dJfrJn`包/环境核验及新Verilator编译已通过（439.989秒），20万周期有人图观察完成；已到main状态1，无fault，模型/输入读回与栈底canary通过，但arena_used/invoke均0、输出仍[37,53]哨兵，**未完成推理**。下一步复用同包/同模型重新初始化后观察200万周期，不再解包重编，命令见[SERVER.md第5节](google_person_detect/SERVER.md)。本轮只更新文档，不改runner/bench以保持构建身份。
 
+最新断点：200万周期观察也已完成（`smoke_person.ttnd8y5g`，总718.555秒），仍为状态1，无fault但尚未分配完成标记/Invoke。**停止继续加周期，准备[同模型DM现场诊断](google_person_detect/DIAGNOSTIC.md)**：独立新增入口，原runner/bench/hash及RTL/ELF/模型不改，不重编；先20万周期，随后4096周期间隔的3份PC/CSR/GPR样本。34项本地契约/工具测试通过，服务器实际诊断尚未回传，原因未定。
+
 用户根据团队面积评估将本轮DTCM暂定为**512KiB**，接下来运行单NPU完整预训练MobileNetV1、1001分类；ITCM评估后选择、不得超过512KiB，优先Verilator。下文2/4MiB T768及固定ITCM8KiB是上一阶段的历史计划，不再自动启动；旧结果/包仍保留。
 
 已下载官方V1 1.0/224量化候选并核对归档/模型SHA，静态确认UINT8、31算子、1001输出；最大特征张量784KiB、模型约4.078MiB，必须分块/外部存储，不能直接套用团队简化量化/固定小缓冲。用户已确认单核阶段先用外部AXI行为存储，实际SoC外存尚未确定。模型盘点12项检查通过，随后LiteRT BUILTIN_REF完整主机推理三组合成输入各两次、31节点输出逐位稳定，golden已生成；不是识别准确率或NPU PASS。交叉编译、ITCM测量和RTL均未完成，入口见[新任务与静态盘点](google_mobilenet_v1/README.md)。

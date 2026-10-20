@@ -103,3 +103,7 @@ pd_package=/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn/cor
 ```
 
 若构建身份不匹配，先回传错误，不删除状态/修改hash或自动重编。这一轮仅文档更新，未修改模型身份相关脚本。
+
+## 6. 200万周期结果：转入诊断
+
+用户随后回传`runs/smoke_person.ttnd8y5g`：2000000周期执行698.728060秒，总718.555秒，仍status1、arena_used/invoke均0、[37,53]哨兵、未自然halt；模型/输入读回、栈底检查通过且无fault。不再增加窗口，下一步改为[同模型DM暂停/PC诊断](DIAGNOSTIC.md)。旧runner/bench/RTL/固件不修改，不触发重编；实际原因仍待现场采样，不直接归因RAM大小或RTL错误。
