@@ -14,6 +14,8 @@
 
 最新断点：200万周期观察也已完成（`smoke_person.ttnd8y5g`，总718.555秒），仍为状态1，无fault但尚未分配完成标记/Invoke。**停止继续加周期，准备[同模型DM现场诊断](google_person_detect/DIAGNOSTIC.md)**：独立新增入口，原runner/bench/hash及RTL/ELF/模型不改，不重编；先20万周期，随后4096周期间隔的3份PC/CSR/GPR样本。34项本地契约/工具测试通过，服务器实际诊断尚未回传，原因未定。
 
+最新回传：DM诊断`pc.ts77oz3y`已实际CAPTURED；20万附近3份DPC落在AlignPointerUp、InitializeTfLiteTensorFromFlatbuffer、PopulateConvolutionQuantizationParams，minstret192834→195037→197809，有真实执行进展且无异常记录，仍status1。**不能据此证明200万时点正常或后续必能完成**；下一步同诊断首采样改200万/timeout1800秒，不重编。见[诊断实际结果及命令](google_person_detect/DIAGNOSTIC.md)。
+
 用户根据团队面积评估将本轮DTCM暂定为**512KiB**，接下来运行单NPU完整预训练MobileNetV1、1001分类；ITCM评估后选择、不得超过512KiB，优先Verilator。下文2/4MiB T768及固定ITCM8KiB是上一阶段的历史计划，不再自动启动；旧结果/包仍保留。
 
 已下载官方V1 1.0/224量化候选并核对归档/模型SHA，静态确认UINT8、31算子、1001输出；最大特征张量784KiB、模型约4.078MiB，必须分块/外部存储，不能直接套用团队简化量化/固定小缓冲。用户已确认单核阶段先用外部AXI行为存储，实际SoC外存尚未确定。模型盘点12项检查通过，随后LiteRT BUILTIN_REF完整主机推理三组合成输入各两次、31节点输出逐位稳定，golden已生成；不是识别准确率或NPU PASS。交叉编译、ITCM测量和RTL均未完成，入口见[新任务与静态盘点](google_mobilenet_v1/README.md)。

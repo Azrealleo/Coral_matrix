@@ -44,3 +44,34 @@ pd_package=/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn/cor
 回传3行`PERSON_DEBUG_SNAPSHOT`及`PERSON_DIAGNOSTIC_CAPTURED`；失败回传启动器给出的`diagnostic.log`末尾。结果单独放原状态目录的`diagnostics/pc.XXXXXX`，原包、模型、旧日志和旧build记录不变。
 
 `CAPTURED`只表示收集完成，不表示模型/硬件正确。诊断fixture本身cocotb PASS也不得冒充INFERENCE_PASS；发现fault也可成功完成现场收集。新诊断5项本地软件契约检查，与既有29项合计34项通过；Python语法通过，没有本地RTL/DM执行。
+
+## 首次实际DM快照：20万周期附近有程序进展
+
+用户回传`diagnostics/pc.ts77oz3y`，3份快照及CAPTURED完成。DM cause均3（调试暂停），原固件/模型不变、采样前没有复位，无fault，mepc/mcause/mtval均0、全部可选CSR读取成功；status均1、arena_used/invoke均0。
+
+| 样本 | DPC十进制 | 包含DPC的ELF函数 | minstret |
+| --- | ---: | --- | ---: |
+| 0 | 59212 | `tflite::AlignPointerUp` +12；ra落在`SingleArenaBufferAllocator::AllocateTemp` | 192834 |
+| 1 | 37024 | `tflite::internal::InitializeTfLiteTensorFromFlatbuffer` +900 | 195037 |
+| 2 | 49576 | `tflite::PopulateConvolutionQuantizationParams` +932 | 197809 |
+
+退休指令增加2203、2772，当前函数/调用候选由临时张量分配转到卷积量化准备，证明这个短时间段CPU并非停止执行，且工作路径确属Invoke前准备。mcycle分别202402/209304/216206包含DM握手/额外执行，不能拿4096窗口直接算无干扰IPC或推理性能。
+
+**这只解释20万附近，不证明200万乃至后续一定继续前进，也不排除稍晚错误/循环。** 仍无完整推理PASS。下一步复用相同诊断入口，将首个采样点改为2000000周期，保留3样本/4096间隔，timeout改1800秒；这是取此前停留点的PC，不是没有诊断信息地继续加预算。
+
+```bash
+(
+set -eo pipefail
+source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-verilator
+unset WAVES GUI COCOTB_ENABLE_PROFILING
+export CC="$CONDA_PREFIX/bin/gcc"
+export CXX="$CONDA_PREFIX/bin/g++"
+cd /home2/lqq/Desktop/Coral_matrix
+pd_package=/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn/coral_person_i256_d512
+"$CONDA_PREFIX/bin/python" -B verification/google_person_detect/diagnose_person.py \
+  --package "$pd_package" --cycles 2000000 --samples 3 --timeout 1800
+)
+```
+
+不用更新代码、不重编，预计粗约12分钟（按已测200万执行窗口预算，不保证）。回传PC/函数/退休数后再选择修复或长运行，不能提前把本次结果定性为“只是慢”。

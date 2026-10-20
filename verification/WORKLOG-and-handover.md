@@ -1842,3 +1842,11 @@ ITCM256KiB/DTCM512KiB，ELF SHA `e3078c156fd03315be2796c95044558cc3722854c077d6d
 不盲目扩大预算，新增`diagnose_person.py`/`person_diag_bench.py`：固定原runner和bench SHA、复核同一build身份/模型hash/包/环境，只读复用已有Verilator可执行文件，不修改原脚本或原包，不构建RTL。新进程前门初始化后先20万周期，在原CSR halt/reset之前通过官方DM halt/读取DPC、DCSR、GPR/异常CSR与可选计数器，映射原ELF函数；恢复4096周期再取样，共最多3次。ra/栈代码地址只标候选，不伪造完整回溯。可选CSR失败显式保留，核心寄存器失败停止；无reset兜底掩盖现场。
 
 该侵入式调试不作性能测试，不把CAPTURED/cocotb PASS当作模型通过。旧smoke进程已复位退出，不能从旧日志恢复PC，需重新运行短诊断。新增5项软件契约检查，合计34项本地测试通过，语法通过；服务器DM诊断未执行/未回传，后续命令及范围见[DIAGNOSTIC.md](google_person_detect/DIAGNOSTIC.md)。
+
+### 28.5 首次实际DM诊断：20万附近确有进展，200万现场待采
+
+用户附件回传`diagnostics/pc.ts77oz3y`3样本CAPTURED，无重编/固件变化，采样前无reset。DCSR cause=3、fault=false、全部可选寄存器读取成功、mepc/mcause/mtval均0。DPC59212/37024/49576分别由ELF函数范围明确包含于AlignPointerUp(+12)、InitializeTfLiteTensorFromFlatbuffer(+900)、PopulateConvolutionQuantizationParams(+932)，ra/栈候选与临时张量和卷积准备调用吻合，但不是完整栈回溯。
+
+minstret192834→195037→197809，分别增加2203、2772，说明20万附近采样区间有真实CPU执行与准备流程变化，不是核心停机；仍status1、arena_used/invoke均0。mcycle包含调试握手/扰动，不据此算IPC或模型性能。此证据不覆盖200万现场，不能直接断言此前200万结果“只是正常慢”，也不排除晚些时候循环/错误。
+
+下一步不改任何运行代码/模型身份、不重编，将同诊断首次采样点改2000000周期、3样本/4096间隔、timeout1800秒。粗按已测执行窗口预算约12分钟；是为了取得此前未完成时的PC/异常/指令进展，而非盲目加长无诊断运行。当前仅更新记录，200万DM诊断尚未执行/回传，完整模型仍未通过。
