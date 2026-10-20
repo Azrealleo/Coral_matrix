@@ -107,3 +107,13 @@ pd_package=/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn/cor
 ## 6. 200万周期结果：转入诊断
 
 用户随后回传`runs/smoke_person.ttnd8y5g`：2000000周期执行698.728060秒，总718.555秒，仍status1、arena_used/invoke均0、[37,53]哨兵、未自然halt；模型/输入读回、栈底检查通过且无fault。不再增加窗口，下一步改为[同模型DM暂停/PC诊断](DIAGNOSTIC.md)。旧runner/bench/RTL/固件不修改，不触发重编；实际原因仍待现场采样，不直接归因RAM大小或RTL错误。
+
+## 7. 1000万周期已到Invoke阶段，完整单图仍待完成
+
+用户回传`runs/smoke_person.bzrml3j3`：10000000周期执行3475.519607秒，装载/读回18.676758秒，总3495.779秒。status2，arena_used82300字节（约80.37KiB），无fault、模型/输入读回一致、栈底canary未变；未自然halt、输出仍[37,53]、invoke_cycles0。
+
+固件已成功从AllocateTensors返回，通过输入/输出接口核对并到达调用Invoke阶段。82300是分配后报告值，不是整个DTCM用量/全程峰值；静态arena预留仍163840，不自动增加堆空间。invoke_cycles只在Invoke成功返回后填写，0不能解释为没有执行指令。尚未整网PASS。
+
+这次smoke结束已停止核心并退出，不能从旧1000万处续跑。下一次原样重新启动一次，建议用infer模式给予更完整上限：200000000周期、墙钟86400秒，若完整结束且精确分数匹配会立即提前停止；若预算到达/异常则失败并保留日志。按当前窗口速度跑满周期粗约19小时，这只是任务预算，不是完整模型完成时间承诺；推理阶段负载可能不同。
+
+建议后台运行，避免依赖终端持续连接；不依赖Windows代理/VM继续开机。服务器重启、系统清理会话或主动终止仍可中断。使用同一包/已有模型，依然不重编、不改数值/参数，不与另一个同包任务并发。命令见DIAGNOSTIC.md末节。运行期间不要修改/更新runner或bench，以免改变构建身份。

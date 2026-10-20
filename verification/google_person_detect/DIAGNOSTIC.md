@@ -102,3 +102,31 @@ pd_package=/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn/cor
 ```
 
 本轮仅文档更新，脚本/模型身份保持不变；不用重编，不再反复200万处暂停诊断。窗口未完成时仍NOT_INFERENCE，发生异常即停止分析；1000万窗口尚未执行/回传。
+
+## 1000万回传后：完整有人图长运行预算
+
+`smoke_person.bzrml3j3`已实际完成1000万窗口，status2/arena_used82300，无fault/栈底破坏，说明准备成功返回；还没有完整Invoke/分类输出。执行窗口3475.519607秒、总3495.779秒，不外推矩阵硬件性能。
+
+现在不再取初始化快照。下面服务器命令用现有模型重新初始化并运行完整有人图（不是恢复旧进程），后台启动，最多2亿周期/24小时墙钟；跑满周期粗预算约19小时，并非预计一定要这么久，完成会自动提前停止。异常/超时为失败，不降级成观察PASS。没有改动运行代码，无需git pull或重编。
+
+```bash
+(
+set -eo pipefail
+source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-verilator
+unset WAVES GUI COCOTB_ENABLE_PROFILING
+export CC="$CONDA_PREFIX/bin/gcc"
+export CXX="$CONDA_PREFIX/bin/g++"
+cd /home2/lqq/Desktop/Coral_matrix
+pd_package=/data/home2/lqq/Desktop/coral_person_packages/person_pilot.dJfrJn/coral_person_i256_d512
+pd_job=$(mktemp -d "$HOME/coral_vcs_tools/person_full.XXXXXX")
+nohup "$CONDA_PREFIX/bin/python" -B verification/google_person_detect/person_runner.py \
+  --package "$pd_package" infer --case person --cycles 200000000 --timeout 86400 \
+  > "$pd_job/console.log" 2>&1 < /dev/null &
+pd_pid=$!
+printf '%s\n' "$pd_pid" > "$pd_job/pid"
+printf '[PERSON_FULL_PID] %s\n[PERSON_FULL_CONSOLE_LOG] %s\n' "$pd_pid" "$pd_job/console.log"
+)
+```
+
+返回提示符表示后台启动，不是推理完成；只执行一次。启动器自身仍会校验现有模型身份和锁，失败在console.log，不自动重编。初期控制台只有run目录是正常的，详细阶段在该运行目录`_test.log`；不随意kill其他用户进程。服务器重启不在nohup保护范围。验收仍必须`PERSON_NPU_INFERENCE_PASS`及原生分数[-113,113]逐字匹配；有人图通过也不等于另一图或数据集准确率已通过。

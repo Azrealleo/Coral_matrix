@@ -1858,3 +1858,11 @@ minstret192834→195037→197809，分别增加2203、2772，说明20万附近�
 只读核对GCC运行库文档和固定TFLM b75的`tensorflow/lite/kernels/kernel_util.cc`/`internal/quantization_util.cc`：INT8准备阶段按通道用double计算scale乘除并生成整数乘数/移位，可调用软件double除法/转整数；当前编译目标有F/向量FP32无D。发现初始化慢的一个具体来源，不能泛称整个NPU无浮点，也不能把它当VME/Invoke性能。尚未做任何数值优化、TFLITE_EMULATE_FLOAT或精度替换。
 
 下一步保留正确性基线，原模型/RTL/ELF/runner/bench身份不动，直接复用模型运行1000万周期窗口、timeout7200秒，粗按已测速度预算约1小时，不保证整网完成。检查是否从状态1进入Invoke/输出实际arena或提前完整结束；如异常停止，不直接加RAM。当前仅同步文档，1000万运行尚未回传，模型仍未记PASS。
+
+### 28.7 1000万周期准备已完成，进入Invoke阶段
+
+用户回传`runs/smoke_person.bzrml3j3`：10000000周期执行3475.519607秒，装载/读回18.676758秒，总3495.779秒。原模型/输入/ELF身份保持，fault=false、栈底64字节canary完好。status2，arena_used82300字节（约80.37KiB），证明AllocateTensors已返回、接口与输入复制完成并到达Invoke调用阶段；不再把状态1疑为永久卡住。但这不证明Invoke已结束/所有算子正确，未自然halt、输出仍[37,53]哨兵，invoke_cycles尚未回填。
+
+82300仅是AllocateTensors后报告值，不是全DTCM用量/全程运行峰值；160KiB静态预留不自动缩减或释放给堆。当前不改RAM、精度、内核、RTL或固件，不重编。smoke退出时已停止并结束进程，不能从1000万处续跑。
+
+下一步给原样完整有人图一次更完整预算：infer模式2亿周期、86400秒墙钟上限，完成可提前退出并核对两INT8分数；跑满周期按当前窗口速度粗约19小时，阶段负载可能变化，不承诺完成时间。建议nohup后台并记录PID/console.log，长任务不依赖Windows/VM持续在线，但服务器重启仍中断。启动命令仅提供用户执行，当前尚未启动/回传；不能提前标完整模型PASS。
