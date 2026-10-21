@@ -1,5 +1,7 @@
 # Person Detection：独立 VME 优化候选 v1
 
+**2026-10-21最新进展：** 用户回传 `person_vme_v1.zFvRgl`，主机两图28次Conv逐字节对比、validate/fast两份完整交叉链接和资源审计均通过。validate ELF SHA `980b3373ad9a0ad8ab00e820eaa3dd10d6bae9eaf6612d832276eb03cb8b0cb7`，ITCM139760/DTCM静态483760/堆24144字节；fast SHA `c07d3039e66e0422e688abc2f8c281b110cd3ba7a1b40872ea94df86430821fd`，ITCM139136/DTCM静态483744/堆24160字节。两者均适配256/512KiB配置，均未执行NPU RTL。下一步为下方独立导出及短VME硬件probe，不再重复build.sh。
+
 2026-10-20。用户明确要求参考团队 SoC 的手工优化算子库。此前只做了库审查和默认 TFLM 基线，没有接入，这是执行遗漏。本目录开始实际实现，不把此前默认版改称优化版。
 
 ## 本版做了什么
@@ -70,3 +72,37 @@ bash verification/google_person_vme/build.sh
 4. 再考虑 Depthwise（尤其倍率8）及量化初始化优化。当前Depthwise和软件double仍可能占主要时间，不能预先承诺整网加速幅度。
 
 固定原始模型SHA：`808cfdfc0cf3a6fa6f6fa26bfa379ea97c16d5db7334637766e39c3408502e9d`；TFLM `b75c6ff4e2270047f2b48fa01f833c8101c31f43`；官方NPU `8e4df09b4ea7e065e02d14ce3ae033d40dfd973a`。
+
+## 下一步：VM独立导出，不重新生成RTL
+
+新增 `export.sh`/`export_bundle.py`：核验上面的实际主机/ELF证据；复制原 `person_rtl_export.r9bhUw/coral_person_i256_d512` 的逐字节相同RTL、DPI、fixture、模型和输入；原样复制已通过的validate/fast ELF；只新增并交叉链接一个短VME硬件probe固件。不修改原包、旧安装manifest、原默认程序或既有候选源码，不跑主机模型或RTL仿真。
+
+```bash
+(
+set -eo pipefail
+source "$HOME/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-matrix
+cd "$HOME/桌面/Coral_matrix"
+git pull --ff-only origin main
+bash verification/google_person_vme/export.sh \
+  "$HOME/coral_tcm_capacity_8e4_v1/person_vme_v1.zFvRgl" \
+  "$HOME/coral_tcm_capacity_8e4_v1/person_rtl_export.r9bhUw/coral_person_i256_d512"
+)
+```
+
+成功输出 `[PERSON_VME_BUNDLE_ARCHIVE]` 与 SHA256。输出位于新的 `person_vme_export.*`，包名 `coral_person_vme_i256_d512_v1.tar.gz`；原包/原结果目录保留。先回传导出日志和SHA，再传服务器核验解包。若缺原解包目录，停止并定位原档案，不用另一次随意生成的RTL代替。
+
+### 为什么先跑短硬件probe
+
+主机全模型测试的矩阵计算是C++模拟，没有执行真实VME指令。先验证同一 `pointwise_core.h`/`vme_tile.h` 在真实NPU RTL上的负数、极值、零点-128/-1/0/127、M/N/K尾块：8组、840个原始INT32结果逐项与独立标量参考比较，预期发射233条矩阵指令，输出签名3016346044。代码不调用TFLM初始化，不需要等10M周期的量化准备才遇到第一条VME指令。
+
+`hardware_probe.cc`的主机模拟分支已实际编译执行通过（8/840/签名一致），真实硬件分支已由本地玄铁GCC14.3编译成RISC-V目标文件；仍不是官方工具链完整链接或RTL PASS。18项候选工具测试、原路径34项测试、脚本语法和命令行入口检查通过，含一次完整合成导出验证；合成文件不冒充实际固件/模型/RTL。
+
+### 包内服务器工具（暂时只跑短probe）
+
+- `portable_vme.py`：核对三份ELF、原模型/输入/RTL和全包清单；不修改检查和manifest来“修复”包。
+- `server_probe.py`：复用SHA固定的旧环境检查/通用构建函数，所有编译/运行结果在新包同级 `_verilator_runtime`。不接触旧默认任务的模型或状态文件。参数只支持verify/check/build/probe及内部阶段，**不是整网推理入口**。
+- `probe_bench.py`：原fixture前门加载、原时钟语义，等待自然halt，检查fault/status/8组/840元素/233条指令/签名/栈底canary。跑满预算或任何错误不标PASS；输出明确 `full_model_inference=NOT_RUN`。
+- 首次server build会在独立目录编译同一份RTL，不偷偷改写旧模型身份。probe程序可提前结束，周期上限默认200万、墙钟上限1800秒；运行时间以实际结果为准。后续validate/fast整网运行入口在短probe通过后接续，不手动塞新ELF进旧包。
+
+当前VM实际导出、probe固件官方链接、服务器新模型编译和短probe RTL均尚未执行。服务器原默认版长任务保持不动。

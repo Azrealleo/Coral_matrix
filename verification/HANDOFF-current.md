@@ -4,6 +4,8 @@
 
 ## 最新任务覆盖说明：2026-10-19
 
+**2026-10-21最新断点：** 用户已回传 `person_vme_v1.zFvRgl` 主机及两份ELF完整审计PASS。fast SHA `c07d3039e66e0422e688abc2f8c281b110cd3ba7a1b40872ea94df86430821fd`、ITCM139136/DTCM静态483744/heap24160字节；validate SHA不变、ITCM139760/DTCM静态483760/heap24144字节。两者都是256/512KiB配置，未跑优化版RTL。下一步VM使用[新导出入口](google_person_vme/README.md)复制原 `person_rtl_export.r9bhUw` 的相同RTL并原样装入两份模型ELF，另独立链接一个短硬件probe。probe覆盖8组/840原始累加值/233条矩阵指令，避免数小时初始化后才发现硬件路径问题；不会当作完整模型通过。独立包和server_probe入口已实现，实际导出/链接/服务器运行待用户执行。旧默认任务/包/候选不改。
+
 2026-10-20最新回传：VM `person_vme_v1.acWcT3` 原模型两图、28次候选Conv输出已逐字节匹配默认内核，主机校验arena122000字节；validate真实链接审计通过（ITCM139760字节、DTCM静态483760字节、堆24144字节），fast真实链接通过但旧符号审计把仅校验变量也列为必需，流程停止。现仅修复audit按模式要求符号，11项新工具/34项默认测试通过；生成器、候选源码、ELF、RTL和模型均未改。下一步VM拉取后重跑新build.sh，保留缓存与旧失败目录，补全fast资源审计；不能宣称VME硬件或优化整网RTL已通过。
 
 **2026-10-20最新主线：开始实际接入团队VME算子，而不是继续只跑默认内核。** 用户指出此前要求的SoC优化库仅完成审查、没有落实，已确认这一遗漏。新增[Person VME独立候选](google_person_vme/README.md)：14个1×1 Conv2D接入团队预打包/Tk4/tile调度，补INT8零点修正和TFLM逐通道量化，其他算子暂时默认。主机算术336组、RISC-V汇编编译、新7项及旧34项工具测试通过；完整固定TFLM主机候选/交叉链接/RTL优化推理均尚未执行。下一步VM运行新目录 `build.sh`，先主机逐层比对，再审计256/512KiB候选ELF；不直接启动优化版长仿真。服务器默认版完整推理已由用户启动（console `person_full.wQGGQC/console.log`，启动PID309672仅作历史记录、不得盲目kill），本轮未操作/停止。原runner/bench/固件/模型及旧不可变包不改，新ELF不得直接替换旧包。

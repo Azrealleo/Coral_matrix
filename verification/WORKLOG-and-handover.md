@@ -1882,3 +1882,13 @@ minstret192834→195037→197809，分别增加2203、2772，说明20万附近�
 用户回传VM `person_vme_v1.acWcT3`：核心336组PASS，固定TFLM主机完整原模型两图PASS，有人[-113,113]、无人[57,-57]，每图14层候选卷积全输出逐字节匹配reference，共28层；host arena_used122000，非NPU实测。validate真实交叉链接及审计PASS，ELF SHA `980b3373ad9a0ad8ab00e820eaa3dd10d6bae9eaf6612d832276eb03cb8b0cb7`，ITCM139760、DTCM静态483760、heap24144字节，栈16KiB，适配256/512配置。fast也实际链接成功，但审计报Missing/out-of-range后停止，因此该次整体脚本不标PASS，fast资源尚未回传。
 
 源码核对发现audit错误地对fast要求六个符号，而PD_VME_VALIDATE=0移除了validated_layers及first_bad_index的全部引用，链接垃圾回收可正常移除其定义。仅修改audit按模式设必需集合：校验版六个、测速版main门限实际使用的四个；可选项若保留仍严格检查，缺必需项/越界/错误大小/未定义符号继续失败，并输出具体名称。未改生成器/固件/模型/RTL/安装manifest，不强行保留死变量或跳过检查。新增4项回归，11项候选工具测试与原34项通过；下一步用户拉取后重跑原build.sh命中链接缓存并重新审计，新结果目录不覆盖旧失败证据。实际优化VME RTL运行及整网性能仍未执行。
+
+### 28.10 两份候选审计通过；准备独立导出及短VME硬件probe
+
+2026-10-21用户回传 `person_vme_v1.zFvRgl`，两项主机测试PASS、validate及fast交叉链接/资源审计均PASS，最终 `[PERSON_VME_HOST_AND_LINK_PASS] NPU_RTL=NOT_RUN`。validate SHA及资源同上；fast SHA `c07d3039e66e0422e688abc2f8c281b110cd3ba7a1b40872ea94df86430821fd`，ITCM139136、DTCM静态483744、heap24160字节。确认两者装进原256/512KiB配置，非RTL通过，不再重新进行同一构建。
+
+新增独立export入口：严格核验实际host日志两图/28层全字节与最终分数、两份ELF/report/source manifest，再核对原默认导出包；复制其字节不变的RTL/DPI/fixture/资产，不重新生成RTL。新包包含probe/validate/fast三份ELF及证据、SHA清单；不覆盖原包，不绕过原runner。新probe源码安装在不同目录，只链接小固件，v1原安装源码/manifest均不改。
+
+短硬件probe采用与候选相同的打包核心和真实矩阵backend：8组负数/极值/零点/尾块，840个原始INT32结果逐项对比独立标量参考，预期233条矩阵发射及签名3016346044，跳过TFLM分配和double准备。实际本地主机模拟分支已编译执行通过；实际本地玄铁GCC14.3编译真实分支为RISC-V目标文件，非官方完整链接/RTL。新的独立server_probe只支持短算术probe，自然halt/故障/结果/栈底检查严格区分，任何预算耗尽不标PASS，不输出模型推理PASS。默认服务器长任务不操作；新包构建/状态结果独立。
+
+新增包验证、导出、结果验收、堆栈资源检查回归及完整合成导出；18项候选工具/34项原路径测试、脚本语法和命令行入口检查全部通过。这类测试使用明确synthetic文件，不代表实际包/硬件通过。下一步用户在VM执行export.sh，生成归档/SHA后再传服务器；实际VM probe完整链接/导出、新server模型编译/RTL probe、validate/fast整网RTL与性能均未执行。操作入口在google_person_vme/README.md。
