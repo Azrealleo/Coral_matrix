@@ -1988,3 +1988,9 @@ run.sh是VM前台单例流水：验证原capacity实验完整性，独立安装l
 用户回传VM `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c0.brMbDF`：Cocotb一个测试通过、LLM_LINEAR_SUMMARY及最终LLM_LINEAR_PASS。case=decode_tiny，M1/K32/N32、1024 useful MAC/调用；scalar_cycles=[10563,10563,10563,10563]，rvv_cycles=[263,263,263,263]，首次和后三次steady的标量/RVV比均40.163498098859314。空边界3周期，原始计时未扣除。接受流程要求数值/输入输出独立golden、guard、自然halt/无fault/status3/4次调用及身份门限通过；本地没有读取该服务器/VM目录的原始证据，不把用户没提供的ELF审计哈希或wall time补成已知。
 
 这一结果仅针对两种具体实现的resident合成INT8线性层，对decode矩阵形状做微基准；不是执行完整decode、预训练LLM、tokens/s或VME比较。官方RVV源码未改。末尾LLM_LINEAR_PREPARED中RTL=NOT_RUN指生成器复核自身不仿真，不能覆盖同run实际的SUMMARY/RTL PASS。下一步在VM单独执行run.sh 1，使用M16/K32/N32、相同规模K/N的prefill形状，复用相同编译模型，不自动启动其他case或完整网络。
+
+### 28.22 LLM线性层case1真实RTL通过：prefill形状相对标量41.03倍
+
+用户回传VM `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c1.Ye75FC`：Cocotb单测试PASS、LLM_LINEAR_SUMMARY及最终LLM_LINEAR_PASS。prefill_tiny M16/K32/N32、16384 useful MAC/调用；scalar_cycles=[168618,168618,168618,168618]，rvv_cycles=[4110,4110,4110,4110]，首次与steady标量/RVV比均41.026277372262776。空边界3周期未扣。VME/完整模型仍NOT_RUN，实际ELF审计哈希和wall time未回传，不补造。
+
+与case0相比M增16倍，RVV总周期4110/263约15.63倍，基本线性，符合官方matmul逐行调用gemv的源码路线；不是额外跨token复用、完整prefill性能或架构峰值证明。下一步复用同编译模型，显式分别跑case2 M1/K64/N64与case3 M16/K64/N64；脚本本身仍每次只跑一个所选case，不自动切完整模型。此次只更新记录，不修改已测源码或固件身份。

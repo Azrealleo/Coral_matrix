@@ -1,6 +1,13 @@
 # 单NPU：先测LLM算子，不加载完整模型
 
-2026-10-22。第一轮只做Transformer线性层使用的INT8 GEMV/GEMM微基准。**用户已回传case0真实RTL PASS：标量10563周期、官方RVV263周期，首次及后三次均一致，标量/RVV=40.163498。** 运行目录 `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c0.brMbDF`，空边界3周期未扣除；不是整网/完整decode/VME性能。用户尚未回传实际ELF审计行和仿真wall time，不补造哈希或耗时。下一步仅case1，复用模型比较M16、相同K32/N32的prefill形状。
+2026-10-22。第一轮只做Transformer线性层使用的INT8 GEMV/GEMM微基准。**用户已回传case0、case1真实RTL PASS**，首次及后三次周期均一致：
+
+| 已通过用例 | M/K/N | 标量周期/调用 | 官方RVV周期/调用 | 标量/RVV |
+|---|---|---:|---:|---:|
+| decode_tiny | 1/32/32 | 10563 | 263 | 40.163498 |
+| prefill_tiny | 16/32/32 | 168618 | 4110 | 41.026277 |
+
+实际run分别为 `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c0.brMbDF` 和 `llm_linear_c1.Ye75FC`。空边界3周期均未扣除，不是整网/完整decode/prefill/VME性能。M增16倍时RVV周期增约15.63倍，基本线性；与官方matmul逐行调用gemv的实现一致，不能据此宣称跨token权重复用或架构极限。用户尚未回传实际ELF审计行和仿真wall time，不补造哈希或耗时。下一步复用模型，分别测试case2/3的K64/N64。
 
 后续再逐项加入RMSNorm、因果Attention/Softmax与其他激活，不将现成无掩码Attention测试直接冒充自回归模型测试。
 
@@ -49,4 +56,4 @@ bash verification/google_llm_ops/run.sh 0
 
 旧Conv11项、Pool19项、VME18项、默认Person34项工具回归均通过，合计82项；这些旧回归不算新LLM硬件验证。
 
-case0已由用户回传真实VM流水PASS，case1/2/3仍待执行。下一例在同一Ubuntu环境运行 `bash verification/google_llm_ops/run.sh 1`，不自动排队其余用例。完成后回传ELF审计与SUMMARY。最终出现的 `LLM_LINEAR_PREPARED ... RTL=NOT_RUN` 只是生成器重新核验源码的标记，并非否定前面的RTL测试；真实运行结论以同一run的Cocotb结果、SUMMARY与LLM_LINEAR_PASS为准。
+case0/1已由用户回传真实VM流水PASS，case2/3仍待执行。后两例在同一Ubuntu环境分别运行 `bash verification/google_llm_ops/run.sh 2` 和 `bash verification/google_llm_ops/run.sh 3`；每次只执行所选case，失败即停止，不自动切换完整网络。完成后回传ELF审计与SUMMARY。最终出现的 `LLM_LINEAR_PREPARED ... RTL=NOT_RUN` 只是生成器重新核验源码的标记，并非否定前面的RTL测试；真实运行结论以同一run的Cocotb结果、SUMMARY与LLM_LINEAR_PASS为准。
