@@ -1,5 +1,9 @@
 # 先测Conv算子：默认TFLM vs 当前VME实现
 
+## 2026-10-22 最新断点（优先于下方历史说明）
+
+服务器case0已实际通过：默认TFLM每次91475周期，VME每次42713周期，首次及后三次均一致；默认/VME=2.141620，1024项输出全等、0fallback/0mismatch。它不是VME对RVV的加速比，也不是整层/整网速度。用户随后要求VME对RVV，源码核对发现固定官方RVV Conv优化分支只针对4×4，而现有VME候选只支持1×1，没有共同优化形状。直接换注册会回退，不能标成RVV加速测试。详细证据、实际run路径及可选后续见[RVV比较适用性核对](RVV-COMPARISON.md)。尚无新增RVV Conv实现或NPU运行；下方“尚无周期/加速比、等待导出”等为此前阶段记录。
+
 **最新实际进度：** VM `person_conv_v1.nTbcvy` 已完成固定TFLM reference vs emulated VME主机测试和真实完整链接/审计，最终`PERSON_CONV_HOST_AND_LINK_PASS full_model=NOT_RUN NPU_RTL=NOT_RUN`。ELF SHA `b94e1da3b4f7f2693727395073e65f172344f15454bd01a7b7bb8c2832f259b2`，ITCM占用113536、DTCM静态265584、heap242320字节，保持256/512KiB。**尚无NPU周期或加速比**。当前只需导出这个小固件包，不用再跑下方build.sh。
 
 ## 当前下一步：只导出小固件，不带RTL

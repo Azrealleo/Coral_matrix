@@ -1960,3 +1960,25 @@ minstret192834→195037→197809，分别增加2203、2772，说明20万附近�
 新server_conv/conv_rtl_bench复用哈希固定model_runner构建检查器，只读核验原Pool不可变包、同producer构建身份/环境/配方/二进制和probe.46bl5uqr原始证据，持其锁但不改编译模型/current_build。前门加载小ELF，读回选中派生模型/输入SHA，写非零.data case selector、复核M/K/N/operator、自然halt/故障/canary/arena/逐项对照/host签名/4次VME调用与准确软件发射数。默认只跑id0，4次共8条矩阵发射，0fallback/0mismatch/0内部reference重复校验；读取first+3steady的两组mcycle及空边界。原始样本和ref/VME比值均保存，不把较慢实现判为失败，不扣除边界开销，不外推整网。
 
 新增4项本地合成包完整导出、ELF数据表/fixture校验、正反性能结果验收及准确发射计数检查；Conv合计11项，旧Pool19/VME18/默认34项回归通过，语法/CLI检查通过。另实际用本地玄铁GCC14.3将生成fixtures编译成RV32目标文件，确认kConvCases符号180字节且无动态初始化；不当官方最终ELF/RTL运行证据。实际VM小包导出/服务器NPU周期仍待执行，下一步export.sh只读取person_conv_v1.nTbcvy，回传归档/SHA后传服务器，先id0/2百万周期/1800秒上限前台试跑，不启动完整网络或其他case队列。
+
+### 28.19 真实Conv片段2.14倍结果；VME/RVV共同适用性核对
+
+用户实际导出小包SHA fec8b002b6d886129e6bdc1d9d461fbb6bdab66643ab5a246863f8a7bd986ff2，大小2460577字节，并回传服务器conv_fec8b002/coral_person_conv_v1_runtime/runs/case0.gqdyx8ir的PERSON_CONV_RTL_PASS。原Pool编译模型7a54106b3148.z558xni8只读复用，原RTL/固件SHA与28.18一致。M16/K8/N16、2048MAC每调用，默认INT8 Conv首次及后三次均91475周期，VME均42713周期；空边界3周期未扣除，默认/VME=2.141619647414136。1024项输出全等、签名3882088669；4次VME调用、8条软件矩阵发射，fallback/内部reference验证/mismatch为0。自然halt/status3/无fault/栈底64字节canary通过，观察901968周期，执行306.975889秒、总322.72秒。仅同ELF单算子Invoke空间片段的实测，不代表完整原层、整网或VME对RVV加速。
+
+2026-10-22用户要求继续VME/RVV比较，小仿真可在VM执行。只读核对固定官方8e4的sw/opt/litert-micro/conv.cc：ConvPerChannel五个优化分支1213/1220/1226/1230/1235行均要求filter高宽4；1242行fallback调用reference_integer_ops::ConvPerChannel。当前五例1×1全部会回退，且回退前仍有复制/分配等开销。现有conv_vme.cc则只接受1×1，4×4会回退。因此两者无共同优化适用形状，不能只切官方RVV注册就称为公平VME/RVV Conv测试；也不能将复制中可能用到的RVV指令当作RVV Conv MAC内核。结论仅针对固定源码，不表示硬件不支持1×1向量计算。
+
+新增google_person_conv/RVV-COMPARISON.md记录上述证据和后续选择：新增项目自研1×1 RVV内核，或另做共同INT8 GEMM微基准（不能替代Conv速度）。尚未实现/运行新RVV比较、没有VME/RVV速度比；没有改动原候选、Depthwise、已测ELF/RTL包或运行中的服务器任务。README和当前交接入口增加最新覆盖，保留旧阶段说明为历史。
+
+### 28.20 用户转向LLM算子：准备小规模resident INT8线性层性能入口
+
+2026-10-22用户提出用NPU仿真LLM，随后明确先测Transformer/LLM算子性能，暂不做完整语言模型。只读核对固定官方8e4目录tests/cocotb/rvv/ml_ops/gemma_kernels：有RVV INT8/FP32/BF16 matmul、RMSNorm、Attention和残差/激活等实现及单算子测试；不是已具备完整文本生成流程。其官方runner使用1MiB/1MiB/RvvCoreMiniHighmemAxi，不适合直接冒充当前256/512KiB硬件；Attention测试为unmasked、实权重缺失时允许合成数据，不能直接当自回归模型验证。
+
+新增google_llm_ops独立目录。第一轮只比较朴素标量与官方rvv_int8_matmul.cc原样复制的INT8 GEMV/GEMM。四形状M1/K32/N32、M16/K32/N32、M1/K64/N64、M16/K64/N64，对应decode/prefill的线性层矩阵形状而非完整过程。官方matmul本身逐行调用gemv，不改写不宣称最佳RVV实现。固定xorshift seed137+case；X[-128,127]、W[-127,127]，遵守官方禁止两侧同时-128的限制。raw INT32结果，不含模型/量化框架、外存或KV cache，不输出tokens/s。VME本轮不参与，RMSNorm/因果Attention后续再加。
+
+新同ELF/ITCM256KiB/DTCM512KiB，四次调用首次+三次steady，交替标量/RVV先后。-O2禁自动向量化/LTO，保留显式RVV；fence+mcycle只包围内核调用，空边界记录不扣，输入生成和逐项检查在窗外。每次比较两路径，最后前门读回实际输入和两个完整INT32输出对独立Python整数golden；检查输出前后/尾区guard、4次调用、自然halt/无fault/status3/签名/栈底64字节canary。工具拒绝不完整/重复/失败日志、不同ELF或RTL身份及错误周期；较慢的RVV同样是有效结果，不强制加速。
+
+run.sh是VM前台单例流水：验证原capacity实验完整性，独立安装llm_linear_v1包，native只运行标量参考并核对Python签名，真实官方工具链链接新ELF和生成同配置RTL、严格参数/内存审计后，显式运行所选单个Verilator测试；默认只case0，不下载模型，不运行后台或其他队列，Bazel进度刷屏关闭。首次新仿真模型编译另计，5400秒测试超时/2百万case0周期是上限非ETA；其余case需另行调用同脚本，可复用模型。旧TCM/Person/VME/Pool/Conv源码、固件和包不改。
+
+本地10项工具检查通过，包括真正MinGW标量运行对独立Python四例签名、错误日志与内存/参数负例、独立安装/拒绝覆盖。使用本地玄铁GCC14.3实际编译新bench及原官方RVV源为RV32目标文件，反汇编确认Scalar无向量指令、官方对象有vwmul/vwmacc；Bash语法检查通过。这些不是官方完整链接、NPU执行或速度证据。真实VM链接/RTL仍待用户运行run.sh 0并回传LLM_LINEAR_ELF_AUDIT和LLM_LINEAR_SUMMARY，不能提前标PASS或声称已获得LLM性能。
+
+旧Conv11、Pool19、VME18、默认Person34项工具回归（合计82项）通过；与新增10项合计92项。仅工具回归，不是92个真实硬件用例；合成打包测试产生的临时archive哈希不作为实际VM/服务器包身份。

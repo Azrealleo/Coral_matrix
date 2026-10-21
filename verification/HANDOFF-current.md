@@ -4,6 +4,10 @@
 
 ## 最新任务覆盖说明：2026-10-21
 
+**2026-10-22当前任务：LLM算子性能，暂停Conv RVV开发。** 用户选择先测Transformer/LLM算子，不启动完整语言模型。新入口[google_llm_ops](google_llm_ops/README.md)，第一阶段仅INT8线性层标量与固定官方RVV的对比：M1/16分别对应decode/prefill矩阵形状，K/N=32/32及64/64，共4例。官方gemma_kernels/rvv_int8_matmul.cc原样复制；权重[-127,127]、激活[-128,127]遵守源内核限制，raw INT32输出，无重定量化/模型框架/外存成本。不是完整decode或tokens/s，也不是VME/RVV结果。每路径首次+3次steady，交替顺序、空边界不扣；独立Python参考、实际输入及两份输出前门读回、guard/自然halt/fault/计数/canary门限。独立256/512KiB配置和新ELF/Bazel包，不修改旧实验。10项本地工具检查（含实际native标量运行、独立Python签名、两份真实RV32目标文件及反汇编、内存/日志负例）通过；不是官方完整链接/真实RVV执行。下一步VM仅前台运行 `bash verification/google_llm_ops/run.sh 0`，待回传审计与SUMMARY；RMSNorm/因果Attention等后续尚未接入，不运行完整模型或旧Conv队列。
+
+**2026-10-22最新覆盖：** 用户已回传服务器Conv case0.gqdyx8ir真实PASS，默认TFLM91475周期、VME42713周期（各首次+三次steady均一致），默认/VME=2.141620；1024项输出全等，4次VME调用/8条软件矩阵发射/0fallback/0mismatch，执行306.976秒、总322.72秒。仅M16/K8/N16单算子空间片段，不是RVV比较或整网加速。当前用户要求VME对RVV、小测试优先VM。审计固定官方8e4的ConvPerChannel发现五个优化分支均要求4×4，当前五例1×1会回退reference；现有VME只支持1×1，4×4又会回退。两者无共同优化形状，不能简单换注册后报告“VME比RVV快”。需选择新增项目自研1×1 RVV内核或另做共同GEMM微基准；本轮没有实施新内核或新增RTL运行。详见[适用性与后续选择](google_person_conv/RVV-COMPARISON.md)。下方旧“尚无周期”描述保留为历史，不代表当前状态。
+
 **Conv小测试最新实际断点：** 用户已回传VM `person_conv_v1.nTbcvy` 主机差分及真实链接/审计PASS，ELF `b94e1da3b4f7f2693727395073e65f172344f15454bd01a7b7bb8c2832f259b2`，ITCM113536/DTCM静态265584/heap242320字节，256/512KiB不变。新增[小固件独立导出](google_person_conv/README.md)和[服务器周期入口](google_person_conv/SERVER.md)：不带RTL、不调用Bazel；核验源码、五例native签名及ELF内派生模型/输入真实地址哈希；同一旧Pool编译模型只读复用，前门加载已测小固件，默认只跑id0。首次+三次steady、ref/VME各自Invoke窗口，输出比值，允许VME较慢结果。11项Conv本地检查及旧Pool19/VME18/默认34项通过，实际导出/服务器NPU周期尚未回传，仍没有Conv加速倍数。下一步VM只运行google_person_conv/export.sh传入上述实际run目录。
 
 **用户最新方向覆盖：暂缓完整模型长任务，先实测Conv加速。** 上轮新model_runner/run_model.sh仅已提供命令，没有用户启动/完成回传，本轮不启动或停止服务器任务。当前入口改为[独立Conv微基准](google_person_conv/README.md)：原模型5个1×1卷积的原权重/bias/量化/激活选项，少量空间位置M，固定种子有符号输入（不是原图真实中间特征），同ELF两个单算子Interpreter对比默认TFLM与原样VME源码。一次首次调用+三次steady、交替顺序；fence+mcycle仅包围各自Invoke，VME含打包/零点修正/重定量化/写回，Prepare与逐字节检查在窗口外。不是整网/完整原层/纯矩阵峰值，不保证每形状都更快。
