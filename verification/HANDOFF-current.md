@@ -4,6 +4,12 @@
 
 ## 最新任务覆盖说明：2026-10-21
 
+**最新实际结果及下一步（优先于以下历史断点）：** 默认参考算子已在NPU RTL完成单有人图全模型推理，`person_pilot.dJfrJn/.../runs/infer_person.r6a1thwb`：原模型/输入匹配，输出[-113,113]与主机参考完全一致、status3自然halt、无fault、栈底canary完好，Invoke190673191周期、启动到halt194501581周期，总65897.933秒（约18小时18分），arena82300字节。此为ITCM256/DTCM512KiB单图基线，不是数据集准确率/无人图通过或全内存峰值。原默认长任务已完成，不再称仍待返回。
+
+新Pool包实际导出SHA `7c8e0fe5121c0aeb37d9e8a54983dd7fe64603bf5de964b718aac4cd4b3076eb`，服务器`pool_7c8e0fe5`新编译450.453秒；`..._verilator_runtime/runs/probe.46bl5uqr`真实RVV Pool 8组/659输出/0错误/62向量块/签名642806987通过，256826周期自然halt、无fault/canary破坏，执行85.614/总97.463秒，ELF `031cf12303fb5fe8d75a88d72f0aee2a3453c54d0ba70446f95f35cba3a009cb`。**这是短算术PASS，合并版整网仍未通过**。
+
+当前下一步是[外部合并版完整模型入口](google_person_pool/MODEL.md)：新增model_runner/model_bench/run_model.sh放在包外，只读复用原producer模型`7a54106b3148.z558xni8`。原包/默认入口/Pool generator不动，不重编、不重新标构建身份，严格核对环境/配方/二进制及同包短probe原始证据。先后台一张有人图validate，14Conv+1Pool逐层对照/0fallback/0mismatch/原始输出/自然halt等全部通过才可称整网正确；fast另需同图validate原始证据，禁止将reference重复计算周期当性能。19项Pool（7项新入口）/18项VME/34项默认本地检查通过；尚未实际执行服务器整网新入口。Depthwise仍为官方默认，不切换RVV。
+
 **最新断点（优先于下方历史“下一步”）：** VME真实硬件短probe已通过：服务器`person_vme_probe.ecTtR9/.../runs/probe.1hyg7w53`，8组/840项/0错误/233软件发射/签名3016346044，825634周期自然halt、无fault、栈底64字节canary通过，执行286.477秒，总298.252秒。只证明短VME算术，不是整网通过。与此同时VM新增RVV AveragePool候选`person_pool_v1.0u8RTz`的两项主机检查、validate/fast完整链接及资源审计已PASS；ELF SHA分别`8137e2bf8777f5e0976a49887302724c64f27d491c886f14ec673d535eac0951` / `81f596bd9eb0fa94ef3fcdfb0cb33719e5e00cad949207b7600b91f7481253f8`，ITCM143296/142112、DTCM静态483776/483760、heap24128/24144字节。**Pool实际RVV和优化整网RTL尚未通过**。
 
 **当前下一步：** [RVV Pool独立导出](google_person_pool/README.md)从上述实际run和旧`person_vme_export.F6GOKR`包复制相同原RTL/模型，原样装入刚测量的合并版ELF，再独立链接8组/659项/62向量块/签名642806987的短Pool硬件probe。该工具及12项Pool/18项VME/34项默认本地工具检查通过，真实导出/服务器运行待执行；本地host探针和真实RVV目标文件编译不当硬件PASS。先短RVV检查，再做整网加载/验收入口；当前server_probe没有infer命令。Depthwise按用户要求源码及官方默认注册都不改，Softmax/Reshape不改，VME Conv旧源码不变。旧包、默认长任务和已通过VME编译模型均不动，未测整网加速。

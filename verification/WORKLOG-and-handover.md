@@ -1920,3 +1920,21 @@ minstret192834→195037→197809，分别增加2203、2772，说明20万附近�
 短probe真实RVV backend与候选头文件字节一致；8组/659个INT8输出，实际3×3×256池化、尾通道、padding、batch、正/负半整数舍入、激活与guard，独立标量窗口参考逐项比对，预期62向量循环块/签名642806987。复用诊断字段commands在此表示向量循环块数，不是矩阵指令或独立退休。跳过TFLM分配/量化初始化，只能验收Pool硬件算术。新包server_probe.py/probe_bench.py由已通过旧入口的哈希固定模板严格替换生成，有独立包/构建身份、严格自然halt/fault/栈底/结果门限，不写旧目录，成功仍明确full_model_inference=NOT_RUN；当前不支持完整模型infer。
 
 实际本地MinGW严格编译执行新probe为8/659/62/签名匹配；玄铁GCC14.3真实RVV分支目标文件编译通过，反汇编见vle8/vsext/vmerge/vdiv/vse8，但不是官方完整链接或RTL。新增5项合成完整导出/拒绝错误或重复结果/防覆盖测试，合计12项Pool、18项旧VME、34项原默认工具回归通过，shell语法通过；原默认runner/bench与旧VME运行入口/Pool生成器未改。实际VM新probe链接/归档、服务器Pool RTL、两图优化整网RTL和性能仍未执行/未回传，不提前标PASS。下一步使用person_pool_v1.0u8RTz及person_vme_export.F6GOKR执行新export.sh，回传归档路径/SHA后传服务器，详见Pool README及SERVER.md。
+
+### 28.15 默认完整模型单图通过；真实RVV Pool短probe通过
+
+用户实际回传VM `person_pool_export.nhXtY2`：官方完整交叉链接新短probe成功、原RTL/模型和Depthwise未改，归档`coral_person_vme_pool_i256_d512_v1.tar.gz` SHA `7c8e0fe5121c0aeb37d9e8a54983dd7fe64603bf5de964b718aac4cd4b3076eb`。已给出独立目录传输与前台服务器校验/编译/probe命令，不覆盖旧包。
+
+用户随后查看此前后台默认完整模型任务，实际`person_pilot.dJfrJn/coral_person_i256_d512_verilator_runtime/runs/infer_person.r6a1thwb`返回`PERSON_NPU_INFERENCE_PASS`。ITCM256/DTCM512KiB，原ELF e3078c...和原模型808cfdfc...不变，case=person，status3、inference_complete/natural_halt=true、fault=false，模型/输入读回一致，有人输出[-113,113]完全匹配固定TFLM主机参考。Invoke190673191周期、观察194501581周期；执行65877.175261秒、总65897.933秒（18小时18分17.933秒），装载/读回19.157962秒，arena_used82300/预留163840字节，栈底64字节canary通过。正式形成真实默认全模型单图周期基线，旧后台任务已完成。不能扩大成无人图/数据集正确率或完整栈/内存峰值通过；arena不是DTCM总用量。
+
+用户回传新Pool服务器控制台`person_pool_probe.Wa8Udc/console.log`，包路径`/data/home2/lqq/Desktop/coral_person_packages/pool_7c8e0fe5/coral_person_vme_pool_i256_d512_v1`，编译`..._verilator_runtime/builds/7a54106b3148.z558xni8` 450.453秒；实际`runs/probe.46bl5uqr` 8组/659项/0错误/62向量循环块/签名642806987，256826周期自然halt/status3，无fault且栈底canary完好，执行85.613674秒、总97.463秒。probe ELF `031cf12303fb5fe8d75a88d72f0aee2a3453c54d0ba70446f95f35cba3a009cb`，原RTL477aa4d...不变。标记`PERSON_POOL_HARDWARE_PROBE_PASS full_model_inference=NOT_RUN`，正式证明短RVV后端数值，不能与整网PASS混同。
+
+### 28.16 包外完整VME+Pool模型入口：复用构建、先校验后测速
+
+新增model_runner.py/model_bench.py/run_model.sh，不修改原包、旧runner/bench、候选生成器/算子或已链接固件。入口哈希固定已封包producer，严格验证三份实测ELF、原模型/包清单、producer原构建身份/环境/配方/可见性/二进制；核验同build短probe result/raw/XML。复用原编译模型仅作为RTL/DPI/fixture可执行程序，ELF仍前门加载；不将旧模型重新标成新入口构建、不复制/覆盖current_build。持原state锁避免并发覆盖，新模型证据写到独立同级`..._model_runtime/runs/*`，每次从完整固件入口重启，不当checkpoint。
+
+先执行一张有人图validate，要求14个VME Conv、1个RVV Pool、0fallback/0mismatch、14+1全部逐字节reference验证、原始分数、自然halt/无fault/arena/canary及周期条件全部满足。软件发射和向量循环计数不当硬件退休，校验版performance_eligible=false。fast须提供同图/同包/同producer build的完整validate原始证据，且验证调用不得执行；不自动排队更多长任务或直接输出加速倍数。原默认Invoke190673191周期才是后续同图fast的比较基线。为避免扰动执行周期，运行中不从AXI轮询计数器。
+
+脚本先前台check，再nohup只启动一个validate person任务，日志/PID明确输出。4亿周期/48小时是上限而非耗时估计；校验版增加reference计算且Depthwise仍默认，不能保证比18小时基线快。耗尽任何上限都保留日志、不标PASS，不能续跑。完整模型两图、fast和整网加速依然待执行/回传。
+
+实际本地7项新合成检查通过，覆盖构建只读复用/环境JSON元组规范化、XML与重复或ANSI日志、错误输出/故障/部分层/错误计数拒绝、fast校验隔离、同图同build前提及原始证据变更拒绝；Pool合计19项，旧VME18项和默认34项回归通过，语法/命令行检查通过。不代表已在服务器执行新入口或跑合并版整网。操作见google_person_pool/MODEL.md。

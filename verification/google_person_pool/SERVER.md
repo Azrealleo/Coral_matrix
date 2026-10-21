@@ -32,4 +32,4 @@ printf '[PERSON_POOL_CONSOLE_LOG] %s/console.log\n' "$pd_job"
 
 必须有 `[PERSON_POOL_HARDWARE_PROBE_PASS] full_model_inference=NOT_RUN` 才是短Pool硬件通过，且需659输出/0错误/62向量块/签名642806987/自然halt/无fault/栈底canary等严格验收。XML或日志单个PASS字样不足。probe是重启后的短固件，不是旧长模型任务的checkpoint；栈检查只有最低64字节，并非完整水位。
 
-`validate`用于整网逐层正确性，`fast`用于避免重复reference计算后的性能；**当前入口不支持两者的整网infer**。下一步需单独的整网加载/计数验收入口，不能用旧默认runner对新包强行换ELF。完整推理的两图分数仍应为有人[-113,113]、无人[57,-57]，Depthwise仍保持官方默认。
+`validate`用于整网逐层正确性，`fast`用于避免重复reference计算后的性能；**包内server_probe入口仍不支持两者的整网infer**。当前已新增[包外完整模型入口](MODEL.md)，使用已测量的两份ELF和通过短probe的同一编译模型，严格核对构建与结果，不需要重新导出/修改原包。不能用旧默认runner对新包强行换ELF。完整推理的两图分数仍应为有人[-113,113]、无人[57,-57]，Depthwise仍保持官方默认。
