@@ -1982,3 +1982,9 @@ run.sh是VM前台单例流水：验证原capacity实验完整性，独立安装l
 本地10项工具检查通过，包括真正MinGW标量运行对独立Python四例签名、错误日志与内存/参数负例、独立安装/拒绝覆盖。使用本地玄铁GCC14.3实际编译新bench及原官方RVV源为RV32目标文件，反汇编确认Scalar无向量指令、官方对象有vwmul/vwmacc；Bash语法检查通过。这些不是官方完整链接、NPU执行或速度证据。真实VM链接/RTL仍待用户运行run.sh 0并回传LLM_LINEAR_ELF_AUDIT和LLM_LINEAR_SUMMARY，不能提前标PASS或声称已获得LLM性能。
 
 旧Conv11、Pool19、VME18、默认Person34项工具回归（合计82项）通过；与新增10项合计92项。仅工具回归，不是92个真实硬件用例；合成打包测试产生的临时archive哈希不作为实际VM/服务器包身份。
+
+### 28.21 LLM线性层case0真实RTL通过：官方RVV相对标量40.16倍
+
+用户回传VM `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c0.brMbDF`：Cocotb一个测试通过、LLM_LINEAR_SUMMARY及最终LLM_LINEAR_PASS。case=decode_tiny，M1/K32/N32、1024 useful MAC/调用；scalar_cycles=[10563,10563,10563,10563]，rvv_cycles=[263,263,263,263]，首次和后三次steady的标量/RVV比均40.163498098859314。空边界3周期，原始计时未扣除。接受流程要求数值/输入输出独立golden、guard、自然halt/无fault/status3/4次调用及身份门限通过；本地没有读取该服务器/VM目录的原始证据，不把用户没提供的ELF审计哈希或wall time补成已知。
+
+这一结果仅针对两种具体实现的resident合成INT8线性层，对decode矩阵形状做微基准；不是执行完整decode、预训练LLM、tokens/s或VME比较。官方RVV源码未改。末尾LLM_LINEAR_PREPARED中RTL=NOT_RUN指生成器复核自身不仿真，不能覆盖同run实际的SUMMARY/RTL PASS。下一步在VM单独执行run.sh 1，使用M16/K32/N32、相同规模K/N的prefill形状，复用相同编译模型，不自动启动其他case或完整网络。

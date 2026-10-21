@@ -1,6 +1,8 @@
 # 单NPU：先测LLM算子，不加载完整模型
 
-2026-10-22。第一轮只做Transformer线性层使用的INT8 GEMV/GEMM微基准，**尚未在NPU执行，也没有速度结果**。后续再逐项加入RMSNorm、因果Attention/Softmax与其他激活，不将现成无掩码Attention测试直接冒充自回归模型测试。
+2026-10-22。第一轮只做Transformer线性层使用的INT8 GEMV/GEMM微基准。**用户已回传case0真实RTL PASS：标量10563周期、官方RVV263周期，首次及后三次均一致，标量/RVV=40.163498。** 运行目录 `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c0.brMbDF`，空边界3周期未扣除；不是整网/完整decode/VME性能。用户尚未回传实际ELF审计行和仿真wall time，不补造哈希或耗时。下一步仅case1，复用模型比较M16、相同K32/N32的prefill形状。
+
+后续再逐项加入RMSNorm、因果Attention/Softmax与其他激活，不将现成无掩码Attention测试直接冒充自回归模型测试。
 
 ## 本轮实际比较
 
@@ -47,4 +49,4 @@ bash verification/google_llm_ops/run.sh 0
 
 旧Conv11项、Pool19项、VME18项、默认Person34项工具回归均通过，合计82项；这些旧回归不算新LLM硬件验证。
 
-现阶段只准备工具与本地主机/目标文件检查，真实VM完整交叉链接和RTL测试仍待执行。
+case0已由用户回传真实VM流水PASS，case1/2/3仍待执行。下一例在同一Ubuntu环境运行 `bash verification/google_llm_ops/run.sh 1`，不自动排队其余用例。完成后回传ELF审计与SUMMARY。最终出现的 `LLM_LINEAR_PREPARED ... RTL=NOT_RUN` 只是生成器重新核验源码的标记，并非否定前面的RTL测试；真实运行结论以同一run的Cocotb结果、SUMMARY与LLM_LINEAR_PASS为准。

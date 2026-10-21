@@ -4,6 +4,8 @@
 
 ## 最新任务覆盖说明：2026-10-21
 
+**LLM最新实际断点：** 用户回传VM `llm_linear_c0.brMbDF` 的Cocotb单测试PASS、LLM_LINEAR_SUMMARY及最终LLM_LINEAR_PASS。case0 decode_tiny M1/K32/N32、1024MAC/调用，标量四次10563周期，官方RVV四次263周期，首次/steady比值均40.163498098859314，空边界3周期未扣。仅resident合成INT8线性层、raw INT32输出，完整模型/VME仍NOT_RUN，不外推tokens/s。尚无用户回传实际ELF审计哈希或wall time，不补造。下一步VM单独运行run.sh 1测M16/K32/N32，复用同模型，不自动跑其他case或完整网络。下方“等待case0”描述为历史。
+
 **2026-10-22当前任务：LLM算子性能，暂停Conv RVV开发。** 用户选择先测Transformer/LLM算子，不启动完整语言模型。新入口[google_llm_ops](google_llm_ops/README.md)，第一阶段仅INT8线性层标量与固定官方RVV的对比：M1/16分别对应decode/prefill矩阵形状，K/N=32/32及64/64，共4例。官方gemma_kernels/rvv_int8_matmul.cc原样复制；权重[-127,127]、激活[-128,127]遵守源内核限制，raw INT32输出，无重定量化/模型框架/外存成本。不是完整decode或tokens/s，也不是VME/RVV结果。每路径首次+3次steady，交替顺序、空边界不扣；独立Python参考、实际输入及两份输出前门读回、guard/自然halt/fault/计数/canary门限。独立256/512KiB配置和新ELF/Bazel包，不修改旧实验。10项本地工具检查（含实际native标量运行、独立Python签名、两份真实RV32目标文件及反汇编、内存/日志负例）通过；不是官方完整链接/真实RVV执行。下一步VM仅前台运行 `bash verification/google_llm_ops/run.sh 0`，待回传审计与SUMMARY；RMSNorm/因果Attention等后续尚未接入，不运行完整模型或旧Conv队列。
 
 **2026-10-22最新覆盖：** 用户已回传服务器Conv case0.gqdyx8ir真实PASS，默认TFLM91475周期、VME42713周期（各首次+三次steady均一致），默认/VME=2.141620；1024项输出全等，4次VME调用/8条软件矩阵发射/0fallback/0mismatch，执行306.976秒、总322.72秒。仅M16/K8/N16单算子空间片段，不是RVV比较或整网加速。当前用户要求VME对RVV、小测试优先VM。审计固定官方8e4的ConvPerChannel发现五个优化分支均要求4×4，当前五例1×1会回退reference；现有VME只支持1×1，4×4又会回退。两者无共同优化形状，不能简单换注册后报告“VME比RVV快”。需选择新增项目自研1×1 RVV内核或另做共同GEMM微基准；本轮没有实施新内核或新增RTL运行。详见[适用性与后续选择](google_person_conv/RVV-COMPARISON.md)。下方旧“尚无周期”描述保留为历史，不代表当前状态。
