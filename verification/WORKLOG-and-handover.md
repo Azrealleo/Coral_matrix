@@ -1892,3 +1892,17 @@ minstret192834→195037→197809，分别增加2203、2772，说明20万附近�
 短硬件probe采用与候选相同的打包核心和真实矩阵backend：8组负数/极值/零点/尾块，840个原始INT32结果逐项对比独立标量参考，预期233条矩阵发射及签名3016346044，跳过TFLM分配和double准备。实际本地主机模拟分支已编译执行通过；实际本地玄铁GCC14.3编译真实分支为RISC-V目标文件，非官方完整链接/RTL。新的独立server_probe只支持短算术probe，自然halt/故障/结果/栈底检查严格区分，任何预算耗尽不标PASS，不输出模型推理PASS。默认服务器长任务不操作；新包构建/状态结果独立。
 
 新增包验证、导出、结果验收、堆栈资源检查回归及完整合成导出；18项候选工具/34项原路径测试、脚本语法和命令行入口检查全部通过。这类测试使用明确synthetic文件，不代表实际包/硬件通过。下一步用户在VM执行export.sh，生成归档/SHA后再传服务器；实际VM probe完整链接/导出、新server模型编译/RTL probe、validate/fast整网RTL与性能均未执行。操作入口在google_person_vme/README.md。
+
+### 28.11 VME包实际导出；用户指定Depthwise暂不改，转向未优化算子
+
+用户回传实际VM `person_vme_export.F6GOKR`，probe_program.elf官方完整交叉链接PASS，独立包导出PASS、原RTL/模型不变；归档 `coral_person_vme_i256_d512_v1.tar.gz` SHA `f4dea9fdb5a329955ab68905a254ab9414aeb6f5b0b3d551f2f182e946aa03ea`。已给出VM传输和server独立编译/短probe命令；尚无真实服务器probe结果。前台/后台可并行但墙钟会竞争，NPU确定性周期应区分；之前的时间估计不是测试已完成证据。
+
+用户询问官方RVV覆盖，重新只读核对固定8e4：官方已有Conv、Depthwise、FullyConnected、MaxPool及Logistic库，通用tflite_runner条件注册部分RVV，而当前自建Person固件未接；未发现AveragePool、Softmax、Reshape对应专用RVV内核。官方Depthwise源码有depth_multiplier循环，也有完整输出INT32 scratch和权重/bias复制，不能说缺少该实现，亦不直接保证其适配内存。用户明确先不改Depthwise、从其他无优化算子入手；本轮保持当前官方默认注册，不新增自定义Depthwise或偷偷切到RVV。
+
+### 28.12 RVV AveragePool第一版实现与独立验证入口
+
+原模型Pool实际形状[1,3,3,256]到[1,1,1,256]，3×3/stride2/VALID，无融合激活，输入输出scale相同0.01860933005809784、zp=-128；Softmax仅2输出、Reshape2个INT8元素，优先Pool但不承诺整网大幅提速。新增google_person_pool：共享窗口调度每空间输出只算一次边界/有效count；真实RVV连续通道加载、符号扩展到INT32累加、有符号整数vdiv精确复现TFLM正负舍入与截断，无浮点近似，无完整INT32输出scratch。沿用原PoolingPrepare及激活范围；校验版arena保存INT8输出后运行原Pool全字节比对，本模型额外scratch256字节，测速版不重复reference。
+
+独立安装person_detect_vme_pool_v1：VME Conv原源码字节保留，模型/样本/Depthwise/Softmax/Reshape/RTL/RAM不改；新主机全模型入口比较两图×(14Conv+1Pool)=30层及原始分数，再交叉链接256/512KiB校验/测速ELF和计数器资源审计。旧父manifest/目录及已导出包不覆盖。候选仍非重入单NPU流程，新增计数器区分RVV与主机模拟。
+
+实际本地MinGW GCC6.2严格编译执行2160组/1291923输出元素和count1..49舍入边界通过，涵盖负数/极值、SAME/VALID、stride、通道尾块、batch、activation及拒绝溢出/空窗口；玄铁GCC14.3真实编译RVV probe并反汇编见vle8/vsext/vadd/vmerge/vdiv/vmax/vmin/vse8，非硬件执行。7项新工具测试、旧VME18项与默认路径34项回归及脚本语法、实际模型17文件生成检查均通过，模型源码与父候选一致。固定TFLM参考native差分、完整两图新候选、官方完整交叉链接/资源审计、RVV硬件及整网性能均待执行；下一步用户在VM运行google_person_pool/build.sh。

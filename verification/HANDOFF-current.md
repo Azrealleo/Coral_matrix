@@ -4,6 +4,8 @@
 
 ## 最新任务覆盖说明：2026-10-19
 
+**2026-10-21当前开发方向：** 用户要求Depthwise先不改，使用官方实现，从其余没有优化的算子开始。本轮保留当前官方默认Depthwise源码和注册，不自动切RVV Depthwise。新增[RVV AveragePool独立候选](google_person_pool/README.md)，模型形状3×3×256到1×1×256，精确保留原TFLM signed rounding，VME Conv源码/模型/旧包/RTL均不改。2160组共1291923元素的本地算术、真实RISC-V RVV目标文件编译及7项新工具检查通过；固定TFLM native差分/新固件完整交叉链接/RVV硬件尚未执行。下一步VM运行新目录build.sh。Softmax2输出、Reshape2元素暂不重写，也没有测得整网收益。此前VME短probe与默认长任务是并行保留的独立工作，不因本轮覆盖。
+
 **2026-10-21最新断点：** 用户已回传 `person_vme_v1.zFvRgl` 主机及两份ELF完整审计PASS。fast SHA `c07d3039e66e0422e688abc2f8c281b110cd3ba7a1b40872ea94df86430821fd`、ITCM139136/DTCM静态483744/heap24160字节；validate SHA不变、ITCM139760/DTCM静态483760/heap24144字节。两者都是256/512KiB配置，未跑优化版RTL。下一步VM使用[新导出入口](google_person_vme/README.md)复制原 `person_rtl_export.r9bhUw` 的相同RTL并原样装入两份模型ELF，另独立链接一个短硬件probe。probe覆盖8组/840原始累加值/233条矩阵指令，避免数小时初始化后才发现硬件路径问题；不会当作完整模型通过。独立包和server_probe入口已实现，实际导出/链接/服务器运行待用户执行。旧默认任务/包/候选不改。
 
 2026-10-20最新回传：VM `person_vme_v1.acWcT3` 原模型两图、28次候选Conv输出已逐字节匹配默认内核，主机校验arena122000字节；validate真实链接审计通过（ITCM139760字节、DTCM静态483760字节、堆24144字节），fast真实链接通过但旧符号审计把仅校验变量也列为必需，流程停止。现仅修复audit按模式要求符号，11项新工具/34项默认测试通过；生成器、候选源码、ELF、RTL和模型均未改。下一步VM拉取后重跑新build.sh，保留缓存与旧失败目录，补全fast资源审计；不能宣称VME硬件或优化整网RTL已通过。
