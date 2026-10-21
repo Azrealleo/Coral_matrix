@@ -1994,3 +1994,17 @@ run.sh是VM前台单例流水：验证原capacity实验完整性，独立安装l
 用户回传VM `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c1.Ye75FC`：Cocotb单测试PASS、LLM_LINEAR_SUMMARY及最终LLM_LINEAR_PASS。prefill_tiny M16/K32/N32、16384 useful MAC/调用；scalar_cycles=[168618,168618,168618,168618]，rvv_cycles=[4110,4110,4110,4110]，首次与steady标量/RVV比均41.026277372262776。空边界3周期未扣。VME/完整模型仍NOT_RUN，实际ELF审计哈希和wall time未回传，不补造。
 
 与case0相比M增16倍，RVV总周期4110/263约15.63倍，基本线性，符合官方matmul逐行调用gemv的源码路线；不是额外跨token复用、完整prefill性能或架构峰值证明。下一步复用同编译模型，显式分别跑case2 M1/K64/N64与case3 M16/K64/N64；脚本本身仍每次只跑一个所选case，不自动切完整模型。此次只更新记录，不修改已测源码或固件身份。
+
+### 28.23 明日集中验证准备：21例算子套件，不启动远程长任务
+
+用户准备睡觉，要求将LLM相关准备工作做好、明天集中测试验证。按其已选定的“先测算子”范围执行，不下载/启动预训练大模型，不擅自运行远程仿真或改动已通过的INT8固件。新增google_llm_ops/transformer独立包llm_transformer_v1，引用原公开llm_linear_v1:model及其同一256/512KiB RTL/参数；原INT8生成器与源码身份保持不变。新增新固件的主机参考、交叉链接、诊断符号/资源审计与前门Cocotb短测。
+
+新增17个FP32用例：官方rvv_matmul.cc原样复制的decode/prefill矩阵乘2例，Gemma式RMSNorm含37维尾部3例，稳定Softmax含±1000输入/尾部2例，split-half RoPE预计算sin/cos2例，SwiGLU/近似tanh式GEGLU各1例，残差1例，KV-cache追加1例，因果GQA Attention的prefill/decode/首token/未来K/V毒化对照4例。两Q头共享一KV头，按绝对query位置限制可见K/V；首token毒化对照确保未来数据不能影响输出。不是官方unmasked测试改名。除矩阵乘外明确为项目FP32基线；Softmax/门控的exp/tanh保持标量libm、完整计入，非全面向量化优化，不承诺提速。RoPE三角表和旧cache初始化在计时外，所有口径明示。
+
+独立Python FP64参考生成并舍入为FP32，C++使用精确十六进制float常量而非uint32类型双关。标量/RVV各首次+3次steady、交替顺序、fence+mcycle，空边界单列不扣。每调用对gold按固定atol2e-5/rtol2e-4核对并检查NaN/Inf/guard，最终前门核对全部实际输入、两份完整输出、自然halt/无fault/status3/4次调用及栈底64字节canary。不是完整栈水位、完整block/多层LLM或持续KV生成；VME、BF16/INT4/模型量化、tokenizer、权重导入、外部AXI流式内存和真实tokens/s均未覆盖。
+
+新增run_all.sh和suite.py：一条明日命令前台串行跑4个INT8+17个FP32，共21例；先prepare_vm.sh进行native资格检查、真实链接与资源/参数审计、缓存模型构建，再逐例运行，保留命令/日志/ELF身份。失败立即停止，部分通过报告INCOMPLETE，不强行继续。支持prepare-only、指定job续测和终止后重新汇总；续测校验工具身份、原始日志哈希、完整结果和FP32 ELF/RTL一致，只有真实未变的PASS才跳过，未完成case从入口重跑，不是CPU checkpoint；不杀其他用户或旧Bazel服务。生成summary.md/json和state.json，每例进度有一次开始/结束，不刷屏。文档TOMORROW.md提供完整命令、恢复方法和证据边界。
+
+本地已实际执行17例native与独立gold对照；本地玄铁GCC14.3将bench/kernels/fixtures及原官方FP32矩阵源编成真实RV32对象，确认RVV归约/乘加、fixtures表1020字节且没有动态初始化。尚未在VM完成此新固件的官方完整链接或任何FP32 RTL，准备脚本/主机/目标文件检查不能提前当硬件PASS；今晚不启动仿真，明天由用户明确执行统一入口。
+
+最终新增16项工具测试通过，覆盖独立数值/因果mask毒化/稳定softmax/RoPE与cache语义、生成器拒绝覆盖、ELF/参数与错误结果拒绝、实际native和RV32编译、BUILD/Python语法及prepare-only→续测→21例汇总的合成控制流。旧INT8 10项、旧Conv/Pool/VME/默认Person共82项回归通过，合计108项工具检查；不是108次硬件测试。Bash语法与CLI帮助检查通过。用户已有.gitignore修改、RTL归档及其他未跟踪材料均保留，不纳入提交；只同步个人实验仓库，团队SoC库不改。
