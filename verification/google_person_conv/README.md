@@ -1,5 +1,29 @@
 # 先测Conv算子：默认TFLM vs 当前VME实现
 
+**最新实际进度：** VM `person_conv_v1.nTbcvy` 已完成固定TFLM reference vs emulated VME主机测试和真实完整链接/审计，最终`PERSON_CONV_HOST_AND_LINK_PASS full_model=NOT_RUN NPU_RTL=NOT_RUN`。ELF SHA `b94e1da3b4f7f2693727395073e65f172344f15454bd01a7b7bb8c2832f259b2`，ITCM占用113536、DTCM静态265584、heap242320字节，保持256/512KiB。**尚无NPU周期或加速比**。当前只需导出这个小固件包，不用再跑下方build.sh。
+
+## 当前下一步：只导出小固件，不带RTL
+
+```bash
+(
+set -eo pipefail
+source "$HOME/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-matrix
+cd "$HOME/桌面/Coral_matrix"
+git pull --ff-only origin main
+bash verification/google_person_conv/export.sh \
+  "$HOME/coral_tcm_capacity_8e4_v1/person_conv_v1.nTbcvy"
+)
+```
+
+输出PERSON_CONV_PACKET_ARCHIVE/SHA256/BYTES后回传。严格核验已测源码manifest、ELF/report、五例native签名，并从ELF的真实RV32数据表核对每例派生模型与输入的地址/长度/哈希。只复制已测ELF/证据/工具，原ELF不变，不调用Bazel、不运行仿真。包内不含RTL或完整模型权重文件，服务器复用已通过Pool短测的原RTL编译模型，不需要重新生成/传输/编译大RTL。
+
+新增服务器入口只允许选择一个case，默认0：M16/K8/N16、每次2048MAC，第一调用和后三个steady分别记录。原包、producer构建身份/环境/配方/二进制、同build的Pool原始短测证据都要重新核验，前门读回小模型/输入，再加载case selector；持原state锁，结果写到新小包同级_runtime，不覆盖原current_build。若条件不符就停止，不自动重编或修改校验值。
+
+服务器步骤见[SERVER.md](SERVER.md)。默认2百万周期/1800秒仅是停止上限，不是预计耗时；用例完成可提前结束。实际结果必须有PERSON_CONV_CYCLE_COMPARISON及PERSON_CONV_RTL_PASS，才能回答加速多少；大于1才表示VME更快，小于1是有效的变慢结果，不为得到加速而删开销。软件矩阵发射数应为8（4次×2条），非退休计数。
+
+本地新增4项合成小包导出/完整性/ELF数据布局/周期验收检查，连同此前Conv检查11项通过；旧Pool19/VME18/默认34项回归通过。另用本地玄铁GCC14.3实际编译生成数据的RV32目标文件，确认kConvCases大小180字节、无动态初始化，支持ELF布局解析；不是服务器实际ELF或RTL执行。小包实际导出和NPU周期仍待用户执行。
+
 2026-10-21。用户要求暂缓完整模型长任务，先回答“Conv矩阵优化究竟提速多少”。本目录是新的独立单算子实验，**不执行上一轮run_model.sh，不启动完整MobileNet推理**，不修改原模型、VME/Pool候选或现有服务器包。当前尚无实测Conv加速倍数。
 
 ## 测什么
@@ -36,7 +60,7 @@
 - 7项新工具检查通过：来源/裁剪、原常量/量化、主机参考、独立安装/拒绝覆盖、5用例native证据、ELF数据段选择器与诊断大小、计时边界；脚本语法检查通过。
 - **尚未执行**：VM固定TFLM原生reference与VME emulator五用例差分、官方完整交叉链接/资源审计、服务器实际周期及任何加速倍数。主机时间不拿来估算NPU速度。
 
-## Ubuntu VM下一步：只做主机验证和固件链接
+## Ubuntu VM主机验证和固件链接（已通过，保留复现命令）
 
 ```bash
 (

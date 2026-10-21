@@ -4,6 +4,8 @@
 
 ## 最新任务覆盖说明：2026-10-21
 
+**Conv小测试最新实际断点：** 用户已回传VM `person_conv_v1.nTbcvy` 主机差分及真实链接/审计PASS，ELF `b94e1da3b4f7f2693727395073e65f172344f15454bd01a7b7bb8c2832f259b2`，ITCM113536/DTCM静态265584/heap242320字节，256/512KiB不变。新增[小固件独立导出](google_person_conv/README.md)和[服务器周期入口](google_person_conv/SERVER.md)：不带RTL、不调用Bazel；核验源码、五例native签名及ELF内派生模型/输入真实地址哈希；同一旧Pool编译模型只读复用，前门加载已测小固件，默认只跑id0。首次+三次steady、ref/VME各自Invoke窗口，输出比值，允许VME较慢结果。11项Conv本地检查及旧Pool19/VME18/默认34项通过，实际导出/服务器NPU周期尚未回传，仍没有Conv加速倍数。下一步VM只运行google_person_conv/export.sh传入上述实际run目录。
+
 **用户最新方向覆盖：暂缓完整模型长任务，先实测Conv加速。** 上轮新model_runner/run_model.sh仅已提供命令，没有用户启动/完成回传，本轮不启动或停止服务器任务。当前入口改为[独立Conv微基准](google_person_conv/README.md)：原模型5个1×1卷积的原权重/bias/量化/激活选项，少量空间位置M，固定种子有符号输入（不是原图真实中间特征），同ELF两个单算子Interpreter对比默认TFLM与原样VME源码。一次首次调用+三次steady、交替顺序；fence+mcycle仅包围各自Invoke，VME含打包/零点修正/重定量化/写回，Prepare与逐字节检查在窗口外。不是整网/完整原层/纯矩阵峰值，不保证每形状都更快。
 
 本地生成/来源/量化/5个LiteRT参考推理及7项工具检查通过，固定TFLM native差分和完整链接仍待VM执行。新包person_conv_bench_v1、结果person_conv_v1.*，不改原候选/原包/生成器。下一步VM运行google_person_conv/build.sh，回传5例native签名和ELF审计；之后服务器先只跑2048MAC的id0，不自动排队全部或整网长任务。**目前仍没有Conv实测加速倍数**，不得用旧短probe825634周期或整网190673191周期冒充算子速度。

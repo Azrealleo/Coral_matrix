@@ -1950,3 +1950,13 @@ minstret192834→195037→197809，分别增加2203、2772，说明20万附近�
 本地实际生成五份派生模型，常量/量化/Conv选项逐项对原模型一致，LiteRT BUILTIN_REF五例实际推理及重复输出一致（不是VME/TFLM native实测）；7项新工具检查通过，覆盖裁剪拒绝/数据范围、独立安装/拒绝覆盖、完整五用例native证据、非零.data case selector和诊断几何、计时边界。新生成器依赖flatbuffers25.12.19/tflite2.18.0只在VM独立target目录安装，不覆盖Conda环境。Bazel包person_conv_bench_v1和manifest独立；准备先native原TFLM vs emulator比对，再完整链接256/512KiB ELF，尚无实际VM/RTL通过或加速数字。
 
 当前下一步VM运行google_person_conv/build.sh，回传5例native签名与ELF资源审计后再做小固件包/读取入口，服务器先只跑id0（2048MAC/次），复用原RTL编译模型，不自动启动所有用例或完整网络，不改旧包及原Pool/VME生成器。默认整网190673191周期不直接与片段周期相除。
+
+### 28.18 小卷积主机与实际链接PASS，准备不带RTL的小包和周期读取
+
+用户回传`person_conv_v1.nTbcvy`：native单测试PASS，probe_program.elf真实完整链接/审计PASS；ELF SHA `b94e1da3b4f7f2693727395073e65f172344f15454bd01a7b7bb8c2832f259b2`，ITCM占用113536、DTCM静态265584、heap242320字节，保持ITCM256/DTCM512KiB。最终`PERSON_CONV_HOST_AND_LINK_PASS full_model=NOT_RUN NPU_RTL=NOT_RUN`，不当NPU周期或加速通过；5个native输出签名保存在实际run中，导出时重新解析原始日志并核验。
+
+新增export_conv/export.sh，严格验证现有candidate manifest/源文件、实际ELF/report/五例native签名，从ELF的kConvCases RV32表解析派生模型/输入地址、长度与SHA，不改已测ELF。小包包含固件、证据、源码、许可证和独立服务器工具，不含大RTL/完整网络模型，不调用Bazel、不运行仿真。audit_conv只把命令行专用的export_bundle导入延迟到main，不改变审计输出或候选源/生成器/已测ELF身份。
+
+新server_conv/conv_rtl_bench复用哈希固定model_runner构建检查器，只读核验原Pool不可变包、同producer构建身份/环境/配方/二进制和probe.46bl5uqr原始证据，持其锁但不改编译模型/current_build。前门加载小ELF，读回选中派生模型/输入SHA，写非零.data case selector、复核M/K/N/operator、自然halt/故障/canary/arena/逐项对照/host签名/4次VME调用与准确软件发射数。默认只跑id0，4次共8条矩阵发射，0fallback/0mismatch/0内部reference重复校验；读取first+3steady的两组mcycle及空边界。原始样本和ref/VME比值均保存，不把较慢实现判为失败，不扣除边界开销，不外推整网。
+
+新增4项本地合成包完整导出、ELF数据表/fixture校验、正反性能结果验收及准确发射计数检查；Conv合计11项，旧Pool19/VME18/默认34项回归通过，语法/CLI检查通过。另实际用本地玄铁GCC14.3将生成fixtures编译成RV32目标文件，确认kConvCases符号180字节且无动态初始化；不当官方最终ELF/RTL运行证据。实际VM小包导出/服务器NPU周期仍待执行，下一步export.sh只读取person_conv_v1.nTbcvy，回传归档/SHA后传服务器，先id0/2百万周期/1800秒上限前台试跑，不启动完整网络或其他case队列。

@@ -10,7 +10,6 @@ from elftools.elf.elffile import ELFFile
 HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE.parent/"google_person_vme"))
 import probe_audit
-import export_bundle
 
 EXTRA={n:4 for n in ("pd_conv_case","pd_conv_empty_cycles","pd_conv_m","pd_conv_k","pd_conv_n",
     "pd_conv_op","pd_conv_arena_ref","pd_conv_arena_vme","pd_vme_conv_calls","pd_vme_fallback_calls",
@@ -59,6 +58,7 @@ def checked_host(text,cases):
 
 
 if __name__=="__main__":
+    import export_bundle
     p=argparse.ArgumentParser(description=__doc__)
     for name in ("execution-root-file","outputs-file","run","upstream"):p.add_argument("--"+name,type=Path,required=True)
     a=p.parse_args();roots=a.execution_root_file.read_text().splitlines()
