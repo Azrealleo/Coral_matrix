@@ -1906,3 +1906,17 @@ minstret192834→195037→197809，分别增加2203、2772，说明20万附近�
 独立安装person_detect_vme_pool_v1：VME Conv原源码字节保留，模型/样本/Depthwise/Softmax/Reshape/RTL/RAM不改；新主机全模型入口比较两图×(14Conv+1Pool)=30层及原始分数，再交叉链接256/512KiB校验/测速ELF和计数器资源审计。旧父manifest/目录及已导出包不覆盖。候选仍非重入单NPU流程，新增计数器区分RVV与主机模拟。
 
 实际本地MinGW GCC6.2严格编译执行2160组/1291923输出元素和count1..49舍入边界通过，涵盖负数/极值、SAME/VALID、stride、通道尾块、batch、activation及拒绝溢出/空窗口；玄铁GCC14.3真实编译RVV probe并反汇编见vle8/vsext/vadd/vmerge/vdiv/vmax/vmin/vse8，非硬件执行。7项新工具测试、旧VME18项与默认路径34项回归及脚本语法、实际模型17文件生成检查均通过，模型源码与父候选一致。固定TFLM参考native差分、完整两图新候选、官方完整交叉链接/资源审计、RVV硬件及整网性能均待执行；下一步用户在VM运行google_person_pool/build.sh。
+
+### 28.13 真实VME短probe通过，Pool主机与真实交叉链接通过
+
+2026-10-21用户回传服务器 `person_vme_probe.ecTtR9`：verify/check通过，独立Verilator编译464.673秒；`coral_person_vme_i256_d512_v1_verilator_runtime/runs/probe.1hyg7w53` 实际8组/840个原始累加值/0错误，233软件发射计数、签名3016346044，825634周期自然halt、status3、fault=false、栈底64字节canary完好。执行286.476705秒，总298.252秒；ELF `a38ce47a015b8e4810d01e9724b0333b98eaf58c48cc22dab857f4bebd293522`，原RTL `477aa4d097b1ac7c35f98cb95fe9ba841082a8a10afde6f39dea70959300bfe2`。标记 `[PERSON_VME_HARDWARE_PROBE_PASS] full_model_inference=NOT_RUN`，正式补全真实VME硬件短测证据，不能称完整模型推理或速度比。
+
+随后用户回传VM `person_pool_v1.0u8RTz`：固定TFLM参考池化差分和完整两图主机测试均PASS，两图共30层（14Conv+1Pool每图）逐字节参考对照由工具门限验收；主机backend仍模拟，不是RVV执行。两版完整交叉链接及资源审计均PASS，最终 `[PERSON_POOL_HOST_AND_LINK_PASS] depthwise_unchanged=true NPU_RTL=NOT_RUN`。validate SHA `8137e2bf8777f5e0976a49887302724c64f27d491c886f14ec673d535eac0951`，ITCM143296/DTCM静态483776/heap24128字节；fast SHA `81f596bd9eb0fa94ef3fcdfb0cb33719e5e00cad949207b7600b91f7481253f8`，ITCM142112/DTCM静态483760/heap24144字节。两者256/512KiB、栈16KiB，Depthwise官方默认注册不变。无需重新跑同一构建。
+
+### 28.14 新Pool包导出和短RVV验证工具准备，尚待VM/服务器执行
+
+新增 `google_person_pool/export.sh` / `export_pool.py`，核验实际候选manifest、两图全层日志/原生池化测试标记、两份ELF/report和旧不可变VME包；复制相同原RTL/DPI/fixture/模型/输入，新版validate/fast ELF只复制不改。另独立目录person_pool_probe_v1链接短RVV固件，输出新 `coral_person_vme_pool_i256_d512_v1` 包及SHA清单，不覆盖父候选/旧包/默认长任务。audit_pool只增加便携导入旧VME资源审计的路径，不改数值审计规则、生成器、算子源码或已测ELF。
+
+短probe真实RVV backend与候选头文件字节一致；8组/659个INT8输出，实际3×3×256池化、尾通道、padding、batch、正/负半整数舍入、激活与guard，独立标量窗口参考逐项比对，预期62向量循环块/签名642806987。复用诊断字段commands在此表示向量循环块数，不是矩阵指令或独立退休。跳过TFLM分配/量化初始化，只能验收Pool硬件算术。新包server_probe.py/probe_bench.py由已通过旧入口的哈希固定模板严格替换生成，有独立包/构建身份、严格自然halt/fault/栈底/结果门限，不写旧目录，成功仍明确full_model_inference=NOT_RUN；当前不支持完整模型infer。
+
+实际本地MinGW严格编译执行新probe为8/659/62/签名匹配；玄铁GCC14.3真实RVV分支目标文件编译通过，反汇编见vle8/vsext/vmerge/vdiv/vse8，但不是官方完整链接或RTL。新增5项合成完整导出/拒绝错误或重复结果/防覆盖测试，合计12项Pool、18项旧VME、34项原默认工具回归通过，shell语法通过；原默认runner/bench与旧VME运行入口/Pool生成器未改。实际VM新probe链接/归档、服务器Pool RTL、两图优化整网RTL和性能仍未执行/未回传，不提前标PASS。下一步使用person_pool_v1.0u8RTz及person_vme_export.F6GOKR执行新export.sh，回传归档路径/SHA后传服务器，详见Pool README及SERVER.md。

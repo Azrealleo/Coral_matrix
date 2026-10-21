@@ -8,7 +8,9 @@ import sys
 from elftools.elf.elffile import ELFFile
 
 HERE=Path(__file__).resolve().parent
-spec=importlib.util.spec_from_file_location("_pool_vme_elf_audit",HERE.parent/"google_person_vme/audit.py")
+vme_path=HERE/"vme_audit.py"
+if not vme_path.is_file():vme_path=HERE.parent/"google_person_vme/audit.py"
+spec=importlib.util.spec_from_file_location("_pool_vme_elf_audit",vme_path)
 vme=importlib.util.module_from_spec(spec);spec.loader.exec_module(vme)
 
 

@@ -34,9 +34,16 @@ Softmax只有2个输出，Reshape只处理2个INT8元素，因此本轮不重写
 - 7项新增工具测试通过：Depthwise/Softmax注册保持、父候选不覆盖、硬件/主机模式区分、模式化符号审计、路径限制等；原VME工具18项与默认路径34项回归亦全部通过。新脚本语法检查通过。
 - 用实际原模型与样本生成17份候选文件，模型源码与父候选逐字相同。
 
-**尚未执行**：固定TFLM参考的2160组原生测试、完整原模型两图的Pool+VME逐层比对、新候选完整交叉链接/资源审计、真实RVV硬件与整网性能。主机模拟不能证明RVV指令数值/硬件行为。
+**2026-10-21用户实际回传更新**：`person_pool_v1.0u8RTz` 的两项主机测试、两份完整交叉链接和资源审计均PASS，最终为 `[PERSON_POOL_HOST_AND_LINK_PASS] ... NPU_RTL=NOT_RUN`。包括固定TFLM池化差分，以及原两图每图14 Conv+1 Pool的逐字节对照；主机仍使用模拟矩阵/向量后端，不证明实际RVV指令正确。资源如下：
 
-## Ubuntu VM 下一步
+| ELF | SHA256 | ITCM占用字节 | DTCM静态字节 | 堆余量字节 |
+|---|---|---:|---:|---:|
+| validate | `8137e2bf8777f5e0976a49887302724c64f27d491c886f14ec673d535eac0951` | 143296 | 483776 | 24128 |
+| fast | `81f596bd9eb0fa94ef3fcdfb0cb33719e5e00cad949207b7600b91f7481253f8` | 142112 | 483760 | 24144 |
+
+ITCM256KiB/DTCM512KiB、模型/父VME候选/Depthwise均保持不变。**真实RVV池化、VME+Pool整网RTL及性能仍待执行**。原VME短probe已在服务器8组/840项/0错误通过，它不是此池化后端的硬件证据。
+
+## Ubuntu VM 原生测试与链接（已通过，保留复现命令）
 
 新目录为 `tests/cocotb/person_detect_vme_pool_v1`，单独manifest；原 `person_detect_vme_v1` 和已导出的 `coral_person_vme_i256_d512_v1` 包不改。旧默认版/短VME probe可在服务器继续运行，本轮不操作它们。
 
@@ -57,6 +64,29 @@ bash verification/google_person_pool/build.sh
 
 之后交叉编译validate/fast两份真实VME+RVV固件，审计原始模型、256/512KiB段界及两组计数器符号。结果在新的 `person_pool_v1.*`。成功标记 `[PERSON_POOL_HOST_AND_LINK_PASS] ... NPU_RTL=NOT_RUN`。
 
-请先回传主机与资源日志，再制作对应的新硬件验证包；不要将新ELF替换进旧不可变包。当前没有测得池化或整网加速倍数。
+不需要为了导出重新跑本节全部构建；使用上面的实际结果目录。不要将新ELF替换进旧不可变包。当前没有测得池化或整网加速倍数。
+
+## 当前下一步：独立导出，先验证真实RVV Pool
+
+```bash
+(
+set -eo pipefail
+source "$HOME/miniforge3/etc/profile.d/conda.sh"
+conda activate coral-matrix
+cd "$HOME/桌面/Coral_matrix"
+git pull --ff-only origin main
+bash verification/google_person_pool/export.sh \
+  "$HOME/coral_tcm_capacity_8e4_v1/person_pool_v1.0u8RTz" \
+  "$HOME/coral_tcm_capacity_8e4_v1/person_vme_export.F6GOKR/coral_person_vme_i256_d512_v1"
+)
+```
+
+输出 `PERSON_POOL_BUNDLE_ARCHIVE` / `PERSON_POOL_BUNDLE_SHA256`。脚本严格验证实际主机日志、资源报告和候选manifest，复制旧VME包的原RTL/DPI/fixture/模型/输入，只新链接一个短RVV池化probe；已测validate/fast ELF只复制，不改写，不运行仿真。新目录 `person_pool_probe_v1` / `person_pool_export.*`，父候选、旧包和运行任务不变。
+
+probe覆盖8组/659个INT8输出，包括真实模型3×3×256、通道尾块、padding、batch、负数与正数半整数舍入、激活截断和输出guard；预期签名642806987。沿用诊断字段 `commands=62`，**此处表示向量循环块数，不是矩阵指令数或硬件退休数**。原始标量参考独立计算窗口与舍入，实际RVV分支使用与候选逐字相同的pool_core.h/pool_rvv.h。该探针没有TFLM初始化，不是整网推理。
+
+本地新增5项合成导出/完整性/拒绝错误结果/父文件防覆盖测试通过；合计12项Pool、18项原VME、34项默认路径回归通过。MinGW实际执行新probe为8/659/62/签名匹配；本地玄铁GCC14.3实际编译RVV分支并见vdiv/vsext等，仍不是官方完整链接或RTL运行证据。实际VM导出/服务器Pool probe尚未执行。
+
+服务器操作见 [SERVER.md](SERVER.md)。先通过短RVV检查再准备同包两图整网验证；当前短probe入口不提供infer命令，不能将其PASS当作整网通过。
 
 固定来源：NPU `8e4df09b4ea7e065e02d14ce3ae033d40dfd973a`；TFLM `b75c6ff4e2270047f2b48fa01f833c8101c31f43`。舍入依据该版本 `tensorflow/lite/kernels/internal/reference/integer_ops/pooling.h`；注册与量化检查依据 `micro/kernels/pooling.cc` / `pooling_common.cc`。

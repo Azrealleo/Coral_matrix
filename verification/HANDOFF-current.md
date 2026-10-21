@@ -2,7 +2,13 @@
 
 更新：2026-10-19。本次核对的工具基线：`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`。本文是**当前接手入口**；完整历史见[全程工作记录](WORKLOG-and-handover.md)，10月4日8/32KiB综合交付另见[历史RTL交接](HANDOFF-simulated-rtl.md)。本文不修改原交付包，不声称已经执行新的Linux仿真。
 
-## 最新任务覆盖说明：2026-10-19
+## 最新任务覆盖说明：2026-10-21
+
+**最新断点（优先于下方历史“下一步”）：** VME真实硬件短probe已通过：服务器`person_vme_probe.ecTtR9/.../runs/probe.1hyg7w53`，8组/840项/0错误/233软件发射/签名3016346044，825634周期自然halt、无fault、栈底64字节canary通过，执行286.477秒，总298.252秒。只证明短VME算术，不是整网通过。与此同时VM新增RVV AveragePool候选`person_pool_v1.0u8RTz`的两项主机检查、validate/fast完整链接及资源审计已PASS；ELF SHA分别`8137e2bf8777f5e0976a49887302724c64f27d491c886f14ec673d535eac0951` / `81f596bd9eb0fa94ef3fcdfb0cb33719e5e00cad949207b7600b91f7481253f8`，ITCM143296/142112、DTCM静态483776/483760、heap24128/24144字节。**Pool实际RVV和优化整网RTL尚未通过**。
+
+**当前下一步：** [RVV Pool独立导出](google_person_pool/README.md)从上述实际run和旧`person_vme_export.F6GOKR`包复制相同原RTL/模型，原样装入刚测量的合并版ELF，再独立链接8组/659项/62向量块/签名642806987的短Pool硬件probe。该工具及12项Pool/18项VME/34项默认本地工具检查通过，真实导出/服务器运行待执行；本地host探针和真实RVV目标文件编译不当硬件PASS。先短RVV检查，再做整网加载/验收入口；当前server_probe没有infer命令。Depthwise按用户要求源码及官方默认注册都不改，Softmax/Reshape不改，VME Conv旧源码不变。旧包、默认长任务和已通过VME编译模型均不动，未测整网加速。
+
+以下按阶段保留，涉及“尚未/下一步”以其记录时点理解；当前状态以上方两段为准。
 
 **2026-10-21当前开发方向：** 用户要求Depthwise先不改，使用官方实现，从其余没有优化的算子开始。本轮保留当前官方默认Depthwise源码和注册，不自动切RVV Depthwise。新增[RVV AveragePool独立候选](google_person_pool/README.md)，模型形状3×3×256到1×1×256，精确保留原TFLM signed rounding，VME Conv源码/模型/旧包/RTL均不改。2160组共1291923元素的本地算术、真实RISC-V RVV目标文件编译及7项新工具检查通过；固定TFLM native差分/新固件完整交叉链接/RVV硬件尚未执行。下一步VM运行新目录build.sh。Softmax2输出、Reshape2元素暂不重写，也没有测得整网收益。此前VME短probe与默认长任务是并行保留的独立工作，不因本轮覆盖。
 
