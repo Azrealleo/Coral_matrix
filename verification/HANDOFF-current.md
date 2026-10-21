@@ -4,6 +4,10 @@
 
 ## 最新任务覆盖说明：2026-10-21
 
+**用户最新方向覆盖：暂缓完整模型长任务，先实测Conv加速。** 上轮新model_runner/run_model.sh仅已提供命令，没有用户启动/完成回传，本轮不启动或停止服务器任务。当前入口改为[独立Conv微基准](google_person_conv/README.md)：原模型5个1×1卷积的原权重/bias/量化/激活选项，少量空间位置M，固定种子有符号输入（不是原图真实中间特征），同ELF两个单算子Interpreter对比默认TFLM与原样VME源码。一次首次调用+三次steady、交替顺序；fence+mcycle仅包围各自Invoke，VME含打包/零点修正/重定量化/写回，Prepare与逐字节检查在窗口外。不是整网/完整原层/纯矩阵峰值，不保证每形状都更快。
+
+本地生成/来源/量化/5个LiteRT参考推理及7项工具检查通过，固定TFLM native差分和完整链接仍待VM执行。新包person_conv_bench_v1、结果person_conv_v1.*，不改原候选/原包/生成器。下一步VM运行google_person_conv/build.sh，回传5例native签名和ELF审计；之后服务器先只跑2048MAC的id0，不自动排队全部或整网长任务。**目前仍没有Conv实测加速倍数**，不得用旧短probe825634周期或整网190673191周期冒充算子速度。
+
 **最新实际结果及下一步（优先于以下历史断点）：** 默认参考算子已在NPU RTL完成单有人图全模型推理，`person_pilot.dJfrJn/.../runs/infer_person.r6a1thwb`：原模型/输入匹配，输出[-113,113]与主机参考完全一致、status3自然halt、无fault、栈底canary完好，Invoke190673191周期、启动到halt194501581周期，总65897.933秒（约18小时18分），arena82300字节。此为ITCM256/DTCM512KiB单图基线，不是数据集准确率/无人图通过或全内存峰值。原默认长任务已完成，不再称仍待返回。
 
 新Pool包实际导出SHA `7c8e0fe5121c0aeb37d9e8a54983dd7fe64603bf5de964b718aac4cd4b3076eb`，服务器`pool_7c8e0fe5`新编译450.453秒；`..._verilator_runtime/runs/probe.46bl5uqr`真实RVV Pool 8组/659输出/0错误/62向量块/签名642806987通过，256826周期自然halt、无fault/canary破坏，执行85.614/总97.463秒，ELF `031cf12303fb5fe8d75a88d72f0aee2a3453c54d0ba70446f95f35cba3a009cb`。**这是短算术PASS，合并版整网仍未通过**。

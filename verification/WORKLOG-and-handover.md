@@ -1938,3 +1938,15 @@ minstret192834→195037→197809，分别增加2203、2772，说明20万附近�
 脚本先前台check，再nohup只启动一个validate person任务，日志/PID明确输出。4亿周期/48小时是上限而非耗时估计；校验版增加reference计算且Depthwise仍默认，不能保证比18小时基线快。耗尽任何上限都保留日志、不标PASS，不能续跑。完整模型两图、fast和整网加速依然待执行/回传。
 
 实际本地7项新合成检查通过，覆盖构建只读复用/环境JSON元组规范化、XML与重复或ANSI日志、错误输出/故障/部分层/错误计数拒绝、fast校验隔离、同图同build前提及原始证据变更拒绝；Pool合计19项，旧VME18项和默认34项回归通过，语法/命令行检查通过。不代表已在服务器执行新入口或跑合并版整网。操作见google_person_pool/MODEL.md。
+
+### 28.17 用户暂缓大模型：新增独立Conv单算子周期实验
+
+用户询问Conv矩阵优化实测加速倍数；明确此前只有默认整网周期与短VME正确性，825634周期包含生成/参考/检查，不能作Conv时间。用户同意先小规模Conv对比，不启动上轮完整模型长任务；当前没有用户回传上轮run_model.sh已经启动，不擅自停止服务器任何进程。
+
+新增google_person_conv独立目录/生成器/benchmark/build/audit/test。从原Person模型operator2/8/24/26/28提取原权重/bias、所有量化字段、激活和Conv选项，构造5个只有一个Conv的派生诊断FlatBuffer；空间布局展平为[1,1,M,K]，M分别16/16/9/1/1，K8/32/128/256/256，N16/64/256/256/2，MAC2048/32768/294912/65536/512。输入为seed137+operator的固定合成有符号INT8，不是实际图片中间激活；派生模型不是原完整预训练模型，op2/op8/op26裁剪了空间范围，不能当完整原层性能。常量/输入/派生数据均记录SHA，原模型文件不变。
+
+同一个ELF中两个单算子MicroInterpreter分别注册默认Conv和原样复制VME Conv，原TFLM依赖构建路线不变；自定义源码/benchmark -O2禁自动向量化/LTO，PD_VME_VALIDATE=0。单独fence+mcycle窗口只含各自Invoke，包含实际VME打包/零点bias修正/tile搬运/矩阵/重定量化/写回，Allocate/Prepare、输入装载、参考输出逐字节对照均在窗口外。首次调用单列，后三次steady交替先后，空时间边界单列不静默扣除。不先保证加速，窄层和小M可能被搬运成本主导；软件矩阵计数仍不是退休观测。
+
+本地实际生成五份派生模型，常量/量化/Conv选项逐项对原模型一致，LiteRT BUILTIN_REF五例实际推理及重复输出一致（不是VME/TFLM native实测）；7项新工具检查通过，覆盖裁剪拒绝/数据范围、独立安装/拒绝覆盖、完整五用例native证据、非零.data case selector和诊断几何、计时边界。新生成器依赖flatbuffers25.12.19/tflite2.18.0只在VM独立target目录安装，不覆盖Conda环境。Bazel包person_conv_bench_v1和manifest独立；准备先native原TFLM vs emulator比对，再完整链接256/512KiB ELF，尚无实际VM/RTL通过或加速数字。
+
+当前下一步VM运行google_person_conv/build.sh，回传5例native签名与ELF资源审计后再做小固件包/读取入口，服务器先只跑id0（2048MAC/次），复用原RTL编译模型，不自动启动所有用例或完整网络，不改旧包及原Pool/VME生成器。默认整网190673191周期不直接与片段周期相除。
