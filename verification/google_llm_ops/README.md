@@ -1,6 +1,8 @@
 # 单NPU：先测LLM算子，不加载完整模型
 
-**明日统一入口：** [TOMORROW.md](TOMORROW.md)。已新增独立FP32算子准备套件与21例串行运行/汇总/续测工具，默认仍未启动远程仿真。`run_all.sh --mode all` 会先验证主机参考、实际链接与资源，再执行4例INT8+17例FP32。新增算子并非全部官方优化实现；来源、混合标量exp/tanh、数值容差及未覆盖项见该说明。下方保留已实测INT8记录。
+**最新执行分工：VM只构建/导出，仿真全部放服务器。** 用户已确认VM可短时间编译但不跑仿真。入口 [server/SERVER.md](server/SERVER.md)，VM执行 `bash verification/google_llm_ops/export_server.sh`；只做native参考、两份ELF实际链接/资源审计及小包导出，不构建Verilator模型。服务器无Bazel，严格只读复用原Pool已验证256/512KiB编译模型，先单例再串行21例，支持证据复核续测。原候选源码/已测包不改。新增FP32的实际官方链接与服务器仿真仍待用户运行，不提前报PASS。
+
+原VM统一入口保留：[TOMORROW.md](TOMORROW.md)。`run_all.sh --mode all` 是旧的VM全流程，**不是当前服务器命令**。新增算子并非全部官方优化实现；来源、混合标量exp/tanh、数值容差及未覆盖项见说明。下方保留已实测INT8记录。
 
 2026-10-22。第一轮只做Transformer线性层使用的INT8 GEMV/GEMM微基准。**用户已回传case0、case1真实RTL PASS**，首次及后三次周期均一致：
 

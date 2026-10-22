@@ -2008,3 +2008,15 @@ run.sh是VM前台单例流水：验证原capacity实验完整性，独立安装l
 本地已实际执行17例native与独立gold对照；本地玄铁GCC14.3将bench/kernels/fixtures及原官方FP32矩阵源编成真实RV32对象，确认RVV归约/乘加、fixtures表1020字节且没有动态初始化。尚未在VM完成此新固件的官方完整链接或任何FP32 RTL，准备脚本/主机/目标文件检查不能提前当硬件PASS；今晚不启动仿真，明天由用户明确执行统一入口。
 
 最终新增16项工具测试通过，覆盖独立数值/因果mask毒化/稳定softmax/RoPE与cache语义、生成器拒绝覆盖、ELF/参数与错误结果拒绝、实际native和RV32编译、BUILD/Python语法及prepare-only→续测→21例汇总的合成控制流。旧INT8 10项、旧Conv/Pool/VME/默认Person共82项回归通过，合计108项工具检查；不是108次硬件测试。Bash语法与CLI帮助检查通过。用户已有.gitignore修改、RTL归档及其他未跟踪材料均保留，不纳入提交；只同步个人实验仓库，团队SoC库不改。
+
+### 28.24 仿真迁移服务器：VM只构建导出，保留原测量函数和模型身份
+
+用户不方便在VM仿真，明确仍可短时间在VM构建，故不要求CentOS7服务器运行当前Bazel。新增google_llm_ops/export_server.sh：复核原INT8/FP32候选源，native参考只在主机执行标量；实际链接两份ELF并发出同配置RTL以核对SHA/参数，不编译Verilator模型、不运行RTL。通过完整资源审计、原始host日志及源快照校验后生成coral_llm_ops_i256_d512_v1小包（无RTL/权重），归档SHA以用户实际输出为准。本轮不修改原已安装候选生成器/内核/bench或旧测量固件。
+
+新增server/packet.py、server_ops.py、server_bench.py，封存并检查实际固件/审计/源文件/许可证/工具清单。使用原Pool的固定哈希model_runner校验器，核验原producer/环境/编译配方/二进制/短probe原始日志及XML证据；持其锁只读复用7a54106b3148.z558xni8模型，不改current_build或原包。用AST保留原run_case测量函数体，移除Bazel测试入口，仅用严格白名单替换文件定位，避免复制后悄悄改变计时范围；特别隔离Person和LLM同名spec模块，防止导入污染。清除WAVES/GUI/分析变量，沿用无trace模型。修正导出时INT8/FP32 rtl-identity一个带top、另一个不带top的元数据差异，只按相同RTL SHA和实际参数比较，不降低身份要求。
+
+服务器先check和单例pilot，再all串行21例。每例独立frontdoor加载同ELF，从入口开始，不是checkpoint；原始XML、Cocotb summary、单条观测、process退出、数值/guard/halt/fault/四次mcycle及ELF/RTL身份全部需一致。失败即停，保留attempt；resume重新验证包/环境/模型/旧结果的原始证据，只跳过未变的完整PASS。summary.md/json逐例更新，只有完整计划通过才JOB_PASS；4+17套件通过也不是完整LLM/VME/真实tokens/s。不会自动启动后台或远程仿真。
+
+本轮新增14项本地工具测试，含AST测量体逐字语义结构保持、路径白名单、同名模块异常恢复、实际原始验收逻辑覆盖21例、XML失败/跳过/超时/身份/预算/重复日志拒绝、部分报告/证据篡改拒绝、子进程去trace、合成完整导出往返及合成失败停止→续测→21例汇总。这些用合成ELF/运行记录检查控制流，不是新的官方ELF或RTL结果。真正VM两ELF链接、小包SHA和服务器FP32运行仍待用户执行；旧INT8 case0/1真实结果保持28.21/28.22。当前入口SERVER.md覆盖旧VM队列说明，不修改共享SoC仓库或未相关用户文件。
+
+最终复跑新增14项、FP32 16项、INT8 10项及旧Conv11/Pool19/VME18/默认Person34项，合计122项工具测试通过；FP32/INT8的native与RV32对象检查均实际执行，无跳过。新导出脚本Git Bash语法检查通过，仍未运行Linux官方链接/服务器仿真。git只包含本轮新工具及入口/历史文档，未相关用户修改保留。

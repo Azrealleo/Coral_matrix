@@ -1,5 +1,7 @@
 # 明日执行入口：单NPU Transformer/LLM算子测试
 
+**最新覆盖（用户确认）：只把仿真移到服务器，VM仍可构建。** 请优先按 [server/SERVER.md](server/SERVER.md) 执行：VM运行 `export_server.sh`，仅native参考/两ELF链接/审计/导出；服务器使用不含RTL的小包和原Pool已验证模型，先单例、再串行21例。无需服务器Bazel、不重新编译大RTL，不修改旧候选。下面VM `run_all.sh` 流程保留作备选，不是当前默认执行方式；新增FP32官方完整链接与RTL仍未收到实际结果。
+
 准备日期：2026-10-22。范围仍是**算子性能与数值验证，不是完整LLM推理/聊天**。今晚不启动远程仿真；此文件给出明天的明确执行流程。单NPU、ITCM256KiB/DTCM512KiB、Ubuntu VM、Verilator，复用已经通过INT8测试的同一个RTL模型，不换RAM，不动旧实验。
 
 ## 当前证据

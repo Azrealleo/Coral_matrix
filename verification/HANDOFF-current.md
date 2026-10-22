@@ -4,6 +4,8 @@
 
 ## 最新任务覆盖说明：2026-10-21
 
+**2026-10-22最新执行位置覆盖：VM只构建导出，21例算子仿真转服务器。** 用户明确VM可短时间编译、不跑RTL。新 [google_llm_ops/server/SERVER.md](google_llm_ops/server/SERVER.md)：VM `export_server.sh` 验证原候选、native参考、实际交叉链接两ELF/审计，生成不可变小包，不构建Verilator模型。服务器无Bazel，严格只读复用原Pool包`pool_7c8e0fe5/...`及其`probe.46bl5uqr`已验证模型；新适配器不改原`run_case`测量函数体，只替换文件定位与测试入口。先int8 case0、再串行4+17例；逐例保留rawlog/XML/退出状态/输入输出gold/固件和RTL身份，失败即停，续测重新验证证据后跳过完整PASS。原包/编译模型/源码不覆盖，单例通过不冒充21例通过。新工具本地合成检查通过不等于FP32官方链接或服务器RTL通过；目前实际归档哈希/新ELF和运行结果仍待用户回传。下方VM-only队列为历史备选。
+
 **明日统一测试准备：** 用户要求今晚准备、明天集中验证；不启动远程长任务。新入口[google_llm_ops/TOMORROW.md](google_llm_ops/TOMORROW.md)，一条 `run_all.sh --mode all` 前台串行运行21个单算子用例（4 INT8+17 FP32），先主机参考、真实交叉链接/内存参数审计，再复用原llm_linear_v1:model，不改旧已测包。支持prepare-only、失败停止、原始证据重新验收后续测及统一summary.md/json；超时/中断不标PASS，不冒充checkpoint。新增FP32矩阵乘原样使用官方源，RMSNorm/Softmax/RoPE/SwiGLU/GEGLU/残差/KV追加/因果GQA为明确标注的项目FP32基线，exp/tanh仍标量libm，不保证比标量快。17例native对独立gold和真实RV32目标文件编译已过，不是新增RTL通过；真正官方完整链接和FP32 RVV运行仍待明天。不是完整block/预训练LLM/多步生成，VME、BF16/INT4、外部AXI带宽仍未覆盖。
 
 **LLM最新实际断点：** 用户回传VM case0 `llm_linear_c0.brMbDF` 和case1 `llm_linear_c1.Ye75FC` 均有Cocotb PASS、LLM_LINEAR_SUMMARY及最终LLM_LINEAR_PASS。decode_tiny M1/K32/N32、1024MAC/调用，标量四次10563周期、官方RVV四次263周期，首次/steady比40.163498；prefill_tiny M16/K32/N32、16384MAC/调用，标量四次168618周期、RVV四次4110周期，比41.026277。空边界均3周期未扣。仅resident合成INT8线性层、raw INT32输出，完整模型/VME仍NOT_RUN，不外推tokens/s。尚无用户回传实际ELF审计哈希或wall time，不补造。下一步VM分别运行run.sh 2/3测K64/N64的decode/prefill形状，复用同模型，不启动完整网络。下方等待case0/1的描述为历史。
