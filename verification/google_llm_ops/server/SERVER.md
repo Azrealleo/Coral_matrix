@@ -1,6 +1,6 @@
 # 单NPU LLM算子：VM构建，服务器仿真
 
-**当前断点：完整21例真实RTL已通过，job `operators.cgtja4_x`。** 最终JOB_PASS cases=21，4例INT8+17例FP32，完整周期/误差表见[实际结果](../RESULTS-20261022.md)。本页构建/传包/pilot/all命令保留为复现，当前不重做、不发重复任务；只读回收summary和原始证据/实际墙钟。统一入口见[进度](../../PROGRESS-current.md)和[交接](../../HANDOFF-current.md)。
+**当前断点：完整21例真实RTL已通过，job `operators.cgtja4_x`。** 用户已回传summary.md逐case墙钟，子进程和3136.512秒（约52分17秒，不含case间核验/编译）。完整数据见[实际结果](../RESULTS-20261022.md)。本页命令只保留为复现，当前不重做、不发重复任务；原始证据另行备份。统一入口见[进度](../../PROGRESS-current.md)和[交接](../../HANDOFF-current.md)。
 
 2026-10-22最新分工：VM只做native参考、两份RISC-V固件完整链接、内存审计及小包导出；不运行RTL仿真，不编译Verilator大模型。服务器使用原有coral-verilator环境和**已通过Pool probe的256/512KiB模型**，不需要Bazel，不重新编译或改写原模型。
 
@@ -63,7 +63,7 @@ python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
   all --probe-run "$tcm_probe" --timeout 5400
 ```
 
-这次21例预计**1～3小时，低置信度粗估，不含编译**；依据此前同服务器负载约2800～3000周期/秒和当前小规模，INT8粗约20～30分钟，FP32首次/exp/tanh及共享负载不确定，收到实测须更新。用户要求每次发仿真命令先交代预计、是否含编译及依据；`5400`是**每例墙钟超时上限，不是总耗时预测**。不自动启动后台、不重复编译模型。保持服务器供电；共享负载影响墙钟，不改变NPU mcycle。
+本套件现有实测子进程和约52分17秒。同样服务器/配置/21例复跑估计**约1小时，保守预留1～1.5小时，不含编译**，含给case间核验和负载波动的余量；不同尺寸/实现需另估。用户要求每次发命令先给这种说明。首次1～3小时是历史粗估，不当实测；`5400`是**每例超时而非预计总耗时**。当前已通过，不为校准时间重跑。
 
 每例开始/结束一行，不每几秒刷屏。失败立即停止，rawlog、XML、退出状态保存在`LLM_SERVER_CASE_START`输出的路径；未完整通过不能标PASS。作业目录为`<小包>_server_runtime/jobs/operators.*`，`summary.md/json`逐例更新，保留全部原始mcycle和口径。
 
@@ -83,4 +83,4 @@ python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
 
 实际pilot job为`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators._jxei5s3`，attempt `int8_0.g3eqoi8b`。用户回传scalar=[10563,10563,10563,10563]、rvv=[263,263,263,263]、边界3、比40.163498；最后`JOB_PASS cases=1 full_model=NOT_RUN VME=NOT_RUN`。pilot实际墙钟未回传，不补造；新21例应另有job。
 
-旧VM INT8 case0/1真实RTL通过，分别10563/263和168618/4110周期；新服务器整套周期一致，不补造旧ELF哈希。17例FP32现在有真实NPU执行，最大报告绝对误差4.76837158203125e-7。完整job为`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x`，主控制台`/home2/lqq/coral_vcs_tools/llm_ops_all.mXLd8a.log`。附件没有wall time，1～3小时仍为此前粗估，不是本次实际耗时。原Person/Pool/VME/Conv包和所有已测ELF/RTL保持不变。
+旧VM INT8 case0/1真实RTL通过，分别10563/263和168618/4110周期；新服务器整套周期一致，不补造旧ELF哈希。17例FP32最大报告绝对误差4.76837158203125e-7。完整job为`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x`，控制台`/home2/lqq/coral_vcs_tools/llm_ops_all.mXLd8a.log`。后补summary.md已给逐例wall time：INT8和1481.180秒、FP32和1655.332秒、总和3136.512秒；严格套件端到端总墙钟仍无起止记录。旧包/RTL/固件保持不变。

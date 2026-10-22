@@ -9,7 +9,7 @@
 3. Windows维护代码和记录，VM只做Bazel/Chisel、native参考、固件交叉链接/导出，服务器执行RTL仿真，不在旧CentOS7上强行运行当前Bazel。
 4. INT8 case0/1原VM及服务器pilot通过后，用户已回传完整**21例RTL PASS（4 INT8+17 FP32）**；新FP32现在有真实硬件结果，不能再写待执行。
 5. 整套job为`operators.cgtja4_x`，不是旧pilot `operators._jxei5s3`。当前只读归档结果/实际计时，不重复运行`all`。完整周期与证据边界见[结果报告](google_llm_ops/RESULTS-20261022.md)。
-6. 每次给新仿真命令先说明预计墙钟、是否含编译、估算依据/不确定性；`5400秒`是每例超时而非预计耗时。目前21例低置信度粗估1～3小时，不含编译，收到实测应更新。
+6. 每次给新仿真命令先说明预计墙钟、是否含编译、估算依据/不确定性。当前21例已补齐子进程耗时和3136.512秒（约52分17秒），不含case间核验及编译；同条件复跑估计约1小时、保守1～1.5小时。`5400秒`仍是每例超时，不是预计耗时。
 
 ## 2. 当前固定身份，不能相互替代
 
@@ -71,7 +71,7 @@
 - 原模型已验证短probe：同一`_verilator_runtime/runs/probe.46bl5uqr/`。
 - 最新LLM pilot job：`llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators._jxei5s3/`。
 - pilot原始日志：上述job的`attempts/int8_0.g3eqoi8b/_test.log`；旁边应有XML、退出状态及result.json。job保存计划/身份及summary.md/json。
-- **完整21例job**：`llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x/`，控制台`/home2/lqq/coral_vcs_tools/llm_ops_all.mXLd8a.log`。每case四次样本一致，21条CASE_PASS和最终JOB_PASS cases=21；回传摘要没有wall time，需只读回收summary。
+- **完整21例job**：`llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x/`，控制台`/home2/lqq/coral_vcs_tools/llm_ops_all.mXLd8a.log`。每case四次样本一致，21条CASE_PASS和最终JOB_PASS cases=21；用户已回传summary.md及逐case子进程耗时，总和3136.512秒，不是严格套件端到端总墙钟。
 - VM导出源job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5/`，保存两ELF、host/build日志和审计；归档名`coral_llm_ops_i256_d512_v1.tar.gz`。
 
 新包依赖旧Pool编译状态和probe证据，不能只拷210KB小包到一台干净服务器就执行。读模型时核对原producer/环境/配方/二进制/短probe，持原状态锁；任何不一致即停，不修改manifest/current_build绕过检查。暂不要移动原模型路径，绝对路径属于身份记录的一部分。
@@ -88,7 +88,7 @@ pilot的四次标量均10563、四次RVV均263周期，空边界3；与旧VM cas
 
 ## 7. 接手第一步：只读回收已通过21例的结果
 
-完整21例已通过；当前只读操作预计数秒返回，不运行新仿真。在服务器执行下列命令可显示报告并检查成功索引条数：
+完整21例已通过，summary.md及21例耗时已回传。本节命令保留供只读复查/归档，不默认要求用户重复粘贴；只读预计数秒，不运行新仿真：
 
 ```bash
 (
@@ -115,7 +115,7 @@ ps -u "$(id -u)" -o pid,ppid,etime,pcpu,stat,args | \
 
 ## 8. 历史复现入口：21例前台运行（已通过，不默认重跑）
 
-预计墙钟**1～3小时，低置信度粗估，不含编译**；约2800～3000周期/秒来自此前服务器负载，非本轮FP32实测，exp/tanh及共享负载有不确定性。每例5400秒为上限，不能当总耗时。以下命令会新建job并重新跑4例INT8+17例FP32，不接续pilot单例计划。
+同条件复跑预计**约1小时、保守预留1～1.5小时，不含编译**；依据这次子进程和约52分17秒，需给case间校验/共享负载留余量。原首次1～3小时为历史粗估，不冒充实测。每例5400秒是上限。以下命令会新建job重跑21例，当前已通过，不默认执行，不接续pilot计划。
 
 ```bash
 (
@@ -150,7 +150,7 @@ python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
   resume --probe-run "$tcm_probe" --job /替换为实际21例job目录 --timeout 5400
 ```
 
-续测预计耗时应根据剩余case及已完成实际墙钟重新估计；没有已完成时间时沿用1～3小时粗估而不承诺缩短。恢复只跳过原始证据重验完整的PASS，未完成case从固件入口另建attempt重跑，不是CPU checkpoint。不能使用只有`cases=1`的pilot job恢复成21例。
+续测预计耗时按剩余case在[实际逐例计时](google_llm_ops/RESULTS-20261022.md)中的时间求和，并给case间校验/负载波动留余量；新增或改尺寸的case不能沿用旧时间。恢复只跳过原始证据重验完整的PASS，未完成case从固件入口另建attempt重跑，不是CPU checkpoint。不能用`cases=1`的pilot job恢复成21例。
 
 ## 10. 接手材料与验收清单
 

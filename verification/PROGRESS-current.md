@@ -105,7 +105,9 @@ VM job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5`。
 
 当前已给21例的估算为1～3小时、建议预留3小时，复用模型所以不含编译。估算基于此前同服务器Person等负载约2800～3000 NPU周期/秒以及本轮规模；4例INT8粗估20～30分钟，17例FP32尚无真实时间，尤其标量libm exp/tanh有不确定性。是低置信度粗估，不是本轮实测或完成承诺，也不是芯片执行时间。
 
-21例已完成，但回传主控制台没有wall time/起止时间；实际总耗时仍未知，不将1～3小时改写成实测。需读取该job的summary.md/json获取每case耗时，并注明子进程耗时之和不含case间核验开销。
+用户已补充summary.md的21例实际子进程耗时：INT8合计1481.180秒（24分41秒），FP32合计1655.332秒（27分35秒），总计3136.512秒（约52分17秒），按显示3位小数求和。此和包含case内部加载/初始化/检查，不含case间校验/报告及编译，不是严格端到端套件总墙钟；独立pilot耗时仍未知。逐例时间见[结果报告](google_llm_ops/RESULTS-20261022.md)。
+
+相同服务器/配置/21例复跑可参考约1小时、保守预留1～1.5小时，不含编译；变更负载需另估。当前已通过，不因补齐计时而重跑。
 
 `--timeout 5400`表示每例90分钟墙钟上限，不是整套90分钟。每例预算INT8 case0为200万周期，其余1000万周期，是停止上限而非必须跑满；故障/数值失败会提前停止。收到新case实际耗时后应修正预测，不把超过估计直接判死锁，也不盲目重跑。
 
@@ -123,7 +125,7 @@ VM job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5`。
 
 ## 8. 当前下一步和交回内容
 
-1. 已有完整21例PASS，不再发第二个`all`。只读回收`operators.cgtja4_x/summary.md/json`及原始证据，确认每case实际墙钟。
+1. 已有完整21例PASS，summary.md和逐例耗时已回传，不再发第二个`all`。后续只读备份`operators.cgtja4_x/summary.json`和原始证据，无需重测耗时。
 2. 保存控制台`llm_ops_all.mXLd8a.log`、job.json、completed及attempts日志/XML/状态/result，不只保存终端行。
 3. 保留完整周期表和误差结果；Softmax/门控收益有限，先依据源码和后续profiling定位，不臆造libm时间占比。
 4. 后续由用户选择代表性尺寸/尾部/范围扫描、继续优化或VME对照；当前没有自动启动新仿真。

@@ -1,6 +1,6 @@
 # 单NPU：先测LLM算子，不加载完整模型
 
-**2026-10-22当前进度：服务器完整21例（4 INT8+17 FP32）真实RTL全部通过。** job `operators.cgtja4_x`，最终`LLM_SERVER_JOB_PASS cases=21 full_model=NOT_RUN VME=NOT_RUN`。完整周期表/误差/范围见[本轮结果](RESULTS-20261022.md)，统一状态见[进度快照](../PROGRESS-current.md)，接手见[交接指南](../HANDOFF-current.md)。当前只读回收报告和实际wall time，不重跑整套；此前pilot `cases=1`另存。
+**2026-10-22当前进度：服务器完整21例（4 INT8+17 FP32）真实RTL全部通过。** job `operators.cgtja4_x`，最终`LLM_SERVER_JOB_PASS cases=21 full_model=NOT_RUN VME=NOT_RUN`。summary.md已回传，子进程耗时合计3136.512秒（约52分17秒），不含case间核验/编译，不是严格端到端总墙钟。完整数据见[本轮结果](RESULTS-20261022.md)、[进度](../PROGRESS-current.md)、[交接](../HANDOFF-current.md)。不重跑整套，原始证据另行备份；pilot `cases=1`另存。
 
 **构建修复提示：** 旧FP32 native `cc_test`错误使用`hdrs`，现已将头文件列入`srcs`；内核/bench/fixtures不改。已经安装旧包的VM在pull后先运行 `python -B verification/google_llm_ops/transformer/repair_host_build.py`，精确核验并备份后只修复BUILD和manifest，再执行导出。不要手改生成文件或删manifest绕过一致性检查，详见下方SERVER.md。
 
@@ -19,7 +19,7 @@
 
 17例FP32已真实RTL通过：矩阵乘12.52～28.74倍、RMSNorm2.26～2.83倍、RoPE4.97～6.46倍、因果Attention1.67～1.75倍；Softmax约1.12倍、SwiGLU/GEGLU约1.01倍。除矩阵乘外为项目基线，不将现成无掩码Attention冒充自回归模型测试，不据此宣称完整LLM通过。
 
-本次21例预计1～3小时（低置信度粗估，不含编译），4例INT8粗约20～30分钟；FP32首次、标量libm及服务器共享负载使时间不确定。`5400秒`是每例上限，不是总耗时。用户要求今后每次发仿真命令先给这种说明；收到实测更新预测。
+已补齐实际耗时：INT8共24分41秒、FP32共27分35秒，21例子进程合计约52分17秒。同一服务器/配置/套件复跑可估约1小时、保守预留1～1.5小时，不含编译及重建；修改尺寸/实现后重新估。首次1～3小时是历史粗估，不改写成实测；`5400秒`仍是每例上限。
 
 ## 本轮实际比较
 
