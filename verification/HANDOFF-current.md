@@ -2,6 +2,8 @@
 
 更新：2026-10-22（香港时间）。对象为继续此项软件/RTL验证工作的同学；不是只给综合人员的RTL使用说明。当前结果总表见[进度快照](PROGRESS-current.md)，全程经过见[工作记录](WORKLOG-and-handover.md)。原来叠加多轮“最新断点”的交接全文已完整保留为[历史交接快照](HANDOFF-archive-before-llm-20261022.md)，其旧计划不再作为当前任务。
 
+**最新任务覆盖：用户已批准继续RVV/VME INT8线性层直接对比。** 工具位于[google_llm_vme](google_llm_vme/README.md)，独立候选llm_vme_linear_v1，不覆盖旧21例。新三路径为原样官方RVV、每次打包的VME完整调用、权重预打包复用（另计一次性成本）。当前14项本地检查通过，但正式VM工具链链接/新小包哈希/服务器周期仍未知。下一动作VM只执行`bash verification/google_llm_vme/build_export.sh`，回传ELF审计及包SHA后才传服务器case0；首例粗估5～15分钟、不含构建，沿用原Pool模型。下文旧21例结果已经完成，不重复跑其all，也不将其52分钟直接套给新对比。
+
 ## 1. 接手后先知道这六件事
 
 1. 团队已确定官方CoralNPU，单NPU SoC集成测试由用户告知已通过，4核集成由团队继续；本人当前不验证4核互连。
@@ -170,6 +172,7 @@ python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
 | 最新进度/证据与待办 | [PROGRESS-current.md](PROGRESS-current.md) |
 | 全过程、失败、旧比较和提交 | [WORKLOG-and-handover.md](WORKLOG-and-handover.md)，最新第29节 |
 | 当前小包/服务器工具说明 | [LLM SERVER.md](google_llm_ops/server/SERVER.md) |
+| 新RVV/VME三路径准备与下一步 | [google_llm_vme/README.md](google_llm_vme/README.md)，正式ELF/RTL待执行 |
 | 21例详细语义及旧VM备选 | [TOMORROW.md](google_llm_ops/TOMORROW.md) |
 | 默认完整MobileNet、VME/Pool、Conv | [Person](google_person_detect/README.md)、[Pool](google_person_pool/README.md)、[Conv](google_person_conv/README.md) |
 | 旧TCM性能结果 | [WORKSET-results.md](google_tcm_capacity/WORKSET-results.md) |

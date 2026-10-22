@@ -1,5 +1,7 @@
 # 单NPU：先测LLM算子，不加载完整模型
 
+**下一阶段：用户已批准RVV/VME直接对比，独立工具已准备于[google_llm_vme](../google_llm_vme/README.md)。** 当前只沿用4种INT8形状，计入打包/有符号补偿/搬运写回，并单列权重预打包复用与一次性成本。正式新ELF/服务器周期尚未收到；不要重跑下面已完成21例或把其RVV/标量倍数当VME结果。
+
 **2026-10-22当前进度：服务器完整21例（4 INT8+17 FP32）真实RTL全部通过。** job `operators.cgtja4_x`，最终`LLM_SERVER_JOB_PASS cases=21 full_model=NOT_RUN VME=NOT_RUN`。summary.md已回传，子进程耗时合计3136.512秒（约52分17秒），不含case间核验/编译，不是严格端到端总墙钟。完整数据见[本轮结果](RESULTS-20261022.md)、[进度](../PROGRESS-current.md)、[交接](../HANDOFF-current.md)。不重跑整套，原始证据另行备份；pilot `cases=1`另存。
 
 **构建修复提示：** 旧FP32 native `cc_test`错误使用`hdrs`，现已将头文件列入`srcs`；内核/bench/fixtures不改。已经安装旧包的VM在pull后先运行 `python -B verification/google_llm_ops/transformer/repair_host_build.py`，精确核验并备份后只修复BUILD和manifest，再执行导出。不要手改生成文件或删manifest绕过一致性检查，详见下方SERVER.md。

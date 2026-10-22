@@ -6,6 +6,7 @@
 
 - 团队已确定使用官方CoralNPU，Yangg152比较暂停并保留历史。
 - 当前只测一个NPU的Transformer/LLM算子，固定ITCM256KiB、DTCM512KiB。不是完整语言模型/文本生成。
+- **下一阶段已获用户批准并完成工具准备：RVV与VME直接对比。** 新入口[google_llm_vme](google_llm_vme/README.md)，只沿用现有4例INT8形状；包含完整打包调用、预打包复用边际值及计入一次性成本的结果。尚未正式VM链接/导出或新RTL执行，没有VME提速结论。
 - VM只进行Bazel/Chisel生成、主机参考和交叉链接/导出；RTL仿真转EDA152服务器Verilator。
 - 用户已回传**21例整套真实RTL PASS**（4例INT8+17例FP32），job为`operators.cgtja4_x`。本机未登录服务器或独立复跑；已核对回传摘要完整性，原始日志仍在服务器。
 - 完整MobileNet优化版、Conv RVV新实现、TCM扩容及ITCM扫描均不自动继续；Depthwise遵守用户要求不改动。
@@ -25,6 +26,7 @@
 | 服务器21例完整套件 | `operators.cgtja4_x`，最终`JOB_PASS cases=21` | 完成；完整周期表见[实际结果](google_llm_ops/RESULTS-20261022.md) |
 | FP32硬件数值与性能 | 17条CASE_PASS，误差/周期摘要完整 | 首次真实RTL通过，最大报告绝对误差4.76837158203125e-7 |
 | 完整Transformer block/LLM、多token生成 | 无模型图/权重/tokenizer/生成流程验收 | 未完成，不能给tokens/s |
+| 新RVV/VME INT8直接对比 | 新独立包/14项本地检查，4例native及735组边界模拟、真实RV32对象/本地合成ELF通过 | 正式VM链接与新RTL未跑；VM只执行build_export.sh，随后服务器先pilot |
 
 两种INT8微基准比较朴素标量与固定官方RVV实现，不是VME；速度比为原始内核mcycle之比，空边界3周期单列未扣除。不能将上述40倍外推为模型或架构峰值加速。
 
@@ -125,10 +127,10 @@ VM job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5`。
 
 ## 8. 当前下一步和交回内容
 
-1. 已有完整21例PASS，summary.md和逐例耗时已回传，不再发第二个`all`。后续只读备份`operators.cgtja4_x/summary.json`和原始证据，无需重测耗时。
-2. 保存控制台`llm_ops_all.mXLd8a.log`、job.json、completed及attempts日志/XML/状态/result，不只保存终端行。
-3. 保留完整周期表和误差结果；Softmax/门控收益有限，先依据源码和后续profiling定位，不臆造libm时间占比。
-4. 后续由用户选择代表性尺寸/尾部/范围扫描、继续优化或VME对照；当前没有自动启动新仿真。
-5. 完整LLM、模型权重/tokenizer、持续KV/AXI流式及PPA/门仿仍未完成；单算子PASS不能替代。
+1. VM运行[新对比build_export.sh](google_llm_vme/README.md)，只做native/正式ELF/资源审计/不含RTL小包导出，回传实际ELF和归档SHA；不跑VM仿真。
+2. 传新包到服务器独立目录，沿用原Pool模型身份；先case0，粗估5～15分钟不含VM构建，首次路径无实测，完成后修正其余case耗时。
+3. 正确性和调用/命令计数全部通过才报告RVV/VME比；reuse分别看边际周期、首用和4次摊销，不把预打包成本隐去。
+4. 原21例已通过，不再重复all；只读备份完整原始证据。Softmax/门控、Depthwise、本轮RAM/RTL均不改，暂不扩大128/256尺寸或跑完整block。
+5. 新对比真实周期回传后再决定扩大形状或新优化；完整LLM、tokenizer/持续KV/AXI流式及PPA/门仿仍未完成。
 
 不要改已导出包、旧RTL模型或审计身份，不删除失败日志，不停止其他人的仿真。后续完整可执行命令及接手材料见[HANDOFF-current.md](HANDOFF-current.md)。

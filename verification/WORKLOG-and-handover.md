@@ -6,7 +6,7 @@
 
 初版整理时工具基线为`e3046dc`，10月19日核对到`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`；本次结果整理基于`8c99fde`及用户回传的服务器21例整套控制台。工具commit不代替硬件源码、RTL、ELF或归档哈希。本次仅记录/分析结果，不修改封存包或启动远程任务。
 
-**当前主线：单NPU Transformer/LLM算子微基准，ITCM256KiB/DTCM512KiB，VM只构建导出、服务器Verilator仿真。** 用户已回传完整21例真实RTL PASS（4 INT8+17 FP32），job `operators.cgtja4_x`；下一步只读回收报告/原始证据和实际墙钟，不重复运行整套。完整LLM/模型权重/tokenizer/多token仍未验证。团队已选官方，默认Person单图及Conv片段完成，优化整网/旧容量扫描暂停。接手先读[进度](PROGRESS-current.md)、[交接](HANDOFF-current.md)、[21例结果](google_llm_ops/RESULTS-20261022.md)及第29.5节；原交接完整保留为历史附件。
+**当前主线：单NPU Transformer/LLM算子微基准，ITCM256KiB/DTCM512KiB，VM只构建导出、服务器Verilator仿真。** 原21例已真实RTL PASS并补齐子进程墙钟和约52分钟；用户现已批准新RVV/VME三路径直接对比，工具准备完成，下一步VM正式链接/导出，再服务器先pilot，新VME周期未知。完整LLM/模型权重/tokenizer/多token仍未验证。团队选官方，默认Person单图/Conv片段完成，优化整网/旧容量扫描暂停。接手读[进度](PROGRESS-current.md)、[交接](HANDOFF-current.md)、[原21例结果](google_llm_ops/RESULTS-20261022.md)和第29.7节；原交接完整保留。
 
 本文按阶段保留曾经的“当前/下一步/未完成”，第1～28节的这类说法均按当时语境理解；最新进度以上述入口和第29节为准。不能据旧段落自动恢复TCM扫描、默认模型长任务或重跑已完成pilot。用户报告团队SoC单NPU集成通过、后续4核，不等于本人已复跑SoC/完成PPA门仿。
 
@@ -2111,3 +2111,21 @@ FP32最大报告绝对误差4.76837158203125e-7，通过固定atol2e-5/rtol2e-4�
 最长prefill_small为1015.423秒（约16分55秒，占本套件子进程和32.37%），其次GEGLU303.110秒、prefill_tiny292.946秒。每case墙钟包括其子进程中的加载、初始化、两路径各4次调用、结果读回和核验，不是单独RVV执行时间。求和不含父进程case间核验/报告，不含编译；没有套件起止时间，不能称3136.512秒为精确端到端总耗时，也不能把整套decode_tiny55.875秒回填独立pilot。
 
 此前INT8粗估20～30分钟与本次24分41秒相符；整体1～3小时为首次FP32保守粗估，本次子进程和约52分钟。后续同服务器/原模型复用/相同21例/相近负载可估约1小时、保守1～1.5小时，不含编译；新形状/精度/实现/访存或后端要重新估，不能将此时间直接乘到完整模型。当前全部已过，不为补计时重跑；只需备份summary.json和原始证据，再由用户决定下一实验。
+
+### 29.7 用户批准下一阶段：RVV/VME INT8三路径直接对比准备
+
+用户问下一步并确认继续。新增verification/google_llm_vme，独立包tests/cocotb/llm_vme_linear_v1，固定单核ITCM256KiB/DTCM512KiB、16KiB栈。先只用原4种M1/16、K/N32/64的同字节输入，不提前加128/256形状或完整block。旧21例、Person/Pool/Conv/RVV源和所有封存RTL/固件均不修改，也不启动远程仿真。
+
+新同ELF比较原样官方rvv_int8_matmul.cc、VME每次打包完整调用、VME权重预打包复用。完整调用包含从row-major X/W打包、signed输入转换及补偿、矩阵设置/发射/读回和row-major INT32写回。reuse只把权重预打包移到窗外且单独实测一次，仍计输入打包/设置/读回；报告必须同时保留边际first/steady、首用加prepack、4次调用摊销加prepack。禁止把不计prepack的边际值当冷启动完整收益，较慢VME仍可正确PASS。
+
+原HardwareTile按SHA dd932fd04265528f979eba32d7fdb1403a05c5efeb6abe994177c2eaaa973c45逐字复制，调度来源team fa4b83e4/固定官方指令。HW signed A × unsigned B，物理行映射输出通道、列映射token，A=W^T、B=X^T+128，初始累加器-128*sum(W)，恢复相同signed X*W。权重沿用[-127,127]、输入[-128,127]遵守RVV域。原向量参考spec字节SHA 0dbdd0f29be48c78b90f0a6df970fcee050092441b5d218db2278a8b9b94b54f也锁定复制，不重定义旧输入。
+
+三路径各4次、轮换顺序、fence+mcycle、空边界不扣；wrapper/分发和HardwareTile的软件命令计数开销计入相应调用，不能要求其新RVV周期和旧不同ELF窗口完全相等。每VME调用ceil(N/16)*ceil(M/16)*ceil(K/4)条软件发射，当前16或64条；4次complete/reuse分别64或256条，合计128或512条，不冒充独立退休计数。输出raw INT32，无重定量化、激活或外存流量。
+
+native四例同时核对三路径模拟/参考，另有735组M/K/N尾部、正负/极值、guard、越界拒绝、缓存不变性和命令计数模拟。最终RTL bench会前门加载selector（非零.data以跨CRT）、读回完整X/W、三份输出及尾区、两份打包/补偿、工作区、诊断计数、自然halt/fault和栈底64字节canary；不把主机EmulatedTile当硬件运行，也不把canary当完整水位。
+
+build_export.sh仅VM native两测试、正式工具链链接一个ELF、资源审计/与旧RTL SHA核对及不含RTL小包导出，不编译Verilator模型、不跑VM RTL。服务器新server.py/lv_bench只读复用原Pool模型，核验原producer环境/配方/二进制及probe.46bl5uqr证据，持原锁；结果写新包同级_runtime，默认只case0。check与run分开，严格原始XML/log/退出状态/完整验收，失败保留。没有自动all/恢复checkpoint；中断只重跑选定case，后续三例等pilot结果再发。
+
+14项新本地检查通过，包括实际native四例与735组、真实RV32对象及VME编码/官方RVV反汇编、局部合成bare-metal ELF真实审计（不含官方CRT，不执行）、资源错误拒绝、source拒绝覆盖、含prepack的成本算式/慢路径有效、完整合成导出/篡改拒绝、子进程环境清理及CLI/BUILD语法。另旧INT8 10/FP32 21/服务器14/Conv11/Pool19/VME18/默认34合计127项回归通过，与新14合计141项工具检查；无跳过。Git Bash检查新脚本语法。真实VM官方链接/正式包身份和新RTL周期仍待用户执行，临时测试归档哈希不当实际产物。
+
+下一步用户在VM只执行build_export.sh，回传LLM_VME_ELF_AUDIT和LLM_VME_PACKET_ARCHIVE/SHA256/BYTES；再给实际传输/服务器pilot命令。首例粗估5～15分钟、不含VM构建，无新路径实测，按pilot修正其余耗时，不套旧21例52分钟。所有内核/RTL/包新旧身份分离，Depthwise/Softmax/门控/原RAM不改，尚无VME相对RVV的速度结论。
