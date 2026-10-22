@@ -2020,3 +2020,15 @@ run.sh是VM前台单例流水：验证原capacity实验完整性，独立安装l
 本轮新增14项本地工具测试，含AST测量体逐字语义结构保持、路径白名单、同名模块异常恢复、实际原始验收逻辑覆盖21例、XML失败/跳过/超时/身份/预算/重复日志拒绝、部分报告/证据篡改拒绝、子进程去trace、合成完整导出往返及合成失败停止→续测→21例汇总。这些用合成ELF/运行记录检查控制流，不是新的官方ELF或RTL结果。真正VM两ELF链接、小包SHA和服务器FP32运行仍待用户执行；旧INT8 case0/1真实结果保持28.21/28.22。当前入口SERVER.md覆盖旧VM队列说明，不修改共享SoC仓库或未相关用户文件。
 
 最终复跑新增14项、FP32 16项、INT8 10项及旧Conv11/Pool19/VME18/默认Person34项，合计122项工具测试通过；FP32/INT8的native与RV32对象检查均实际执行，无跳过。新导出脚本Git Bash语法检查通过，仍未运行Linux官方链接/服务器仿真。git只包含本轮新工具及入口/历史文档，未相关用户修改保留。
+
+### 28.25 实际VM包分析失败：修复FP32 native cc_test头文件属性
+
+用户回传FP32 host_reference_test在BUILD第10行分析失败：cc_test没有hdrs属性。该处为新增工具错误，不是NPU执行、算子数值或RAM容量失败；前一段test-size提示与本错误无关。原122项本地工具检查包含Python/BUILD语法与直接C++编译，但没有在Linux Bazel实际加载此规则，故未发现非法属性，不能继续将工具通过等同真实Bazel构建验证。
+
+修改tx_prepare.build_text仅将native cc_test的kernels.h从hdrs移至srcs。只读核对固定上游rules/coralnpu_v2.bzl，自定义coralnpu_v2_binary明确接受hdrs，故固件规则保持不变，内核/bench/fixtures/RVV源/参数/计时逻辑也不改。将expected文件集合提取成函数，以供显式修复复核；生成器自身哈希因此有意变化，不能让用户直接重跑而撞上旧manifest拒绝覆盖。
+
+新增repair_host_build.py，只允许旧生成器SHA 5fb56201aa51bd0b1020a32c8df386774247c6796e6ee2ca6d9c094ffcad4b4c的完整已知manifest和全部原始候选文件，核验为精确单行BUILD差异后，将旧BUILD/manifest及修复记录保存到study/llm_tx_host_hdrs_repair.*，再同目录原子替换BUILD和manifest。未知manifest、用户改过的源/BUILD或符号链接均拒绝，不删除缓存，不改旧实验或固件；重复运行只复核，若两次替换之间中断可安全补完。常规prepare仍拒绝未知修改，不放宽验收。
+
+新增5项回归：native cc_test属性语义、备份/幂等、未知编辑不覆盖、部分升级恢复，以及从git读取真实7bb95c5旧生成器生成manifest后完成升级。下一步VM pull→显式repair→export_server.sh；只有用户实际链接和服务器结果才能验收，当前无新增FP32 RTL PASS。
+
+本轮实际复跑FP32 21项、服务器适配14项、INT8 10项，合计45项工具检查通过，无跳过；native标量参考和RV32对象检查实际运行。仍未在本机执行Linux Bazel分析/官方链接，等待VM回传，不以此宣称所有构建问题已消除。

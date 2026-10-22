@@ -1,5 +1,7 @@
 # 单NPU：先测LLM算子，不加载完整模型
 
+**构建修复提示：** 旧FP32 native `cc_test`错误使用`hdrs`，现已将头文件列入`srcs`；内核/bench/fixtures不改。已经安装旧包的VM在pull后先运行 `python -B verification/google_llm_ops/transformer/repair_host_build.py`，精确核验并备份后只修复BUILD和manifest，再执行导出。不要手改生成文件或删manifest绕过一致性检查，详见下方SERVER.md。
+
 **最新执行分工：VM只构建/导出，仿真全部放服务器。** 用户已确认VM可短时间编译但不跑仿真。入口 [server/SERVER.md](server/SERVER.md)，VM执行 `bash verification/google_llm_ops/export_server.sh`；只做native参考、两份ELF实际链接/资源审计及小包导出，不构建Verilator模型。服务器无Bazel，严格只读复用原Pool已验证256/512KiB编译模型，先单例再串行21例，支持证据复核续测。原候选源码/已测包不改。新增FP32的实际官方链接与服务器仿真仍待用户运行，不提前报PASS。
 
 原VM统一入口保留：[TOMORROW.md](TOMORROW.md)。`run_all.sh --mode all` 是旧的VM全流程，**不是当前服务器命令**。新增算子并非全部官方优化实现；来源、混合标量exp/tanh、数值容差及未覆盖项见说明。下方保留已实测INT8记录。

@@ -4,6 +4,8 @@
 
 ## 最新任务覆盖说明：2026-10-21
 
+**2026-10-22最新构建阻点：** 用户在VM导出时，FP32包的native `cc_test`因不支持`hdrs`而在包分析阶段失败，尚未进入FP32 NPU仿真。修复生成器将`kernels.h`列入该测试的`srcs`，自定义固件规则的`hdrs`保留。先pull，再运行 `python -B verification/google_llm_ops/transformer/repair_host_build.py`：只接受已知旧生成器及所有候选文件精确身份，先备份旧BUILD/manifest，仅更新这两项，拒绝未知修改；原INT8和FP32内核/bench/fixtures/计时逻辑不变。之后重新运行export_server.sh，不需要clean。此前本地工具语法/native/object检查没有执行Linux Bazel包分析，不能当构建保证。实际FP32链接和服务器仿真仍待用户回传。
+
 **2026-10-22最新执行位置覆盖：VM只构建导出，21例算子仿真转服务器。** 用户明确VM可短时间编译、不跑RTL。新 [google_llm_ops/server/SERVER.md](google_llm_ops/server/SERVER.md)：VM `export_server.sh` 验证原候选、native参考、实际交叉链接两ELF/审计，生成不可变小包，不构建Verilator模型。服务器无Bazel，严格只读复用原Pool包`pool_7c8e0fe5/...`及其`probe.46bl5uqr`已验证模型；新适配器不改原`run_case`测量函数体，只替换文件定位与测试入口。先int8 case0、再串行4+17例；逐例保留rawlog/XML/退出状态/输入输出gold/固件和RTL身份，失败即停，续测重新验证证据后跳过完整PASS。原包/编译模型/源码不覆盖，单例通过不冒充21例通过。新工具本地合成检查通过不等于FP32官方链接或服务器RTL通过；目前实际归档哈希/新ELF和运行结果仍待用户回传。下方VM-only队列为历史备选。
 
 **明日统一测试准备：** 用户要求今晚准备、明天集中验证；不启动远程长任务。新入口[google_llm_ops/TOMORROW.md](google_llm_ops/TOMORROW.md)，一条 `run_all.sh --mode all` 前台串行运行21个单算子用例（4 INT8+17 FP32），先主机参考、真实交叉链接/内存参数审计，再复用原llm_linear_v1:model，不改旧已测包。支持prepare-only、失败停止、原始证据重新验收后续测及统一summary.md/json；超时/中断不标PASS，不冒充checkpoint。新增FP32矩阵乘原样使用官方源，RMSNorm/Softmax/RoPE/SwiGLU/GEGLU/残差/KV追加/因果GQA为明确标注的项目FP32基线，exp/tanh仍标量libm，不保证比标量快。17例native对独立gold和真实RV32目标文件编译已过，不是新增RTL通过；真正官方完整链接和FP32 RVV运行仍待明天。不是完整block/预训练LLM/多步生成，VME、BF16/INT4、外部AXI带宽仍未覆盖。

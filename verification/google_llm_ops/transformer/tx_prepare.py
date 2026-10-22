@@ -43,7 +43,7 @@ package(default_visibility=["//visibility:public"])
 coralnpu_v2_binary(name="probe_program",srcs=["bench.cc","kernels.cc","fixtures.cc","rvv_matmul.cc"],
     hdrs=["kernels.h"],copts=["-std=c++17","-O2","-fno-tree-vectorize","-fno-tree-slp-vectorize","-fno-lto","-ffp-contract=off"],
     itcm_size_kbytes=256,dtcm_size_kbytes=512,stack_size_bytes=16384,enable_vmem=False,)
-cc_test(name="host_reference_test",srcs=["bench.cc","kernels.cc","fixtures.cc"],hdrs=["kernels.h"],
+cc_test(name="host_reference_test",srcs=["bench.cc","kernels.cc","fixtures.cc","kernels.h"],
     copts=["-std=c++17","-O2","-DTX_HOST=1","-ffp-contract=off"],)
 py_library(name="support",srcs=["tx_spec.py","tx_audit.py"],deps=[requirement("pyelftools")])
 cocotb_test_suite(name="ops",simulators=["verilator"],
@@ -81,17 +81,21 @@ def install(root,files):
     return manifest
 
 
+def expected(root):
+    files={n:(HERE/n).read_bytes() for n in ("kernels.h","kernels.cc","bench.cc","tx_spec.py","tx_audit.py","tx_bench.py")}
+    files.update({"fixtures.cc":fixtures(),"BUILD":build_text(),
+        "rvv_matmul.cc":subprocess.check_output(["git","-C",str(root),"show",UPSTREAM+":"+OFFICIAL])})
+    files["BUILD"]=files["BUILD"].encode()
+    return files
+
+
 def prepare(root):
     # Recheck, do not regenerate/modify, the original qualified INT8 package.
     path=HERE.parent/"prepare.py";sys.path.insert(0,str(path.parent))
     spec=importlib.util.spec_from_file_location("_tx_original_linear_prepare",path)
     base=importlib.util.module_from_spec(spec);spec.loader.exec_module(base)
     base.prepare(root)
-    files={n:(HERE/n).read_bytes() for n in ("kernels.h","kernels.cc","bench.cc","tx_spec.py","tx_audit.py","tx_bench.py")}
-    files.update({"fixtures.cc":fixtures(),"BUILD":build_text(),
-        "rvv_matmul.cc":subprocess.check_output(["git","-C",str(root),"show",UPSTREAM+":"+OFFICIAL])})
-    files["BUILD"]=files["BUILD"].encode()
-    result=install(root,files)
+    result=install(root,expected(root))
     print("[LLM_TX_PREPARED] INT8_unchanged=true model=NOT_LOADED RTL=NOT_RUN")
     return result
 

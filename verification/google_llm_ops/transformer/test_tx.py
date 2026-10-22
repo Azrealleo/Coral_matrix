@@ -219,6 +219,82 @@ class Checks(unittest.TestCase):
         cases=ast.literal_eval(next(keyword.value for keyword in call.keywords if keyword.arg=="testcases"))
         self.assertEqual(cases,["tx_"+case[0]+"_test" for case in spec.CASES])
 
+    def test_native_cc_test_has_no_hdrs_and_declares_header_in_srcs(self):
+        import ast
+        tree=ast.parse(prepare.build_text())
+        host=next(n for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=="cc_test")
+        attributes={kw.arg:ast.literal_eval(kw.value) for kw in host.keywords}
+        self.assertNotIn("hdrs",attributes)
+        self.assertIn("kernels.h",attributes["srcs"])
+        self.assertEqual(set(attributes),{"name","srcs","copts"})
+        # The custom firmware rule DOES accept hdrs; leave its recipe intact.
+        firmware=next(n for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=="coralnpu_v2_binary")
+        self.assertEqual(ast.literal_eval(next(k.value for k in firmware.keywords if k.arg=="hdrs")),["kernels.h"])
+
+    def test_explicit_known_build_repair_backups_and_is_idempotent(self):
+        import repair_host_build as repair
+        files={"rvv_matmul.cc":b"official", "bench.cc":b"unchanged benchmark", "BUILD":prepare.build_text().encode()}
+        old_files=dict(files,BUILD=files["BUILD"].replace(repair.NEW,repair.OLD))
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)/"source";root.mkdir()
+            legacy=prepare.install(root,old_files);legacy["generator_sha256"]=repair.LEGACY_GENERATOR_SHA
+            marker=root/prepare.MANIFEST;marker.write_text(json.dumps(legacy))
+            repair.repair(root,files)
+            self.assertEqual((root/spec.PACKAGE/"BUILD").read_bytes(),files["BUILD"])
+            self.assertEqual((root/spec.PACKAGE/"bench.cc").read_bytes(),files["bench.cc"])
+            backup=next(Path(temporary).glob("llm_tx_host_hdrs_repair.*"))
+            self.assertEqual((backup/"BUILD.before").read_bytes(),old_files["BUILD"])
+            self.assertEqual(json.loads((backup/"manifest.before.json").read_text()),legacy)
+            after=marker.read_bytes();repair.repair(root,files);self.assertEqual(marker.read_bytes(),after)
+            self.assertEqual(len(list(Path(temporary).glob("llm_tx_host_hdrs_repair.*"))),1)
+
+    def test_repair_refuses_unknown_manifest_or_user_edit_without_overwrite(self):
+        import repair_host_build as repair
+        files={"rvv_matmul.cc":b"official","bench.cc":b"bench","BUILD":prepare.build_text().encode()}
+        old_files=dict(files,BUILD=files["BUILD"].replace(repair.NEW,repair.OLD))
+        for edit in ("manifest","bench.cc","BUILD"):
+            with self.subTest(edit=edit),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary)/"source";root.mkdir()
+                m=prepare.install(root,old_files);m["generator_sha256"]=repair.LEGACY_GENERATOR_SHA
+                if edit=="manifest":m["generator_sha256"]="unknown"
+                marker=root/prepare.MANIFEST;marker.write_text(json.dumps(m))
+                if edit!="manifest":(root/spec.PACKAGE/edit).write_bytes(b"user change")
+                before={p:p.read_bytes() for p in root.rglob("*") if p.is_file()}
+                with self.assertRaises(ValueError):repair.repair(root,files)
+                self.assertEqual(before,{p:p.read_bytes() for p in root.rglob("*") if p.is_file()})
+                self.assertFalse(list(Path(temporary).glob("llm_tx_host_hdrs_repair.*")))
+
+    def test_repair_can_complete_interrupted_build_before_manifest_update(self):
+        import repair_host_build as repair
+        files={"rvv_matmul.cc":b"official","BUILD":prepare.build_text().encode()}
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)/"source";root.mkdir()
+            old_files=dict(files,BUILD=files["BUILD"].replace(repair.NEW,repair.OLD))
+            m=prepare.install(root,old_files);m["generator_sha256"]=repair.LEGACY_GENERATOR_SHA
+            (root/prepare.MANIFEST).write_text(json.dumps(m))
+            (root/spec.PACKAGE/"BUILD").write_bytes(files["BUILD"])
+            repair.repair(root,files);self.assertEqual(json.loads((root/prepare.MANIFEST).read_text()),prepare.install(root,files))
+
+    def test_repair_accepts_manifest_from_actual_committed_legacy_generator(self):
+        import repair_host_build as repair
+        import importlib.util
+        repo=HERE.parent.parent.parent
+        raw=subprocess.check_output(["git","-C",str(repo),"show",
+            "7bb95c5:verification/google_llm_ops/transformer/tx_prepare.py"])
+        self.assertEqual(prepare.digest(raw),repair.LEGACY_GENERATOR_SHA)
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)/"source";root.mkdir();path=Path(temporary)/"old_prepare.py";path.write_bytes(raw)
+            ms=importlib.util.spec_from_file_location("_actual_legacy_tx",path)
+            old=importlib.util.module_from_spec(ms);ms.loader.exec_module(old)
+            files={"rvv_matmul.cc":b"official", "bench.cc":b"bench", "BUILD":prepare.build_text().encode()}
+            previous=old.install(root,dict(files,BUILD=old.build_text().encode()))
+            repair.repair(root,files)
+            now=json.loads((root/prepare.MANIFEST).read_text())
+            changed={k for k in now if now[k]!=previous[k]}
+            self.assertEqual(changed,{"generator_sha256","files"})
+            self.assertEqual({n for n in now['files'] if now['files'][n]!=previous['files'][n]},
+                {spec.PACKAGE+'/BUILD'})
+
     def test_synthetic_prepare_only_then_resume_driver_full_21_plan(self):
         # Driver control-flow test ONLY: no compiler, firmware or simulator here.
         import suite

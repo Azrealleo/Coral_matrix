@@ -13,11 +13,15 @@ source "$HOME/miniforge3/etc/profile.d/conda.sh"
 conda activate coral-matrix
 cd "$HOME/桌面/Coral_matrix"
 git pull --ff-only origin main
+# 一次性安全修复旧版cc_test规则；已修复时只复核，不重复覆盖。
+python -B verification/google_llm_ops/transformer/repair_host_build.py
 bash verification/google_llm_ops/export_server.sh
 )
 ```
 
-导出前严格验证原候选源码，原INT8与FP32生成器/内核不改。链接失败或实际RTL SHA与服务器已验证模型不同则停止，不强行修改身份。请保存`LLM_SERVER_PACKET_ARCHIVE/SHA256/BYTES`。小包不含RTL和模型权重；`simulation=NOT_RUN`不是失败，也不是硬件通过。归档及`.sha256`传到服务器新的独立目录，校验通过后解压，不覆盖旧包。具体路径以实际导出输出为准，不使用虚构的归档哈希。
+导出前严格验证候选源码，原INT8候选及FP32内核/bench不改；FP32生成器仅进行下述显式BUILD修复。链接失败或实际RTL SHA与服务器已验证模型不同则停止，不强行修改身份。请保存`LLM_SERVER_PACKET_ARCHIVE/SHA256/BYTES`。小包不含RTL和模型权重；`simulation=NOT_RUN`不是失败，也不是硬件通过。归档及`.sha256`传到服务器新的独立目录，校验通过后解压，不覆盖旧包。具体路径以实际导出输出为准，不使用虚构的归档哈希。
+
+2026-10-22构建修复：旧FP32 BUILD误将`kernels.h`放进native `cc_test.hdrs`，该规则不接受此属性，改放`srcs`；自定义固件规则允许`hdrs`，保持不变。相应生成器身份有意更新，上方修复工具只接受已知旧生成器及所有原始文件的精确哈希，先备份旧BUILD/manifest，再更新这两项；任何未知修改都拒绝覆盖。内核、固件bench、fixtures、参数/计时不改，无需clean或删除缓存。先前122项工具检查没有实际执行Linux Bazel包分析，因此未发现此错误；本地检查不能替代VM真实分析/链接。
 
 ## 2. 服务器：先检查，再跑单例
 
