@@ -7,7 +7,8 @@ import re
 import struct
 
 UPSTREAM="8e4df09b4ea7e065e02d14ce3ae033d40dfd973a"
-PACKAGE="tests/cocotb/llm_vme_linear_v1"
+PACKAGE="tests/cocotb/llm_vme_linear_v2"
+PACKET_NAME="coral_llm_vme_i256_d512_v2"
 TOP="VmeCoreMini_ITCM256KB_DTCM512KBAxi"
 RTL_SHA="477aa4d097b1ac7c35f98cb95fe9ba841082a8a10afde6f39dea70959300bfe2"
 TILE_SHA="dd932fd04265528f979eba32d7fdb1403a05c5efeb6abe994177c2eaaa973c45"
@@ -82,8 +83,9 @@ def accept(row,index):
         checked_elements=12*m*n,signature=expected_signature(index),rvv_calls=4,complete_calls=4,reuse_calls=4,
         prepack_calls=1,complete_commands=4*commands(index),reuse_commands=4*commands(index),
         vector_sha256=gold["vector_sha256"],rtl_sha256=RTL_SHA,requested_cycles=10000000)
-    if any(type(row.get(k)) is not type(v) or row[k]!=v for k,v in required.items()):
-        raise ValueError("Incomplete/wrong RVV-VME result or required path did not execute")
+    wrong=[k for k,v in required.items() if type(row.get(k)) is not type(v) or row[k]!=v]
+    if wrong:
+        raise ValueError("Incomplete/wrong RVV-VME result or required path did not execute: "+', '.join(wrong))
     if not re.fullmatch("[a-f0-9]{64}",row.get("elf_sha256","")):raise ValueError("Missing ELF identity")
     total,empty,pack=row.get("observation_elapsed_cycles"),row.get("empty_boundary_cycles"),row.get("prepack_once_cycles")
     if type(total) is not int or not 0<total<=10000001 or type(empty) is not int or empty<0 or type(pack) is not int or not empty<pack<=total:

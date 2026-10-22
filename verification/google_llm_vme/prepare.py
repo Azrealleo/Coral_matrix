@@ -8,7 +8,7 @@ import sys
 import lv_spec as spec
 
 HERE=Path(__file__).resolve().parent
-MANIFEST="llm_vme_linear_v1_manifest.json"
+MANIFEST="llm_vme_linear_v2_manifest.json"
 OFFICIAL="tests/cocotb/rvv/ml_ops/gemma_kernels/rvv_int8_matmul.cc"
 
 
@@ -40,7 +40,7 @@ def install(root,files):
     import hashlib
     digest=lambda raw:hashlib.sha256(raw).hexdigest()
     files={spec.PACKAGE+"/"+n:v for n,v in files.items()}
-    manifest=dict(schema=1,kind="llm_vme_linear_preparation_v1",upstream=spec.UPSTREAM,scope=spec.SCOPE,
+    manifest=dict(schema=1,kind="llm_vme_linear_preparation_v2",upstream=spec.UPSTREAM,scope=spec.SCOPE,
         generator_sha256=spec.sha(__file__),itcm_kib=256,dtcm_kib=512,official_source=OFFICIAL,
         official_source_sha256=digest(files[spec.PACKAGE+"/rvv_int8_matmul.cc"]),hardware_tile_sha256=spec.TILE_SHA,
         vector_reference_sha256=spec.REFERENCE_SHA,cases=[dict(id=i,name=c[0],M=c[1],K=c[2],N=c[3],

@@ -21,7 +21,7 @@ def export(root,job):
     identity=json.loads((job/'rtl-identity.json').read_text())
     if identity['rtl_sha256']!=spec.RTL_SHA or identity['parameters']!=audit.checked_header((job/'parameters.h').read_text()):
         raise ValueError("RTL/header differs from qualified server model")
-    packet=job/'coral_llm_vme_i256_d512_v1';packet.mkdir(exist_ok=False);(packet/'source').mkdir()
+    packet=job/spec.PACKET_NAME;packet.mkdir(exist_ok=False);(packet/'source').mkdir()
     for name in ('probe_program.elf','resources.json','parameters.h','host.log','build.log','source-manifest.json','rtl-identity.json'):
         shutil.copyfile(job/name,packet/name)
     for name,digest in source['files'].items():
@@ -37,7 +37,7 @@ def export(root,job):
     (packet/'NOTICES.txt').write_text('Official CoralNPU RVV and VME encodings: Google LLC, Apache-2.0.\n'
         'VME schedule adapted from team fa4b83e4; signed-input correction/packing from qualified project candidate.\n'
         'Firmware-only experiment. No RTL or model weights. NOT an RTL PASS.\n',encoding='utf-8')
-    lv_packet.seal(packet,dict(schema=1,kind='llm_vme_linear_firmware_packet_v1',upstream=spec.UPSTREAM,
+    lv_packet.seal(packet,dict(schema=1,kind='llm_vme_linear_firmware_packet_v2',upstream=spec.UPSTREAM,
         hdl_top=spec.TOP,itcm_kib=256,dtcm_kib=512,rtl_sha256=spec.RTL_SHA,elf_sha256=report['elf_sha256'],simulation='NOT_RUN'))
     lv_packet.load(packet);prepare.prepare(root)
     archive=job/(packet.name+'.tar.gz')

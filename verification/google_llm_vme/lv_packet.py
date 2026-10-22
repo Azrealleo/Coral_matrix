@@ -32,7 +32,7 @@ def seal(root,manifest):
 
 def load(root):
     root=Path(root).resolve(strict=True);m=json.loads((root/'manifest.json').read_text())
-    required=dict(schema=1,kind='llm_vme_linear_firmware_packet_v1',upstream=spec.UPSTREAM,hdl_top=spec.TOP,
+    required=dict(schema=1,kind='llm_vme_linear_firmware_packet_v2',upstream=spec.UPSTREAM,hdl_top=spec.TOP,
         itcm_kib=256,dtcm_kib=512,rtl_sha256=spec.RTL_SHA,simulation='NOT_RUN')
     if any(m.get(k)!=v for k,v in required.items()):raise ValueError("Wrong VME packet identity")
     for name in m['files']:safe_name(name)

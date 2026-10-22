@@ -137,7 +137,9 @@ int main() {
   return 0;
 #else
   const unsigned selected=lv_case;
-  if(selected<4)Run(selected);else lv_status=99;
-  asm volatile("ebreak");for(;;)asm volatile("wfi");
+  if(selected>=4){lv_status=99;return 1;}
+  // Official CRT uses mpause for main()==0, and ebreak (fault) on failure.
+  // Do not issue ebreak here: successful arithmetic must halt without fault.
+  return Run(selected);
 #endif
 }

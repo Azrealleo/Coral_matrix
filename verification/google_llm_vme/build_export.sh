@@ -12,11 +12,11 @@ unset WAVES GUI COCOTB_ENABLE_PROFILING COCOTB_TESTCASE COCOTB_TEST_FILTER
 python3 -B "$lv_here/prepare.py" --upstream "$lv_source"
 lv_job=$(mktemp -d "$lv_study/llm_vme_export.XXXXXX")
 printf '[LLM_VME_EXPORT_DIRECTORY] %s\n' "$lv_job"
-cp -- "$lv_source/llm_vme_linear_v1_manifest.json" "$lv_job/source-manifest.json"
+cp -- "$lv_source/llm_vme_linear_v2_manifest.json" "$lv_job/source-manifest.json"
 lv_startup=(--output_user_root="$lv_study/bazel-user" --host_jvm_args=-Xmx2g --noblock_for_lock)
 lv_flags=(--noshow_progress --color=no --curses=no --jobs=2 --local_resources=memory=4096
     --lockfile_mode=error --repo_env=CORALNPU_MAKE_JOBS=2 --action_env=LANG=C.UTF-8 --action_env=LC_ALL=C.UTF-8)
-lv_pkg=//tests/cocotb/llm_vme_linear_v1;lv_rtl=//tests/cocotb/llm_linear_v1:rtl_emit_verilog
+lv_pkg=//tests/cocotb/llm_vme_linear_v2;lv_rtl=//tests/cocotb/llm_linear_v1:rtl_emit_verilog
 cd -- "$lv_source"
 printf '[LLM_VME_STAGE] Native packing/arithmetic reference only; hardware=NOT_RUN\n'
 "$lv_bazel" "${lv_startup[@]}" test "${lv_flags[@]}" --cache_test_results=no --test_output=all \

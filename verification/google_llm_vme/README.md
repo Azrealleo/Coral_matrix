@@ -1,8 +1,8 @@
 # INT8线性层：官方RVV与VME完整调用/权重复用对比
 
-2026-10-22准备阶段。沿用已通过的4种合成resident形状M1/16、K/N32/64、原输入种子/字节，raw INT32输出。**尚无本实验正式ELF或新RTL结果**，不能从旧Conv/probe或21例RVV结果推导VME速度。
+2026-10-22：v1正式ELF已链接，服务器case0的运算、签名和前门回读全部匹配，但固件成功后错误执行ebreak，官方RTL因此同时拉高fault/halted，严格验收拒绝。该次不是RTL PASS，不忽略fault补判通过。v2改为从main返回，由官方CRT在成功时执行mpause，失败返回非零时仍执行ebreak；计时窗/算子不改。保留v1候选、包和原始失败记录，不覆盖。**v2正式ELF/新RTL验收仍待执行**。
 
-独立包`tests/cocotb/llm_vme_linear_v1`，不覆盖旧LLM/FP32/Person/Pool/Conv候选、ELF或RTL。单核ITCM256KiB/DTCM512KiB、栈16KiB。服务器沿用原Pool编译模型和短probe证据，不需要Bazel或重编RTL。
+独立包`tests/cocotb/llm_vme_linear_v2`，导出`coral_llm_vme_i256_d512_v2`，不覆盖v1或旧LLM/FP32/Person/Pool/Conv候选、ELF或RTL。沿用4种合成resident形状M1/16、K/N32/64、原输入种子/字节，raw INT32输出。单核ITCM256KiB/DTCM512KiB、栈16KiB。服务器沿用原Pool编译模型和短probe证据，不需要Bazel或重编RTL。
 
 ## 三条路径与公平口径
 
@@ -39,7 +39,7 @@ bash verification/google_llm_vme/build_export.sh
 
 ## 2. 服务器先pilot，不直接全跑或完整LLM
 
-首例case0，粗估5～15分钟、不含VM构建，首次VME路径尚无实测，完成即停；5400秒和1000万周期是上限非ETA。新包必须独立解压，不覆盖旧包。激活coral-verilator，CC/CXX使用Conda，unset WAVES/GUI/COCOTB_ENABLE_PROFILING。
+首例case0，v1约221秒（因退出fault失败），v2预计4～6分钟、不含VM构建，完成即停；5400秒和1000万周期是上限非ETA。新包必须独立解压，不覆盖旧包。激活coral-verilator，CC/CXX使用Conda，unset WAVES/GUI/COCOTB_ENABLE_PROFILING。
 
 从新包运行（下面仅列接口，实际路径以导出/传输结果为准）：
 

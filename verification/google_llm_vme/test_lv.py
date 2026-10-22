@@ -85,6 +85,9 @@ class Checks(unittest.TestCase):
                 self.assertEqual(built.returncode,0,built.stdout+built.stderr)
             output=subprocess.check_output([objdump,'-d','-C',str(root/'linear_bench.o')],text=True)
             self.assertIn('f28800f7',output);self.assertIn('vle8.v',output);self.assertIn('vse32.v',output)
+            # Only this translation unit, not the official CRT: main must
+            # return, leaving the CRT's success mpause/failure ebreak intact.
+            self.assertNotRegex(output,r'\b(?:e?break|wfi)\b')
             rvv=subprocess.check_output([objdump,'-d',str(root/'rvv_int8_matmul.o')],text=True)
             self.assertIn('vwmul',rvv);self.assertIn('vwmacc',rvv)
             from elftools.elf.elffile import ELFFile
@@ -163,6 +166,24 @@ SECTIONS {
             with self.assertRaises(ValueError):prepare.install(root,files)
             self.assertEqual(path.read_bytes(),b'user edit')
 
+    def test_v2_uses_crt_exit_and_preserves_v1_artifacts(self):
+        source=(HERE/'linear_bench.cc').read_text().split('#else\n  const unsigned selected=lv_case;',1)[1]
+        self.assertIn('if(selected>=4){lv_status=99;return 1;}',source)
+        self.assertIn('return Run(selected);',source)
+        self.assertNotIn('asm volatile(',source)
+        self.assertEqual(spec.PACKAGE,'tests/cocotb/llm_vme_linear_v2')
+        self.assertEqual(prepare.MANIFEST,'llm_vme_linear_v2_manifest.json')
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);old=root/'tests/cocotb/llm_vme_linear_v1';old.mkdir(parents=True)
+            (old/'linear_bench.cc').write_bytes(b'v1 measured source must stay')
+            marker=root/'llm_vme_linear_v1_manifest.json';marker.write_bytes(b'original sealed v1 manifest')
+            prepare.install(root,{'rvv_int8_matmul.cc':b'official','linear_bench.cc':b'new v2 source'})
+            self.assertEqual((old/'linear_bench.cc').read_bytes(),b'v1 measured source must stay')
+            self.assertEqual(marker.read_bytes(),b'original sealed v1 manifest')
+            self.assertEqual((root/spec.PACKAGE/'linear_bench.cc').read_bytes(),b'new v2 source')
+        bad=observation();bad['fault']=True
+        with self.assertRaisesRegex(ValueError,r': fault$'):spec.accept(bad,0)
+
     def test_raw_xml_and_exit_state_gate(self):
         helper=SimpleNamespace(json_row=lambda text,marker:json.loads(next(s.split(marker,1)[1] for s in text.splitlines() if marker in s)))
         with tempfile.TemporaryDirectory() as temporary,patch.object(server,'helper',return_value=helper):
@@ -232,7 +253,7 @@ SECTIONS {
             (job/'rtl-identity.json').write_text(json.dumps(dict(rtl_sha256=spec.RTL_SHA,parameters=fields)))
             with patch.object(prepare,'prepare',return_value=manifest),patch.object(audit,'inspect',return_value=report):
                 exporter.export(root,job)
-                bundle=job/'coral_llm_vme_i256_d512_v1';packet.load(bundle)
+                bundle=job/spec.PACKET_NAME;packet.load(bundle)
                 self.assertEqual((bundle/'probe_program.elf').read_bytes(),(job/'probe_program.elf').read_bytes())
                 self.assertFalse((bundle/'rtl').exists());self.assertTrue((job/(bundle.name+'.tar.gz')).is_file())
                 (bundle/'source/linear_bench.cc').write_text('corrupted')
