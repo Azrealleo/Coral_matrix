@@ -75,4 +75,8 @@ python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
 
 ## 当前真实证据边界
 
-旧VM INT8 case0/1真实RTL通过，分别10563/263和168618/4110周期；新服务器21例尚未运行。新增FP32主机参考与本地RV32对象检查已做，不等于官方ELF完整链接或NPU执行；需用户运行步骤1后再确认。原Person/Pool/VME/Conv包和所有已测ELF/RTL保持不变。
+用户已回传VM `llm_server_export.HJkCC5`实际链接/资源审计和小包导出成功。INT8 ELF SHA `17b3e2b6a5c208f638db2d7b85f4ddc5f8f64c336290093a9a11ce06a3dd072d`，ITCM占用2976、DTCM静态13536、heap494368字节；FP32 ELF SHA `ab1c95f0398f1e1ee43a0bc7b94677daebe21fdb4ff359046ce7eecf2c81f312`，对应10992/59808/448096字节。均是LINK/AUDIT，不是RTL执行PASS。
+
+实际归档`coral_llm_ops_i256_d512_v1.tar.gz`，210545字节，SHA `fab74b4ff7ff643474d10f6b5d6513100e11d66cc8b291c9aca5abe7d2805b25`，输出`RTL_included=false simulation=NOT_RUN`。下一步传到服务器新独立目录、验SHA、check原Pool模型和短probe，再int8 case0 pilot；当前无服务器21例结果。
+
+旧VM INT8 case0/1真实RTL通过，分别10563/263和168618/4110周期；不补造其旧ELF哈希，也不把此次导出的ELF自动标成旧实测同字节身份。FP32真实RVV/NPU执行仍待服务器。原Person/Pool/VME/Conv包和所有已测ELF/RTL保持不变。

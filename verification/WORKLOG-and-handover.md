@@ -2032,3 +2032,11 @@ run.sh是VM前台单例流水：验证原capacity实验完整性，独立安装l
 新增5项回归：native cc_test属性语义、备份/幂等、未知编辑不覆盖、部分升级恢复，以及从git读取真实7bb95c5旧生成器生成manifest后完成升级。下一步VM pull→显式repair→export_server.sh；只有用户实际链接和服务器结果才能验收，当前无新增FP32 RTL PASS。
 
 本轮实际复跑FP32 21项、服务器适配14项、INT8 10项，合计45项工具检查通过，无跳过；native标量参考和RV32对象检查实际运行。仍未在本机执行Linux Bazel分析/官方链接，等待VM回传，不以此宣称所有构建问题已消除。
+
+### 28.26 用户回传两ELF实际链接与小包导出；转入服务器pilot
+
+用户实际完成VM导出，job `/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5`。INT8 ELF SHA 17b3e2b6a5c208f638db2d7b85f4ddc5f8f64c336290093a9a11ce06a3dd072d，ITCM占用2976、DTCM静态13536、heap剩余494368字节；FP32 ELF SHA ab1c95f0398f1e1ee43a0bc7b94677daebe21fdb4ff359046ce7eecf2c81f312，ITCM占用10992、DTCM静态59808、heap剩余448096字节。两者均在256/512KiB配置内，日志NPU_RTL=NOT_RUN表示审计不执行硬件，不当仿真失败或运行PASS。
+
+实际归档coral_llm_ops_i256_d512_v1.tar.gz，210545字节，SHA fab74b4ff7ff643474d10f6b5d6513100e11d66cc8b291c9aca5abe7d2805b25，LLM_SERVER_PACKET_READY RTL_included=false simulation=NOT_RUN。与本地合成测试生成的任何归档分开，此哈希仅来自用户实际VM输出。旧VM INT8两例未回传旧ELF哈希，不能将此次新链接SHA自动当其同字节证据；服务器将对新包重新执行pilot。
+
+下一步提供VM传输到服务器coral_person_packages/llm_fab74b4f独立目录和服务器验SHA/解包/环境/check/INT8 case0前台命令；只读复用原Pool包及probe.46bl5uqr，check失败不改旧模型/环境记录，不重编大RTL。先pilot后再21例串行，不擅自启动完整LLM或长后台队列。目前尚无服务器新算子结果。
