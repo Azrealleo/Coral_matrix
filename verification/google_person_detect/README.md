@@ -1,4 +1,6 @@
-# 当前主线：预训练二分类MobileNetV1 / Person Detection
+# 已完成默认单图的历史主线：MobileNetV1 / Person Detection
+
+**2026-10-22范围覆盖：默认person单图完整RTL已通过，Invoke190673191周期、输出[-113,113]；不是下方旧“尚未推理”的状态。** no_person硬件和优化整网尚未收到完成结果。当前转向单NPU LLM算子，本文保留模型/排错/复现资料，不自动重跑长推理；最新统一状态见[进度快照](../PROGRESS-current.md)和[交接指南](../HANDOFF-current.md)。
 
 2026-10-19。用户同意先跑完整预训练“有人／无人”网络，以降低完整RTL仿真成本，再考虑1001类网络。单官方NPU、DTCM512KiB、ITCM实际评估且<=512KiB、优先Verilator；外存未定时允许AXI行为存储。历史1001类模型、主机golden和容量实验保留，不覆盖。
 

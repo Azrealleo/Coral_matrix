@@ -1,18 +1,20 @@
 # CoralNPU 选型、验证、性能比较与 RTL 交接全程工作记录
 
-初版日期：2026-10-04；本次更新：2026-10-19。对象：接替 NPU 工作的同学、SoC 集成人员、综合及验证人员。
+初版日期：2026-10-04；本次更新：2026-10-22（香港时间）。对象：接替 NPU 软件/RTL验证工作的同学、SoC 集成人员、综合及验证人员。
 
 本记录汇总从两套工程下载、跨平台同步、网络与工具环境搭建，到矩阵功能测试、整核性能比较、团队候选仓库和 RTL 综合交付的工作。目标是让接手人不依赖聊天上下文也能继续。它不是流片签核报告，也不把未执行的工作写成已完成。
 
-初版整理时比较仓库基线为 `e3046dc`；本次核对到的工具提交为 `c0b4b76098a88d5bace3c3fbdcef318c10e924f7`。两者都是工具仓库版本，不代替硬件源码提交、生成RTL或归档哈希。
+初版整理时工具基线为`e3046dc`，10月19日核对到`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`；本次文档整理基于`105b70d`及用户最新服务器pilot回传。工具commit不代替硬件源码、RTL、ELF或归档哈希。本次仅整理文档，不修改封存包或启动远程任务。
 
-**当前主线再次变化：团队已选官方版本；因面积预算，本轮单NPU暂定DTCM512KiB，先运行完整预训练二分类MobileNetV1（有人／无人），ITCM按实测评估且不超过512KiB。** 1001类模型/golden及旧ITCM8KiB、2/4MiB T768计划保留历史，不自动继续。用户告知团队已把NPU集成SoC，本文不替团队重跑其测试。接手先读[当前项目交接指南](HANDOFF-current.md)最新覆盖说明及本文第28节；第27节是本日稍早1001类盘点，第1、20～26节是上一阶段证据，第4～19节保留早期工作。
+**当前主线：单NPU Transformer/LLM算子微基准，ITCM256KiB/DTCM512KiB，VM只构建导出、服务器Verilator仿真。** 团队已选官方，默认Person单图完整推理及Conv片段已完成；优化整网、Conv RVV新实现及旧2/4MiB/ITCM扫描暂停。LLM两ELF已真实链接/审计，服务器INT8 case0 pilot已通过；21例命令已给出但未收到该整套的新job/结果，不标成正在运行或ALL_PASS。FP32硬件/完整LLM仍待验证。接手先读[进度快照](PROGRESS-current.md)、[当前交接指南](HANDOFF-current.md)和本文第29节；原交接全文已保留[历史附件](HANDOFF-archive-before-llm-20261022.md)。
+
+本文按阶段保留曾经的“当前/下一步/未完成”，第1～28节的这类说法均按当时语境理解；最新进度以上述入口和第29节为准。不能据旧段落自动恢复TCM扫描、默认模型长任务或重跑已完成pilot。用户报告团队SoC单NPU集成通过、后续4核，不等于本人已复跑SoC/完成PPA门仿。
 
 上一阶段最新回传：Ubuntu1/2MiB T384配对PASS，同prefix策略少17.07%周期；服务器VCS1MiB/T384、2MiB/T12均PASS。服务器独立Verilator1MiB T12/T384现均完整PASS并精确匹配VCS，429.077/13979.842秒，复用了原模型。首次trace失败保留；2/4MiB T768尚未完成，服务器VCS2MiB/T384最终状态仍待回传。
 
 ### 目录
 
-- [1. 当前状态与接手路线](#section-1)
+- [1. 早期目标与阶段结论](#section-1)
 - [2. 证据等级](#section-2)
 - [3. 仓库、版本、跨平台目录](#section-3)
 - [4. 时间线](#section-4)
@@ -38,10 +40,13 @@
 - [24. 仿真速度、性能分析与运行可靠性](#section-24)
 - [25. ITCM讨论及暂停边界](#section-25)
 - [26. 当前接手步骤、证据缺口与新增提交索引](#section-26)
+- [27. 面积约束后转向完整模型（历史）](#section-27)
+- [28. Person模型、优化算子及LLM准备时间线](#section-28)
+- [29. 当前LLM服务器pilot、21例状态与交接更新](#section-29)
 
 <a id="section-1"></a>
 
-## 1. 接手人先读：当前已经到哪里
+## 1. 早期目标与阶段结论（当前接手以第29节为准）
 
 ### 1.1 项目目标及已经确定的方向
 
@@ -1781,6 +1786,8 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 
 原始10月4日RTL归档仍为`0a7d737dc1c18d49781b9cdb246a4fe0bf11ffeb1db509ca8263bca255f271ed`；固定Verilator脚本仍为`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。`572894e`时修复后T12未回传、`f84fa31`时Server T384未回传；现在按用户新EXACT/RUN_PASS记录补入23.5/23.6，不回写旧失败。VCS2MiB/T384最终结果和Verilator2/4MiB、T768仍不能补写为通过。
 
+<a id="section-27"></a>
+
 ## 27. 面积约束后转向完整MobileNetV1（2026-10-19）
 
 用户要求单NPU、DTCM暂定512KiB、ITCM评估但上限512KiB；完整MobileNetV1输出1001分类，后端选择更快者。本阶段优先Verilator：旧T384服务器同配置VCS/Verilator约2.69098倍，不外推整模型耗时。旧容量扫描及不可变包保持，本轮尚未开始完整模型RTL。
@@ -1792,6 +1799,8 @@ VCS使用`-debug_access+all`/`+acc+3`且出现ASICACC提示，是可能成本来
 新增[静态盘点工具与后续路线](google_mobilenet_v1/README.md)，模型/inventory缓存仅在忽略目录。12项本地检查通过，含实际模型及拒绝错误/动态/变量输入、报告不可覆盖。用户随后确认实际SoC外存尚未确定，单NPU阶段先用外部AXI行为存储；512KiB ITCM是上限而非已确定需求，待交叉编译ELF/map统计。完整主机参考、量化内核、固件、RTL包和整网性能全部未完成，不把静态盘点或本地测试标成推理PASS。
 
 随后在项目忽略目录的独立主机环境安装固定`ai-edge-litert==2.1.4`，未更改系统Python/远程环境。`reference.py`用原模型、BUILTIN_REF、无外部delegate、单线程，neutral128/ramp/checker三组合成输入各invoke两次；31算子输出逐位稳定，1001维最终输出及各层golden落盘。六次invoke与保存约3.725秒，不是NPU性能，也不代表训练准确率。运行目录`.upstream-git/model-cache/mobilenet_v1_2018_08_02/reference_builtin_ref_v1`；模型、输入、逐层数据身份和输出SHA见专题README/manifest。此更新将主机参考标记完成，其他固件/量化/ITCM/RTL项目仍未完成。
+
+<a id="section-28"></a>
 
 ## 28. 首个完整RTL模型改为预训练二分类MobileNetV1
 
@@ -2040,3 +2049,41 @@ run.sh是VM前台单例流水：验证原capacity实验完整性，独立安装l
 实际归档coral_llm_ops_i256_d512_v1.tar.gz，210545字节，SHA fab74b4ff7ff643474d10f6b5d6513100e11d66cc8b291c9aca5abe7d2805b25，LLM_SERVER_PACKET_READY RTL_included=false simulation=NOT_RUN。与本地合成测试生成的任何归档分开，此哈希仅来自用户实际VM输出。旧VM INT8两例未回传旧ELF哈希，不能将此次新链接SHA自动当其同字节证据；服务器将对新包重新执行pilot。
 
 下一步提供VM传输到服务器coral_person_packages/llm_fab74b4f独立目录和服务器验SHA/解包/环境/check/INT8 case0前台命令；只读复用原Pool包及probe.46bl5uqr，check失败不改旧模型/环境记录，不重编大RTL。先pilot后再21例串行，不擅自启动完整LLM或长后台队列。目前尚无服务器新算子结果。
+
+<a id="section-29"></a>
+
+## 29. 当前断点：服务器LLM单例通过，21例整套结果待回传（2026-10-22）
+
+### 29.1 新小包的服务器RTL pilot实际通过
+
+用户回传LLM_SERVER_READY cases=21 simulation=NOT_RUN，以及随后真实执行LLM_SERVER_JOB_PASS cases=1。READY只表示核验完可复用模型，不代表21例运行。原模型路径为`/data/home2/lqq/Desktop/coral_person_packages/pool_7c8e0fe5/coral_person_vme_pool_i256_d512_v1_verilator_runtime/builds/7a54106b3148.z558xni8`，本次只读复用，不重编、不改原producer/current_build或封存包。
+
+新小包与两ELF身份沿用28.26：归档fab74b4ff7ff643474d10f6b5d6513100e11d66cc8b291c9aca5abe7d2805b25（210545字节），INT8 ELF17b3e2b6a5c208f638db2d7b85f4ddc5f8f64c336290093a9a11ce06a3dd072d、FP32 ELFab1c95f0398f1e1ee43a0bc7b94677daebe21fdb4ff359046ce7eecf2c81f312，固定ITCM256KiB/DTCM512KiB。本地文档不是远程原始ELF/完整日志，身份依据用户导出及运行输出，不冒充直接读取服务器。
+
+服务器最新单例job：
+
+```text
+/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators._jxei5s3
+```
+
+attempt为`attempts/int8_0.g3eqoi8b`，原始`_test.log`及XML/退出状态/result保存在该处；job保存job.json、completed和summary.md/json。用户回传的case=decode_tiny，M1/K32/N32、1024MAC/调用，标量=[10563,10563,10563,10563]、RVV=[263,263,263,263]，空边界3周期未扣，首次/steady标量/RVV=40.163498098859314，与旧VM case0相同。不是旧/新ELF逐字节等同证明（旧VM ELF哈希未回传），不是完整decode/LLM、VME或架构峰值速度。该pilot墙钟未回传，不能补造。
+
+### 29.2 已提供21例前台串行命令，但尚未确认其启动/结果
+
+随后给出server_ops.py all、每例timeout5400、tee到新llm_ops_all.*.log的服务器命令，将重新运行4例INT8+17例FP32，新建job。没有收到这套的LLM_CONSOLE_LOG、JOB_DIRECTORY、CASE_PASS或最终JOB_PASS，因此状态只能写“命令已提供，待确认启动和验证”，不能写“正在运行”“已跑完”或“21例全通过”。后续接手先问现有日志/路径，避免启动重复任务。
+
+新增FP32包括官方matmul2例、项目RMSNorm3、Softmax2、RoPE2、SwiGLU/GEGLU2、残差1、KV追加1、因果GQA Attention4；除矩阵乘外不是原官方Gemma优化内核，exp/tanh仍标量libm且计入。FP32 native参考与正式交叉链接已完成，但尚无真实FP32硬件结果。单例cases=1不能resume成21例计划；整套只能以新job的完整计划及原始证据验收，旧失败日志不删除。
+
+### 29.3 耗时预估约定：每次给命令必须先说明
+
+用户要求以后每次仿真均先告诉预计实际等待多久。已答复本次完整21例粗估1～3小时、建议预留3小时，不含编译（模型复用）；4例INT8粗约20～30分钟。估计参考此前服务器Person等负载约2800～3000周期/秒及本轮规模，FP32首次、libm和共享负载使置信度低；不是本轮21例实测或完成承诺。5400秒是每例90分钟上限，周期预算是停止门限，都不是预计耗时。每例实际时间回传后应修正预测，超过粗估不直接判死锁。
+
+### 29.4 本轮进度/交接文档重整，不改变实验身份
+
+用户要求完善进度与交接。新增PROGRESS-current.md作为统一日期快照，按准备、实际链接、模型复用check、单例RTL、整套、完整模型分等级；列出已完成、尚未回传和范围限制。将原HANDOFF-current.md全文完整保留为HANDOFF-archive-before-llm-20261022.md，加历史警示，不删除阶段命令和故障记录；重建HANDOFF-current.md为当前接手指南，包含团队/个人职责、三机分工、RAM/地址/资源、精确包/模型/probe/pilot路径、只读查看、避免重复任务、前台all与证据恢复命令、材料清单、验收判据和耗时约定。旧TCM命令锚点保留指向历史，不再作为默认任务。
+
+同步更新LLM README/SERVER/TOMORROW，纠正“FP32待完整链接”“服务器pilot未做”“明天默认VM跑”等过期现态。旧默认Person、Pool、Conv、TCM专题仅加当前范围覆盖提示，不重写原始结果、不重打包封存工具。当前真正未完成的是FP32硬件正确性/周期、21例完整报告以及后续完整block/模型、持续KV/tokenizer/权重、VME/低比特/AXI流式和SoC/PPA/门仿，不因旧Person单图或几何抽样PASS而升级。
+
+本次只编辑文档，不启动/监控/停止远程仿真，不改RTL、ELF、内核、计时或验收工具，也不访问服务器完整日志；所有“运行状态”来自用户回传而非实时发现。未相关用户工作区修改保留，个人仓库同步不涉及团队SoC库。
+
+完成后校验16份本轮文档的134个本地链接/显式历史锚点，确认原交接正文完整保留；当前交接和LLM操作页的Bash代码块通过bash -n语法检查（未执行）。核对最新pilot路径/两ELF/包SHA及周期，git diff --check通过。未重跑122/45项工具测试或任何RTL；本次只作文档链接、语法和证据一致性核对，不能标成新增仿真通过。

@@ -1,5 +1,7 @@
 # 阶段2b结果：固定输入优先调度下的权重驻留
 
+**2026-10-22范围覆盖：** 本文保留原TCM容量实测和当时计划，不自动继续下方2/4MiB/T768。当前按面积约束转为ITCM256KiB/DTCM512KiB的LLM算子验证，见[最新进度](../PROGRESS-current.md)。几何PASS、resident控制、工作集性能、完整模型与物理宏签核仍是不同证据等级。
+
 依据用户回传的Ubuntu真实RTL仿真摘要整理；Windows侧没有直接读取完整原始test.log。本记录不替代Ubuntu目录内的原始日志、manifest、ELF和产物指纹。
 
 最新回传：Ubuntu1/2MiB T384、VCS1MiB T384及2MiB T12已完成。Server Verilator1MiB T12/T384现均完整PASS，精确匹配VCS，429.077/13979.842秒，详见文末。当前准备2/4MiB T768、先各容量Verilator T12。前面首次TIMEOUT/trace失败保留；见[接手指南](../HANDOFF-current.md)，依据用户日志/摘要，不声称直接读取Linux完整目录。

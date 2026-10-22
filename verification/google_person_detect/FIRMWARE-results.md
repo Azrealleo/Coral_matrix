@@ -1,5 +1,7 @@
 # 预训练Person Detection：主机参考与固件资源结果
 
+**历史报告范围提示（2026-10-22）：** 本文记录最初host/link阶段，后续默认person单图已真实RTL通过（Invoke190673191周期、输出[-113,113]）。下方“尚未执行”按当时理解，不再是现态；no_person硬件/优化整网仍未确认。当前LLM算子进度见[统一快照](../PROGRESS-current.md)，不因更新本文而重跑/重打包。
+
 记录日期：2026-10-20。依据用户回传的VM输出；没有直接读取远程ELF/完整日志。原始目录：
 
 `/home/lqq/coral_tcm_capacity_8e4_v1/person_firmware.AD3nfw`

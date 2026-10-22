@@ -1,576 +1,169 @@
-# CoralNPU当前项目交接：单核TCM与预训练MobileNetV1
-
-更新：2026-10-19。本次核对的工具基线：`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`。本文是**当前接手入口**；完整历史见[全程工作记录](WORKLOG-and-handover.md)，10月4日8/32KiB综合交付另见[历史RTL交接](HANDOFF-simulated-rtl.md)。本文不修改原交付包，不声称已经执行新的Linux仿真。
-
-## 最新任务覆盖说明：2026-10-21
-
-**2026-10-22最新实际断点：两ELF链接/审计及服务器小包导出成功，尚未跑服务器新RTL。** VM `llm_server_export.HJkCC5`：INT8 ELF `17b3e2b6a5c208f638db2d7b85f4ddc5f8f64c336290093a9a11ce06a3dd072d`，FP32 ELF `ab1c95f0398f1e1ee43a0bc7b94677daebe21fdb4ff359046ce7eecf2c81f312`；ITCM占用2976/10992、DTCM静态13536/59808字节。实际小包210545字节，SHA `fab74b4ff7ff643474d10f6b5d6513100e11d66cc8b291c9aca5abe7d2805b25`。当前下一步传服务器独立目录，验SHA后check并只跑INT8 case0，确认只读复用旧Pool模型；不是21例RTL PASS，FP32尚待执行。详见SERVER.md，下面“待实际链接”已成为历史。
-
-**2026-10-22最新构建阻点：** 用户在VM导出时，FP32包的native `cc_test`因不支持`hdrs`而在包分析阶段失败，尚未进入FP32 NPU仿真。修复生成器将`kernels.h`列入该测试的`srcs`，自定义固件规则的`hdrs`保留。先pull，再运行 `python -B verification/google_llm_ops/transformer/repair_host_build.py`：只接受已知旧生成器及所有候选文件精确身份，先备份旧BUILD/manifest，仅更新这两项，拒绝未知修改；原INT8和FP32内核/bench/fixtures/计时逻辑不变。之后重新运行export_server.sh，不需要clean。此前本地工具语法/native/object检查没有执行Linux Bazel包分析，不能当构建保证。实际FP32链接和服务器仿真仍待用户回传。
-
-**2026-10-22最新执行位置覆盖：VM只构建导出，21例算子仿真转服务器。** 用户明确VM可短时间编译、不跑RTL。新 [google_llm_ops/server/SERVER.md](google_llm_ops/server/SERVER.md)：VM `export_server.sh` 验证原候选、native参考、实际交叉链接两ELF/审计，生成不可变小包，不构建Verilator模型。服务器无Bazel，严格只读复用原Pool包`pool_7c8e0fe5/...`及其`probe.46bl5uqr`已验证模型；新适配器不改原`run_case`测量函数体，只替换文件定位与测试入口。先int8 case0、再串行4+17例；逐例保留rawlog/XML/退出状态/输入输出gold/固件和RTL身份，失败即停，续测重新验证证据后跳过完整PASS。原包/编译模型/源码不覆盖，单例通过不冒充21例通过。新工具本地合成检查通过不等于FP32官方链接或服务器RTL通过；目前实际归档哈希/新ELF和运行结果仍待用户回传。下方VM-only队列为历史备选。
-
-**明日统一测试准备：** 用户要求今晚准备、明天集中验证；不启动远程长任务。新入口[google_llm_ops/TOMORROW.md](google_llm_ops/TOMORROW.md)，一条 `run_all.sh --mode all` 前台串行运行21个单算子用例（4 INT8+17 FP32），先主机参考、真实交叉链接/内存参数审计，再复用原llm_linear_v1:model，不改旧已测包。支持prepare-only、失败停止、原始证据重新验收后续测及统一summary.md/json；超时/中断不标PASS，不冒充checkpoint。新增FP32矩阵乘原样使用官方源，RMSNorm/Softmax/RoPE/SwiGLU/GEGLU/残差/KV追加/因果GQA为明确标注的项目FP32基线，exp/tanh仍标量libm，不保证比标量快。17例native对独立gold和真实RV32目标文件编译已过，不是新增RTL通过；真正官方完整链接和FP32 RVV运行仍待明天。不是完整block/预训练LLM/多步生成，VME、BF16/INT4、外部AXI带宽仍未覆盖。
-
-**LLM最新实际断点：** 用户回传VM case0 `llm_linear_c0.brMbDF` 和case1 `llm_linear_c1.Ye75FC` 均有Cocotb PASS、LLM_LINEAR_SUMMARY及最终LLM_LINEAR_PASS。decode_tiny M1/K32/N32、1024MAC/调用，标量四次10563周期、官方RVV四次263周期，首次/steady比40.163498；prefill_tiny M16/K32/N32、16384MAC/调用，标量四次168618周期、RVV四次4110周期，比41.026277。空边界均3周期未扣。仅resident合成INT8线性层、raw INT32输出，完整模型/VME仍NOT_RUN，不外推tokens/s。尚无用户回传实际ELF审计哈希或wall time，不补造。下一步VM分别运行run.sh 2/3测K64/N64的decode/prefill形状，复用同模型，不启动完整网络。下方等待case0/1的描述为历史。
-
-**2026-10-22当前任务：LLM算子性能，暂停Conv RVV开发。** 用户选择先测Transformer/LLM算子，不启动完整语言模型。新入口[google_llm_ops](google_llm_ops/README.md)，第一阶段仅INT8线性层标量与固定官方RVV的对比：M1/16分别对应decode/prefill矩阵形状，K/N=32/32及64/64，共4例。官方gemma_kernels/rvv_int8_matmul.cc原样复制；权重[-127,127]、激活[-128,127]遵守源内核限制，raw INT32输出，无重定量化/模型框架/外存成本。不是完整decode或tokens/s，也不是VME/RVV结果。每路径首次+3次steady，交替顺序、空边界不扣；独立Python参考、实际输入及两份输出前门读回、guard/自然halt/fault/计数/canary门限。独立256/512KiB配置和新ELF/Bazel包，不修改旧实验。10项本地工具检查（含实际native标量运行、独立Python签名、两份真实RV32目标文件及反汇编、内存/日志负例）通过；不是官方完整链接/真实RVV执行。下一步VM仅前台运行 `bash verification/google_llm_ops/run.sh 0`，待回传审计与SUMMARY；RMSNorm/因果Attention等后续尚未接入，不运行完整模型或旧Conv队列。
-
-**2026-10-22最新覆盖：** 用户已回传服务器Conv case0.gqdyx8ir真实PASS，默认TFLM91475周期、VME42713周期（各首次+三次steady均一致），默认/VME=2.141620；1024项输出全等，4次VME调用/8条软件矩阵发射/0fallback/0mismatch，执行306.976秒、总322.72秒。仅M16/K8/N16单算子空间片段，不是RVV比较或整网加速。当前用户要求VME对RVV、小测试优先VM。审计固定官方8e4的ConvPerChannel发现五个优化分支均要求4×4，当前五例1×1会回退reference；现有VME只支持1×1，4×4又会回退。两者无共同优化形状，不能简单换注册后报告“VME比RVV快”。需选择新增项目自研1×1 RVV内核或另做共同GEMM微基准；本轮没有实施新内核或新增RTL运行。详见[适用性与后续选择](google_person_conv/RVV-COMPARISON.md)。下方旧“尚无周期”描述保留为历史，不代表当前状态。
-
-**Conv小测试最新实际断点：** 用户已回传VM `person_conv_v1.nTbcvy` 主机差分及真实链接/审计PASS，ELF `b94e1da3b4f7f2693727395073e65f172344f15454bd01a7b7bb8c2832f259b2`，ITCM113536/DTCM静态265584/heap242320字节，256/512KiB不变。新增[小固件独立导出](google_person_conv/README.md)和[服务器周期入口](google_person_conv/SERVER.md)：不带RTL、不调用Bazel；核验源码、五例native签名及ELF内派生模型/输入真实地址哈希；同一旧Pool编译模型只读复用，前门加载已测小固件，默认只跑id0。首次+三次steady、ref/VME各自Invoke窗口，输出比值，允许VME较慢结果。11项Conv本地检查及旧Pool19/VME18/默认34项通过，实际导出/服务器NPU周期尚未回传，仍没有Conv加速倍数。下一步VM只运行google_person_conv/export.sh传入上述实际run目录。
-
-**用户最新方向覆盖：暂缓完整模型长任务，先实测Conv加速。** 上轮新model_runner/run_model.sh仅已提供命令，没有用户启动/完成回传，本轮不启动或停止服务器任务。当前入口改为[独立Conv微基准](google_person_conv/README.md)：原模型5个1×1卷积的原权重/bias/量化/激活选项，少量空间位置M，固定种子有符号输入（不是原图真实中间特征），同ELF两个单算子Interpreter对比默认TFLM与原样VME源码。一次首次调用+三次steady、交替顺序；fence+mcycle仅包围各自Invoke，VME含打包/零点修正/重定量化/写回，Prepare与逐字节检查在窗口外。不是整网/完整原层/纯矩阵峰值，不保证每形状都更快。
-
-本地生成/来源/量化/5个LiteRT参考推理及7项工具检查通过，固定TFLM native差分和完整链接仍待VM执行。新包person_conv_bench_v1、结果person_conv_v1.*，不改原候选/原包/生成器。下一步VM运行google_person_conv/build.sh，回传5例native签名和ELF审计；之后服务器先只跑2048MAC的id0，不自动排队全部或整网长任务。**目前仍没有Conv实测加速倍数**，不得用旧短probe825634周期或整网190673191周期冒充算子速度。
-
-**最新实际结果及下一步（优先于以下历史断点）：** 默认参考算子已在NPU RTL完成单有人图全模型推理，`person_pilot.dJfrJn/.../runs/infer_person.r6a1thwb`：原模型/输入匹配，输出[-113,113]与主机参考完全一致、status3自然halt、无fault、栈底canary完好，Invoke190673191周期、启动到halt194501581周期，总65897.933秒（约18小时18分），arena82300字节。此为ITCM256/DTCM512KiB单图基线，不是数据集准确率/无人图通过或全内存峰值。原默认长任务已完成，不再称仍待返回。
-
-新Pool包实际导出SHA `7c8e0fe5121c0aeb37d9e8a54983dd7fe64603bf5de964b718aac4cd4b3076eb`，服务器`pool_7c8e0fe5`新编译450.453秒；`..._verilator_runtime/runs/probe.46bl5uqr`真实RVV Pool 8组/659输出/0错误/62向量块/签名642806987通过，256826周期自然halt、无fault/canary破坏，执行85.614/总97.463秒，ELF `031cf12303fb5fe8d75a88d72f0aee2a3453c54d0ba70446f95f35cba3a009cb`。**这是短算术PASS，合并版整网仍未通过**。
-
-当前下一步是[外部合并版完整模型入口](google_person_pool/MODEL.md)：新增model_runner/model_bench/run_model.sh放在包外，只读复用原producer模型`7a54106b3148.z558xni8`。原包/默认入口/Pool generator不动，不重编、不重新标构建身份，严格核对环境/配方/二进制及同包短probe原始证据。先后台一张有人图validate，14Conv+1Pool逐层对照/0fallback/0mismatch/原始输出/自然halt等全部通过才可称整网正确；fast另需同图validate原始证据，禁止将reference重复计算周期当性能。19项Pool（7项新入口）/18项VME/34项默认本地检查通过；尚未实际执行服务器整网新入口。Depthwise仍为官方默认，不切换RVV。
-
-**最新断点（优先于下方历史“下一步”）：** VME真实硬件短probe已通过：服务器`person_vme_probe.ecTtR9/.../runs/probe.1hyg7w53`，8组/840项/0错误/233软件发射/签名3016346044，825634周期自然halt、无fault、栈底64字节canary通过，执行286.477秒，总298.252秒。只证明短VME算术，不是整网通过。与此同时VM新增RVV AveragePool候选`person_pool_v1.0u8RTz`的两项主机检查、validate/fast完整链接及资源审计已PASS；ELF SHA分别`8137e2bf8777f5e0976a49887302724c64f27d491c886f14ec673d535eac0951` / `81f596bd9eb0fa94ef3fcdfb0cb33719e5e00cad949207b7600b91f7481253f8`，ITCM143296/142112、DTCM静态483776/483760、heap24128/24144字节。**Pool实际RVV和优化整网RTL尚未通过**。
-
-**当前下一步：** [RVV Pool独立导出](google_person_pool/README.md)从上述实际run和旧`person_vme_export.F6GOKR`包复制相同原RTL/模型，原样装入刚测量的合并版ELF，再独立链接8组/659项/62向量块/签名642806987的短Pool硬件probe。该工具及12项Pool/18项VME/34项默认本地工具检查通过，真实导出/服务器运行待执行；本地host探针和真实RVV目标文件编译不当硬件PASS。先短RVV检查，再做整网加载/验收入口；当前server_probe没有infer命令。Depthwise按用户要求源码及官方默认注册都不改，Softmax/Reshape不改，VME Conv旧源码不变。旧包、默认长任务和已通过VME编译模型均不动，未测整网加速。
-
-以下按阶段保留，涉及“尚未/下一步”以其记录时点理解；当前状态以上方两段为准。
-
-**2026-10-21当前开发方向：** 用户要求Depthwise先不改，使用官方实现，从其余没有优化的算子开始。本轮保留当前官方默认Depthwise源码和注册，不自动切RVV Depthwise。新增[RVV AveragePool独立候选](google_person_pool/README.md)，模型形状3×3×256到1×1×256，精确保留原TFLM signed rounding，VME Conv源码/模型/旧包/RTL均不改。2160组共1291923元素的本地算术、真实RISC-V RVV目标文件编译及7项新工具检查通过；固定TFLM native差分/新固件完整交叉链接/RVV硬件尚未执行。下一步VM运行新目录build.sh。Softmax2输出、Reshape2元素暂不重写，也没有测得整网收益。此前VME短probe与默认长任务是并行保留的独立工作，不因本轮覆盖。
-
-**2026-10-21最新断点：** 用户已回传 `person_vme_v1.zFvRgl` 主机及两份ELF完整审计PASS。fast SHA `c07d3039e66e0422e688abc2f8c281b110cd3ba7a1b40872ea94df86430821fd`、ITCM139136/DTCM静态483744/heap24160字节；validate SHA不变、ITCM139760/DTCM静态483760/heap24144字节。两者都是256/512KiB配置，未跑优化版RTL。下一步VM使用[新导出入口](google_person_vme/README.md)复制原 `person_rtl_export.r9bhUw` 的相同RTL并原样装入两份模型ELF，另独立链接一个短硬件probe。probe覆盖8组/840原始累加值/233条矩阵指令，避免数小时初始化后才发现硬件路径问题；不会当作完整模型通过。独立包和server_probe入口已实现，实际导出/链接/服务器运行待用户执行。旧默认任务/包/候选不改。
-
-2026-10-20最新回传：VM `person_vme_v1.acWcT3` 原模型两图、28次候选Conv输出已逐字节匹配默认内核，主机校验arena122000字节；validate真实链接审计通过（ITCM139760字节、DTCM静态483760字节、堆24144字节），fast真实链接通过但旧符号审计把仅校验变量也列为必需，流程停止。现仅修复audit按模式要求符号，11项新工具/34项默认测试通过；生成器、候选源码、ELF、RTL和模型均未改。下一步VM拉取后重跑新build.sh，保留缓存与旧失败目录，补全fast资源审计；不能宣称VME硬件或优化整网RTL已通过。
-
-**2026-10-20最新主线：开始实际接入团队VME算子，而不是继续只跑默认内核。** 用户指出此前要求的SoC优化库仅完成审查、没有落实，已确认这一遗漏。新增[Person VME独立候选](google_person_vme/README.md)：14个1×1 Conv2D接入团队预打包/Tk4/tile调度，补INT8零点修正和TFLM逐通道量化，其他算子暂时默认。主机算术336组、RISC-V汇编编译、新7项及旧34项工具测试通过；完整固定TFLM主机候选/交叉链接/RTL优化推理均尚未执行。下一步VM运行新目录 `build.sh`，先主机逐层比对，再审计256/512KiB候选ELF；不直接启动优化版长仿真。服务器默认版完整推理已由用户启动（console `person_full.wQGGQC/console.log`，启动PID309672仅作历史记录、不得盲目kill），本轮未操作/停止。原runner/bench/固件/模型及旧不可变包不改，新ELF不得直接替换旧包。
-
-**后续用户已将首个完整模型改为预训练“有人／无人”二分类MobileNetV1，1001类暂缓。** DTCM仍512KiB，ITCM评估后<=512KiB、优先Verilator，外部行为存储获准。当前入口是[二分类模型](google_person_detect/README.md)。**2026-10-20用户回传配套原生TFLM主机两图测试和RISC-V固件/ELF资源审计均通过**，结果目录`person_firmware.AD3nfw`；ITCM加载136080字节，候选256KiB，DTCM静态474432字节/堆33472字节/栈16KiB。原模型未改；桌面LiteRT旧加载失败保留。下一步VM只导出256/512KiB的新RTL和同一ELF，再准备服务器独立Verilator单图入口；NPU执行、实际arena/栈/性能仍未验证。新导出工具与旧检查合计22项本地合成/静态测试通过，不等于实际RTL生成/推理PASS。详见[本轮结果](google_person_detect/FIRMWARE-results.md)。
-
-2026-10-20追加：用户已实际完成256/512KiB RTL生成及原ELF/模型导出，目录`person_rtl_export.r9bhUw`、归档SHA `a83bd98bd92157163223b75d74a25e5f426a59937354fb3784d830be4f130726`，不是RTL运行PASS。当前下一步为[服务器传包、编译及20万周期试运行](google_person_detect/SERVER.md)，先观察而非直接过夜完整推理。新runner和旧检查合计29项本地合成检查通过，服务器传输/编译/运行均待用户执行。
-
-以下1001类是本日稍早阶段记录，模型与golden保留，不是当前默认执行目标：
-
-当前断点再更新：服务器`person_pilot.dJfrJn`包/环境核验及新Verilator编译已通过（439.989秒），20万周期有人图观察完成；已到main状态1，无fault，模型/输入读回与栈底canary通过，但arena_used/invoke均0、输出仍[37,53]哨兵，**未完成推理**。下一步复用同包/同模型重新初始化后观察200万周期，不再解包重编，命令见[SERVER.md第5节](google_person_detect/SERVER.md)。本轮只更新文档，不改runner/bench以保持构建身份。
-
-最新断点：200万周期观察也已完成（`smoke_person.ttnd8y5g`，总718.555秒），仍为状态1，无fault但尚未分配完成标记/Invoke。**停止继续加周期，准备[同模型DM现场诊断](google_person_detect/DIAGNOSTIC.md)**：独立新增入口，原runner/bench/hash及RTL/ELF/模型不改，不重编；先20万周期，随后4096周期间隔的3份PC/CSR/GPR样本。34项本地契约/工具测试通过，服务器实际诊断尚未回传，原因未定。
-
-最新回传：DM诊断`pc.ts77oz3y`已实际CAPTURED；20万附近3份DPC落在AlignPointerUp、InitializeTfLiteTensorFromFlatbuffer、PopulateConvolutionQuantizationParams，minstret192834→195037→197809，有真实执行进展且无异常记录，仍status1。**不能据此证明200万时点正常或后续必能完成**；下一步同诊断首采样改200万/timeout1800秒，不重编。见[诊断实际结果及命令](google_person_detect/DIAGNOSTIC.md)。
-
-最新200万DM回传`pc.tyngamx6`：PC落在`__divdf3`/`__fixdfdi`，调用者是卷积量化准备/QuantizeMultiplier，minstret1509687→1513222→1516732，仍有真实执行进展，无异常记录。固定源码核对表明INT8准备仍计算double量化参数，发现一个明确耗时热点，但不是占比剖析/完成保证。下一步复用同模型给原基线1000万周期窗口（粗约1小时，墙钟上限7200秒），检查进入Invoke/实际arena；不改精度、模型、RAM或脚本，不重编，详见[DIAGNOSTIC.md末节](google_person_detect/DIAGNOSTIC.md)。
-
-最新1000万窗口`smoke_person.bzrml3j3`已回传：status2、arena_used82300字节，AllocateTensors成功返回并进入Invoke调用阶段，执行3475.519607秒，无fault/栈底canary破坏；尚未完整推理，输出仍哨兵。下一步同模型重新启动完整有人图infer，建议2亿周期/86400秒有界后台任务，完成即提前停，跑满周期粗约19小时而非完成保证。已有smoke进程已退出不能续跑；脚本/RTL/ELF仍不变，命令见DIAGNOSTIC.md末节。
-
-用户根据团队面积评估将本轮DTCM暂定为**512KiB**，接下来运行单NPU完整预训练MobileNetV1、1001分类；ITCM评估后选择、不得超过512KiB，优先Verilator。下文2/4MiB T768及固定ITCM8KiB是上一阶段的历史计划，不再自动启动；旧结果/包仍保留。
-
-已下载官方V1 1.0/224量化候选并核对归档/模型SHA，静态确认UINT8、31算子、1001输出；最大特征张量784KiB、模型约4.078MiB，必须分块/外部存储，不能直接套用团队简化量化/固定小缓冲。用户已确认单核阶段先用外部AXI行为存储，实际SoC外存尚未确定。模型盘点12项检查通过，随后LiteRT BUILTIN_REF完整主机推理三组合成输入各两次、31节点输出逐位稳定，golden已生成；不是识别准确率或NPU PASS。交叉编译、ITCM测量和RTL均未完成，入口见[新任务与静态盘点](google_mobilenet_v1/README.md)。
-
-同时已只读审查团队main `fa4b83e43bb0b1d58b18eb5f4c31d98ee4054123`：其固定诊断图已有真实矩阵算子和三轮软件优化，不能再用“官方原树无矩阵算子集成”概括团队版本；报告已阅读但本机未独立复跑团队SoC仿真。
-
-## 1. 上一阶段状态与证据（新任务以前节为准）
-
-- 团队已选官方CoralNPU，**不再继续Yangg152选型/修复**。旧源码和失败记录保留。
-- 用户告知团队单NPU已经集成SoC并跑通测试，之后计划4核。本人当前只做**一个官方NPU**的TCM研究，不负责本轮四核性能或SoC接线验证。
-- 当前ITCM固定8KiB；DTCM候选32/128/512KiB和1/2/4MiB。“2M/4M”指每个DTCM的MiB，不是Mbit。
-- 六档DTCM几何和同ELF小计算控制均Ubuntu PASS。T384的1/2MiB在Ubuntu完整PASS并配对：同prefix策略2MiB少17.07%周期、少40.92%权重外读。
-- 服务器VCS的1MiB/T384、1/2MiB T12均PASS；服务器2MiB/T384只有启动回传，须取最后日志，不能推定仍在运行或已通过。
-- 服务器独立Verilator1MiB的T12/T384现均完整PASS且精确匹配VCS，429.077/13979.842秒，复用原模型；首次trace失败另存。**当前准备2/4MiB T768，先为2MiB建立自己的Verilator模型并验收T12**，4MiB服务器传输/模型/运行仍待确认。
-- ITCM8～128KiB几何工具已写并本地自测，用户要求暂缓，实际RTL运行未回传；T768、读延迟8、完整模型、DC/200MHz、门仿都没有本轮完成结果。
-
-先接手现有环境和证据，不重新clone上游最新版、不清Bazel cache、不删除失败目录、不修改包内manifest/hash、不停止其他人的仿真。
-
-## 2. 文档导航与证据边界
-
-| 要解决的事 | 入口 |
-| --- | --- |
-| 从项目开始的全部经过及最新补充 | [WORKLOG-and-handover.md](WORKLOG-and-handover.md)，第1、20～26节是当前状态 |
-| 六档RAM抽样几何 | [STAGE1-results.md](google_tcm_capacity/STAGE1-results.md) |
-| 同ELF小计算控制、六档日志比较 | [CONTROL-results.md](google_tcm_capacity/CONTROL-results.md) |
-| 数据驻留设计、round/repeat、计数与AXI判据 | [WORKSET.md](google_tcm_capacity/WORKSET.md) |
-| T12、T384实际结果、比例与原始路径 | [WORKSET-results.md](google_tcm_capacity/WORKSET-results.md) |
-| 包导出、VCS环境/已知修复 | [VCS说明](google_tcm_vcs/README.md)、[导出及服务器记录](google_tcm_vcs/EXPORT-results.md) |
-| 当前Verilator接口、模型复用、trace修复 | [Verilator说明](google_tcm_verilator/README.md) |
-| 已暂停ITCM工具 | [ITCM说明](google_itcm_capacity/README.md) |
-| 历史已仿真的8/32KiB RTL给综合组员 | [HANDOFF-simulated-rtl.md](HANDOFF-simulated-rtl.md)，不是新的MiB级实验包 |
-
-PASS依据是用户回传的运行标记、完整摘要/部分原始日志及既有工具严格校验；本机复查了保存的用户附件，但没有直接访问两台Linux完整目录。Git中的文档不是原始完整测试报告，`git clone`不会带来Bazel缓存、Linux运行日志或所有RTL包。对未知部分写“未回传”，不等同失败，也不等同没有跑过。
-
-## 3. 五种版本身份与三个仓库
-
-| 身份 | 固定值/用途 |
-| --- | --- |
-| 个人工具仓库 | [Azrealleo/Coral_matrix](https://github.com/Azrealleo/Coral_matrix)，Windows改工具/记录，Linux执行 |
-| 团队SoC仓库 | [cheshire-coral-soc/cheshire-coral-soc](https://github.com/cheshire-coral-soc/cheshire-coral-soc)，私有，当前实验只提取固定补丁 |
-| 团队历史候选仓库 | [cheshire-coral-soc/coralnpu-official-candidate](https://github.com/cheshire-coral-soc/coralnpu-official-candidate)，历史官方候选来源，不自动等同SoC当前生成物 |
-| 当前实验官方源 | `8e4df09b4ea7e065e02d14ce3ae033d40dfd973a` |
-| 团队补丁来源 | `95e06e872bff13b3625721a837b4b739a93bed6f` |
-| 个人最新运行修复 | `c0b4b76098a88d5bace3c3fbdcef318c10e924f7` |
-| 工作集ELF SHA256 | `a8aa2d6feaefd56a5901f8bcca4f8f6bbf5394932add092243aff8f5eb497192` |
-| T12向量/golden SHA256 | `5f48b97cefb656ad1e4a96dc80a3f42804ed86d9c0553dade288d14519ebeb93` |
-| T384向量/golden SHA256 | `e32a9e3d4b09c5dae8706a34fbc35f061b60d78d146e49861c31f728ee08fe0d` |
-
-原始生成SV、ZIP、参数头和ELF的具体哈希保存在各运行/包manifest。上游commit、团队commit、工具commit、RTL哈希、ELF哈希不能互相替代。10月4日综合包来自旧`870993f7425066037f300c52237c283821e75cbb`，不可冒充新`8e4df09b`实验结果。
-
-保留两个团队补丁：CSR地址排序和cvfpu sticky位宽源头修正；路径及SHA见`google_tcm_capacity/capacity_spec.py`和全程记录第21节。不能因测试通过就抛弃这两个已锁定的补丁，也不要改为读取团队main当前内容来“复现”旧结果。
-
-## 4. RAM、地址图和工作集：交接必须讲清
-
-### 4.1 逻辑规格与真实芯片边界
-
-| 项目 | 当前容量实验 |
-| --- | --- |
-| NPU数量 | 1 |
-| ITCM | 8KiB，1个512×128bit逻辑bank |
-| DTCM | 32/128/512/1024/2048/4096KiB，4/16/64/128/256/512个8KiB逻辑bank |
-| 每bank接口 | 1RW，128bit数据，16bit字节mask，读响应一周期 |
-| 总线/向量 | XLEN32、AXI数据128bit、ID6bit、VLEN128 |
-| 功能开关 | RVV/VME/FP/BF16开启；AXI外部取指开启，FetchL0关闭，verification=false |
-| ITCM地址 | `0x00000000`起，8KiB |
-| DTCM地址 | `0x01000000`起，按容量延伸，4MiB末端`0x013FFFFF` |
-| CSR地址 | `0x02000000`起 |
-| 外部fixture memory | `0x20000000`起，16MiB主机backing；不是片上DTCM或真实DDR |
-
-这是**实验统一地址图**，不是10月4日8/32包的`DTCM=0x10000, CSR=0x30000`，也不是团队SoC最终映射。SoC容量扩展还涉及主CPU/NPU双向窗口、互连路由、linker、启动软件和访问白名单，不能只增加一个SRAM参数就认为集成已验证。
-
-VCS和Verilator都保留官方原SRAM C++ DPI源码/存储语义；VCS独立DPI使用VCS头，Verilator直接编译原C++且用Verilator头。RAM复位不保证全零，数据必须装载。纯行为模型不能体现新增bank mux/fanout、真实宏读延迟、面积功耗和200MHz时序风险。最终宏的深宽/端口/CE-WE-mask极性、read-during-write、输出保持、延迟、PVT、MBIST/DFT均需团队确认。
-
-### 4.2 T、round和repeat
-
-每个B权重块256×16 INT8=4096字节，K始终256。T12/T384/T768分别12/384/768个权重块，即48KiB/1.5MiB/3MiB权重。3个A输入块各16×256，共12KiB；输出总形状M48、N=16T。
-
-- 一次程序执行有3个输入round，内层遍历T个权重块。
-- `stream`每个round重新从外部读所有权重。
-- `prefix_cache`首轮冷加载；固定前缀驻留，后续round只读未驻留部分。
-- 每策略独立复位重复3次，完整一档共6次，不是只跑3个round即通过。
-- 每次完整检查T12的9216/T384的294912/T768的589824个输出元素，以及软件状态、CSR计数和真实AXI流量。
-
-低DTCM16KiB留给软件/输入/输出/栈，余下4KiB一槽；装不下全权重时另留一槽流式周转。1MiB/T384驻留251块，2MiB/T384驻留全部384块；预计2MiB/T768驻留507块、4MiB驻留768块，**后者尚未实测**。
-
-### 4.3 该实验能说明什么
-
-完整等待halt窗口包含正式输入/权重搬运、矩阵计算、外部结果写回及计数窗口中的软件开销，不包含主机前门装载与读回检查。CSR的compute阶段也不是纯阵列延迟。
-
-0附加读等待仍有AXI握手/代理开销，不是零延迟DDR。固定输入优先调度不是最优模型算法；调换循环、缓存多输入或DMA可能改变小容量表现。本轮证明的是指定策略的容量收益，不证明真实模型必须2/4MiB，也没有优化到理论上限。
-
-## 5. 机器与环境：不要混用两个编译器设置
-
-### 5.1 Windows维护端
-
-`E:\Projects\矩阵二选一`，Git和`E:\python\python.exe`可用。主要改工具/文档、核对文件与本地测试，不实际跑本轮Linux RTL。Clash Verge端口7908；VMnet8主机地址192.168.58.1。Git里要保留LF、Linux执行位和链接模式；不能把工具wrapper的符号链接正文改掉。源码中`SRAM.scala`/`Sram.scala`的Windows大小写兼容仍要保留。
-
-以下用户材料仍未跟踪/或原有未提交修改，本次不顺手提交、覆盖或清理：`.gitignore`、根目录10月4日原始RTL归档、`verification/README-official-sram.md`、`verification/rtl_handoff/`；`handoff_output/`及`.upstream-git/`是本机辅助材料，不随clone自动获得。
-
-### 5.2 Ubuntu虚拟机
-
-| 项目 | 值 |
-| --- | --- |
-| 个人工具clone | `/home/lqq/桌面/Coral_matrix` |
-| Miniforge/环境 | `/home/lqq/miniforge3` / `coral-matrix` |
-| 实验根/source | `/home/lqq/coral_tcm_capacity_8e4_v1` / 其`source/` |
-| Bazel/缓存 | 实验根`bazel-9.1.0` / `bazel-user/` |
-| OS/资源快照 | Ubuntu26.04、x86_64、glibc2.43，8vCPU、7.2GiB RAM、4GiB swap |
-| 磁盘最后快照 | 99G总量、67G已用、28G可用；不是当前实时余量 |
-| 代理 | `http://192.168.58.1:7908`，宿主Clash需允许LAN，地址以后可能变 |
-
-现有Bazel模型使用Verilator5.052/cocotb2.0.0；Python/编译器以每份原始日志为准，不把Conda的clang版本自动当实际Bazel C++编译器证明。Ubuntu曾因宿主Windows自动关机重启，旧夜间任务中断；需要保持宿主和VM不休眠/关机。一个source/cache一次只跑一档，不和导出或ITCM安装并行。
-
-### 5.3 EDA152服务器
-
-| 项目 | 值 |
-| --- | --- |
-| 登录 | `lqq@172.27.127.152`，SSH22；RDP3390不是SSH |
-| 用户 | UID1037，无管理员权限；共享服务器 |
-| 根路径 | `/home2/lqq`与`/data/home2/lqq`为同一数据盘路径 |
-| 系统 | CentOS7、x86_64、glibc2.17、GCC4.8.5 |
-| VCS | `/opt/Synopsys/vcs/Q-2020.03-SP2-7/bin/vcs` |
-| Conda根 | `/home2/lqq/coral_vcs_tools/miniforge3` |
-| `coral-vcs` | Python3.11.9；Conda GCC/G++15.3；cocotb2.0.0、NumPy1.26.4、pyelftools0.32、find-libpython0.5.1 |
-| `coral-verilator` | Python3.11.17；Verilator5.052；Conda GCC/G++15.3；make4.4.1；同四个Python依赖 |
-| 资源快照 | Xeon Gold6240，144在线逻辑CPU，251GiB内存；不是单个仿真自动用满144核 |
-
-原生Bazel8.6因glibc/CXXABI不兼容不能跑；没有通过替换系统库修复，也没用上Docker。服务器独立VCS/Verilator流程**不依赖Bazel、Java或RISC-V工具链**，从Ubuntu接收源码RTL包后本地编译。不要传Ubuntu可执行文件来绕ABI问题。
-
-VCS特殊要求：先保存Conda Python和DPI G++绝对路径，再让系统`/usr/bin:/bin`在PATH前，VCS内部生成C用系统GCC4.8；DPI另用Conda C++17。Verilator相反，应保持Conda GCC/G++优先。两种设置都只在各自子终端，不改系统默认工具，不升级系统glibc。
-
-## 6. 已进行/未进行矩阵及最重要的结果
-
-| 场景 | Ubuntu Verilator | EDA152 VCS | EDA152独立Verilator |
-| --- | --- | --- | --- |
-| 六档32KiB～4MiB几何 | 全PASS | 非本轮运行项目 | 非本轮运行项目 |
-| 六档同ELF小控制 | 全PASS、完整日志比较PASS | 未做这一suite | 未做这一suite |
-| T12/32、128KiB | PASS、配对PASS | 未做 | 未做 |
-| T12/1MiB | PASS | 首次验收、正常复测、profile均PASS | 修复后完整PASS、VCS精确参考匹配；429.077秒 |
-| T12/2MiB | 本轮未收到该容量T12独立结果 | PASS | 未做 |
-| T384/1MiB | 新完整运行PASS | PASS | 完整PASS、VCS参考EXACT；13979.842秒 |
-| T384/2MiB | PASS、与1MiB比较PASS | 已启动，最终结果未回传 | 未做 |
-| T768/2、4MiB | 未做 | 未做 | 未做 |
-| 读延迟8周期配对 | 无完整结果 | 无完整结果 | 无完整结果 |
-| ITCM容量几何 | 工具已写、暂停，实际未回传 | 未做 | 未做 |
-
-### 6.1 T12：48KiB权重已在128KiB中装下
-
-| 容量/环境 | stream等待周期 | prefix等待周期 | prefix权重外读字节 |
-| --- | ---: | ---: | ---: |
-| 32KiB Ubuntu | 225219 | 205177 | 122880 |
-| 128KiB Ubuntu | 225219 | 145026 | 49152 |
-| 1MiB Ubuntu/VCS | 225222 | 145029 | 49152 |
-| 2MiB VCS | 225226 | 145033 | 49152 |
-
-32→128KiB同prefix策略少29.32%周期，stream不变；128KiB以上已全部驻留，不证明还需要1/2/4MiB。内部CSR/轮次/AXI在128KiB、1/2MiB对应小负载下相同，等待halt窗口的3/4周期差异尚未定位，不能擅自扣掉或归因物理时序。
-
-### 6.2 T384：1→2MiB可观测驻留收益
-
-| 指标 | 1MiB prefix | 2MiB prefix |
-| --- | ---: | ---: |
-| 驻留权重块 | 251 | 384 |
-| 等待halt周期 | 5208090 | 4319251 |
-| 内部总CSR周期 | 5207833 | 4318994 |
-| 权重阶段周期 | 2177114 | 1289472 |
-| 输入/计算及读出/输出周期 | 10002 / 1930752 / 1028736 | 同左 |
-| 首轮周期 | 2295828 | 2296227 |
-| 后两轮各周期 | 1455982 | 1011363 |
-| 外部权重读取字节 | 2662400 | 1572864 |
-
-同prefix策略减少888839周期（17.0665%），同频周期比1.205785；权重外读减少1089536字节（40.9231%）。两档stream均读取4718592权重字节、内部总周期均6885263；等待halt分别6885516/6885520，多4周期差异不作物理解释。阶段数据和AXI事务详情在结果文档中。
-
-服务器VCS1MiB/T384与Ubuntu同容量摘要一致；2MiB的大运行尚未回传，不把它计入已证明的跨后端一致性。上述不是MobileNet、四核SoC、真实DDR或200MHz达标结论。
-
-## 7. 原始材料位置：接手必须另行拿到
-
-### 7.1 Ubuntu已知PASS目录
-
-以下相对于`/home/lqq/coral_tcm_capacity_8e4_v1/`；在新机器只能当查找线索，需检查真实存在性，不据目录名直接认定文件完整。
-
-| 材料 | 子路径 |
-| --- | --- |
-| 六档几何/控制 | 完整目录列表见STAGE1-results及CONTROL-results |
-| 六控制日志配对 | `control_compare.L0Pxte.log` |
-| T12/32KiB | `workset_d32_t12_r0.QV8Sn5/test.log` |
-| T12/128KiB | `workset_d128_t12_r0.xbIwT1/test.log` |
-| T12/1MiB | `workset_d1024_t12_r0.XMBL3O/test.log` |
-| T384/1MiB | `workset_d1024_t384_r0.AMFGqg/test.log` |
-| T384/2MiB | `workset_d2048_t384_r0.xymg0S/test.log` |
-| 完整T384队列 | `overnight_vm.Qy9tDJ/console.log`，10月18日17:20:45 ALL_PASS |
-
-早期1MiB/T384一小时超时和首轮VM关机中断都保留为失败/不完整证据，不能重命名成上述新PASS。Bazel testlogs可能被覆盖，优先保存每次独立运行目录内副本。
-
-### 7.2 不可变包与归档身份
-
-| 容量 | Ubuntu归档完整路径 | SHA256 |
-| --- | --- | --- |
-| 1MiB | `/home/lqq/coral_tcm_capacity_8e4_v1/vcs_export_d1024.yzU5z6/coral_tcm_vcs_d1024.tar.gz` | `0e969183cd48d3f7a9eaa062e31aded9d89b011fa8fcddee58febd69823b8cb8` |
-| 2MiB | `/home/lqq/coral_tcm_capacity_8e4_v1/vcs_export_d2048.T5HEGi/coral_tcm_vcs_d2048.tar.gz` | `499a7c31d97d06cb39ff8dcebe1ac2c6232605943d044af5d2eaa83ebe27d768` |
-| 4MiB | `/home/lqq/coral_tcm_capacity_8e4_v1/vcs_export_d4096.W2JmMH/coral_tcm_vcs_d4096.tar.gz` | `272a4e81560856660801d9c7dbcf28b40d8d290b3d1886395aa5f0c46d5269a5` |
-
-服务器1MiB父目录：`/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/`；使用其中`coral_tcm_vcs_d1024_svaext_v1`。原始`coral_tcm_vcs_d1024`保留，只为旧VCS增加svaext选项的新副本，不改变RTL/固件。
-
-服务器2MiB父目录：`/home2/lqq/Desktop/coral_tcm_vcs_packages/d2048_499a7c31/`；包`coral_tcm_vcs_d2048`已含修复。4MiB只确认Ubuntu导出，先查服务器是否已有再决定传输，不声称已落盘。
-
-### 7.3 服务器运行目录和故障断点
-
-定义两个便于查找的前缀（只是路径别名）：
-
-```bash
-tcm_p1=/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1
-tcm_p2=/home2/lqq/Desktop/coral_tcm_vcs_packages/d2048_499a7c31/coral_tcm_vcs_d2048
-```
-
-| 材料 | 路径 |
-| --- | --- |
-| VCS1MiB成功构建 | `${tcm_p1}_runtime/builds/754330b47408.u824wjiz` |
-| VCS1MiB初次T12及ANSI验收 | `${tcm_p1}_runtime/runs/t12_r0.6xf7vakp` |
-| VCS1MiB正常T12参考 | `${tcm_p1}_runtime/runs/t12_r0.mraudje0/_test.log` |
-| VCS1MiB profiling | `${tcm_p1}_runtime/runs/t12_r0.xluxpvy5/cocotb.pstat` |
-| VCS1MiB T384 PASS | `${tcm_p1}_runtime/runs/t384_r0.pyg9qm5e` |
-| VCS2MiB成功构建 | `${tcm_p2}_runtime/builds/5f9c6915a993.06j4djj0` |
-| VCS2MiB T12 PASS | `${tcm_p2}_runtime/runs/t12_r0.e0u9djj4` |
-| VCS2MiB T384任务日志 | `/home2/lqq/coral_vcs_tools/overnight_vcs.TdW8Yk/console.log` |
-| 独立Verilator1MiB构建PASS | `${tcm_p1}_verilator_runtime/builds/e6ab26657e58.xbhdmzuj` |
-| 独立Verilator首次T12失败 | `${tcm_p1}_verilator_runtime/runs/t12_r0.zl1315rn/_test.log`及`_test-status.json` |
-| 独立Verilator修复后T12 PASS | `${tcm_p1}_verilator_runtime/runs/t12_r0.fmvgge7f`；429.077秒 |
-| 独立Verilator T384 PASS | `${tcm_p1}_verilator_runtime/runs/t384_r0._66rc55e`；13979.842秒 |
-| 独立Verilator T384控制台 | `/home2/lqq/coral_vcs_tools/verilator_t384.ydMKyr.log` |
-| 本次已通过修复入口/控制台 | `/home2/lqq/coral_vcs_tools/verilator_trace_fix.S7nNd7/verilator_workset.py`及同目录`console.log` |
-| 旧Verilator外部入口 | `/home2/lqq/coral_vcs_tools/verilator_runner.JdVpsd/verilator_workset.py`，包含trace问题，不再作为新运行入口 |
-
-VCS和Verilator后端拥有独立状态树，不能互换模型二进制/成功指针。旧包内导出时`vcs_simulation=NOT_RUN`保持原样，新的运行证明在包外`result.json`、进程状态、XML和原始日志中。
-
-## 8. 第一项只读检查：知道谁在跑、日志在哪
-
-服务器执行，**不终止任何进程，不启动新仿真**：
-
-```bash
-date -Is
-pgrep -a -u "$(id -u)" -x simv || true
-
-tcm_job=/home2/lqq/coral_vcs_tools/overnight_vcs.TdW8Yk
-if [ -f "$tcm_job/console.log" ]; then
-    tail -n 30 "$tcm_job/console.log"
-    grep -E '^\[(TCM_VCS_RUN_PASS|OVERNIGHT_ALL_PASS|OVERNIGHT_STOP|TCM_VCS_STOP|TCM_VCS_ADAPTER_STOP)\]' \
-        "$tcm_job/console.log" || true
-else
-    echo '历史队列日志不存在：先确认路径和备份，不猜测最终状态。'
-fi
-```
-
-不要用`ps -u UID -C simv`认定全是自己的任务，它的选择器并非交集。不要停止早先看到的PID；PID会复用，任务可能属于其他用户。需要查看Verilator时用自己的进程列表结合完整模型路径，不仅按顶层短名猜测。
-
-`tail -f`只观察日志，Ctrl+C退出不会杀仿真。nohup只帮助终端断开后继续，不防宿主/VM重启，也不代表已经有checkpoint。历史job路径可能存在多个，检查目录和T/DTCM，不只选最新目录冒充目标任务。
-
-<a id="current-verilator-pilot"></a>
-
-## 9. 已完成的1MiB Verilator交叉验证与当前2MiB pilot入口
-
-后续回传：`t12_r0.fmvgge7f`和`t384_r0._66rc55e`均完整PASS、VCS参考EXACT。前者429.077秒，后者13979.842秒。T384两策略各3次、共1769472输出检查，stream6885516周期、prefix5208090周期，所有CSR/轮次/AXI/ELF/向量与原VCS大日志相同。不要再重复1MiB；当前下一步见9.5，先2MiB自己的T12。
-
-### 9.1 为什么不重新编译
-
-模型构建已经PASS。旧入口在子进程设`WAVES="0"`和`GUI="0"`，cocotb2.0把非空字符串视为真，追加`--trace`，而模型按无波形编译，因此启动1.777秒即exit255、不是超时。修复只移除两个环境变量，继续显式False，不改RTL、SRAM、固件或测试判据。
-
-修复脚本SHA256：`9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855`。它严格校验旧模型生产者SHA、完整环境/包身份、二进制及编译命令/visibility、成功状态，满足才只读复用；失败就停止，不能手改当前构建指针/哈希。
-
-### 9.2 已通过T12的复现命令（不是当前默认下一步）
-
-下面是已通过T12的原复现入口，前台运行；没有必要为了续跑T384重复执行。新接手机器若缺文件，下载需要反向代理，实际仿真不依赖代理。正式续跑使用9.4已经存在且核过SHA的修复入口。
-
-```bash
-(
-set -eo pipefail
-source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
-conda activate coral-verilator
-export CC="$(command -v gcc)"
-export CXX="$(command -v g++)"
-unset COCOTB_ENABLE_PROFILING WAVES GUI
-
-if pgrep -a -u "$(id -u)" -x simv; then
-    echo '自己的VCS仍在运行，稍后再测速；未停止任何进程。'
-    exit 1
-fi
-
-tcm_package=/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1
-tcm_reference="${tcm_package}_runtime/runs/t12_r0.mraudje0/_test.log"
-test -f "$tcm_reference"
-tcm_fix_dir=$(mktemp -d "$HOME/coral_vcs_tools/verilator_trace_fix.XXXXXX")
-tcm_adapter="$tcm_fix_dir/verilator_workset.py"
-curl -fsSL --retry 2 --connect-timeout 15 --max-time 180 \
-    -x http://127.0.0.1:17908 -o "$tcm_adapter" \
-    'https://raw.githubusercontent.com/Azrealleo/Coral_matrix/c0b4b76098a88d5bace3c3fbdcef318c10e924f7/verification/google_tcm_verilator/verilator_workset.py'
-printf '%s  %s\n' \
-    9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855 \
-    "$tcm_adapter" | sha256sum -c -
-echo "[VERILATOR_ADAPTER] $tcm_adapter"
-echo "[VERILATOR_CONSOLE_LOG] $tcm_fix_dir/console.log"
-"$CONDA_PREFIX/bin/python" -B "$tcm_adapter" --package "$tcm_package" run \
-    --tiles 12 --delay 0 --timeout 21600 --reference-log "$tcm_reference" \
-    2>&1 | tee "$tcm_fix_dir/console.log"
-)
-```
-
-### 9.3 T12验收要求与失败保留
-
-复现时应先有`TCM_VERILATOR_BUILD_REUSED`。最终必须同时出现：
+# CoralNPU当前交接指南：单NPU Transformer/LLM算子验证
+
+更新：2026-10-22（香港时间）。对象为继续此项软件/RTL验证工作的同学；不是只给综合人员的RTL使用说明。当前结果总表见[进度快照](PROGRESS-current.md)，全程经过见[工作记录](WORKLOG-and-handover.md)。原来叠加多轮“最新断点”的交接全文已完整保留为[历史交接快照](HANDOFF-archive-before-llm-20261022.md)，其旧计划不再作为当前任务。
+
+## 1. 接手后先知道这六件事
+
+1. 团队已确定官方CoralNPU，单NPU SoC集成测试由用户告知已通过，4核集成由团队继续；本人当前不验证4核互连。
+2. 当前只测Transformer/LLM算子，不是预训练LLM或文本生成。固定单核ITCM256KiB/DTCM512KiB，优先Verilator。
+3. Windows维护代码和记录，VM只做Bazel/Chisel、native参考、固件交叉链接/导出，服务器执行RTL仿真，不在旧CentOS7上强行运行当前Bazel。
+4. INT8 case0/1原VM真实RTL通过；本次新小包的服务器case0也通过，周期完全一致。新增FP32已实际链接，**尚无FP32 RTL结果回传**。
+5. 已给服务器21例串行命令，但没有收到该整套的启动目录或结束结果；**不确认它正在运行，不重启第二份任务**。只确认pilot `cases=1`，不是21例PASS。
+6. 每次给新仿真命令先说明预计墙钟、是否含编译、估算依据/不确定性；`5400秒`是每例超时而非预计耗时。目前21例低置信度粗估1～3小时，不含编译，收到实测应更新。
+
+## 2. 当前固定身份，不能相互替代
+
+| 项目 | 固定值/说明 |
+|---|---|
+| 个人实验仓库 | [Azrealleo/Coral_matrix](https://github.com/Azrealleo/Coral_matrix)，本轮工具/记录同步于此 |
+| 团队SoC库 | [cheshire-coral-soc/cheshire-coral-soc](https://github.com/cheshire-coral-soc/cheshire-coral-soc)，私有；本轮不写入 |
+| 本实验官方源 | `8e4df09b4ea7e065e02d14ce3ae033d40dfd973a` |
+| 团队优化算子审查快照 | `fa4b83e43bb0b1d58b18eb5f4c31d98ee4054123`，不是自动跟随当前main |
+| 当前顶层 | `VmeCoreMini_ITCM256KB_DTCM512KBAxi` |
+| 复用RTL SHA256 | `477aa4d097b1ac7c35f98cb95fe9ba841082a8a10afde6f39dea70959300bfe2` |
+| 新小包SHA256 | `fab74b4ff7ff643474d10f6b5d6513100e11d66cc8b291c9aca5abe7d2805b25`，210545字节 |
+| INT8 ELF SHA256 | `17b3e2b6a5c208f638db2d7b85f4ddc5f8f64c336290093a9a11ce06a3dd072d` |
+| FP32 ELF SHA256 | `ab1c95f0398f1e1ee43a0bc7b94677daebe21fdb4ff359046ce7eecf2c81f312` |
+
+工具提交索引：`445b926`首次21例准备、`7bb95c5`服务器适配/小包导出、`38b5a9d`修复native cc_test及安全升级、`105b70d`记录实际ELF/包身份。当前文档整理不修改这些封存工具或包。不要把工具commit当RTL SHA，不把新ELF身份倒填到未提供旧ELF哈希的VM历史运行。
+
+## 3. RAM和地址：本轮实际用的配置
+
+| 项目 | 本轮 |
+|---|---|
+| ITCM | 256KiB，从`0x00000000`到`0x0003FFFF` |
+| DTCM | 512KiB，从`0x01000000`到`0x0107FFFF` |
+| CSR | `0x02000000`起，实验统一映射，不等同SoC最终图 |
+| 栈 | DTCM末尾16KiB，`0x0107C000`到`0x0107FFFF` |
+| INT8占用 | ITCM2976、DTCM静态13536、堆剩余494368字节 |
+| FP32占用 | ITCM10992、DTCM静态59808、堆剩余448096字节 |
+| 数据通路 | XLEN32、VLEN128，LSU/AXI数据128bit、AXI ID6bit |
+| 开关 | RVV/VME/FP/BF16开启；AXI取指允许、FetchL0关闭、verification=false |
+
+本实验SRAM为原逻辑/行为模型，保留原C++ DPI语义，不是真实工艺宏或网表门仿。逻辑1RW、128bit/16bit字节mask、读响应一周期；模型不保证上电全零，bench前门初始化。具体bank数/深度以锁定RTL和参数为准，不凭总容量推定物理宏型号。bench行为时钟1.25ns用于周期测量，不是芯片能跑800MHz的签核。
+
+当前输入/权重/输出resident DTCM，未测外部AXI流式模型权重，不据此决定DDR带宽。动态栈只验证底部64字节canary，尚无完整水位证明。历史8/32KiB综合包来自旧源及旧地址图，不能替代本包。
+
+## 4. 三台机器与必需材料
+
+| 位置 | 角色与目录 |
+|---|---|
+| Windows | `E:\Projects\矩阵二选一`，个人工具仓库；未相关.gitignore、材料目录和旧RTL归档不得纳入本次改动 |
+| Ubuntu VM | `/home/lqq/桌面/Coral_matrix`；study `/home/lqq/coral_tcm_capacity_8e4_v1`；source子目录为锁定源和实验补丁 |
+| VM工具 | `$HOME/miniforge3`的`coral-matrix`；study中的Bazel9.1.0及既有缓存，不清缓存、不克隆最新上游替代 |
+| EDA152 | `lqq@172.27.127.152:22`；`/home2/lqq`实际解析到`/data/home2/lqq`；CentOS7/glibc2.17 |
+| 服务器工具 | `$HOME/coral_vcs_tools/miniforge3`的`coral-verilator`，Py3.11/Verilator5.052/GCC15.3 |
+| Python依赖 | cocotb2.0.0、numpy1.26.4、pyelftools0.32、find-libpython0.5.1 |
+
+交接必须另拿到原封存包、编译模型和原始证据，不是clone工具仓库就拥有可运行环境。密码/私钥/token不写进文档或Git，通过团队安全渠道转交访问权限。服务器代理断开不代表CPU仿真一定停止；进程状态应实时查看。
+
+## 5. 不可变包、模型及最新PASS的准确位置
+
+以下所有相对说明以此服务器根目录为基础：
 
 ```text
-[TCM_VERILATOR_REFERENCE_MATCH] cycles_counters_axi_elf_vectors=EXACT
-[TCM_VERILATOR_RUN_PASS] simulation_wall_seconds=...
+/data/home2/lqq/Desktop/coral_person_packages
 ```
 
-它要完整6次输出/CSR/AXI/ELF/向量与同容量VCS参考精确相同，外层还要求退出0、未超时、XML无失败/跳过、模型及包未变。**不得为“跨后端有差异”擅自容忍/扣除周期或改golden。** 只有该模型自己的T12证据通过，才解锁T384等大工作集；其他容量还要自己的T12。
+- 新小包：`llm_fab74b4f/coral_llm_ops_i256_d512_v1/`，其中`server_ops.py`必须从该封存包运行，不随意换成Git新版本。
+- 原Pool包：`pool_7c8e0fe5/coral_person_vme_pool_i256_d512_v1/`。
+- 原编译模型：`pool_7c8e0fe5/coral_person_vme_pool_i256_d512_v1_verilator_runtime/builds/7a54106b3148.z558xni8/`。
+- 原模型已验证短probe：同一`_verilator_runtime/runs/probe.46bl5uqr/`。
+- 最新LLM pilot job：`llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators._jxei5s3/`。
+- pilot原始日志：上述job的`attempts/int8_0.g3eqoi8b/_test.log`；旁边应有XML、退出状态及result.json。job保存计划/身份及summary.md/json。
+- VM导出源job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5/`，保存两ELF、host/build日志和审计；归档名`coral_llm_ops_i256_d512_v1.tar.gz`。
 
-若报错，保留新`TCM_VERILATOR_RUN_DIRECTORY`，先回传其`_test.log`末120行和`_test-status.json`。若是模型/环境不匹配，不自动加build；先核对环境变量和旧`environment.json`，判断是否只是启动环境变化。不要再次把旧trace错误理解成RTL编译失败。
+新包依赖旧Pool编译状态和probe证据，不能只拷210KB小包到一台干净服务器就执行。读模型时核对原producer/环境/配方/二进制/短probe，持原状态锁；任何不一致即停，不修改manifest/current_build绕过检查。暂不要移动原模型路径，绝对路径属于身份记录的一部分。
 
-<a id="server-verilator-t384"></a>
+pilot的四次标量均10563、四次RVV均263周期，空边界3；与旧VM case0数值一致，最终`cases=1`。首次/稳态比40.163498，不是完整LLM速度；用户未回传pilot实际墙钟，不猜填。
 
-### 9.4 已通过的1MiB/T384复现入口（保留，不再作为默认下一步）
+## 6. 性能口径与实现来源
 
-此命令已实际通过，控制台`verilator_t384.ydMKyr.log`，运行`t384_r0._66rc55e`，模型未改、13979.842秒、VCS精确比对EXACT。下方仅保留复现方法，当前不需要重跑；24小时是保护上限，不是耗时预测，也不代表其他容量已合格。
+21例的形状/来源逐项表在[进度快照第5节](PROGRESS-current.md#5-21例覆盖及软件来源)。只有INT8/FP32矩阵乘取固定官方Gemma源码；其他FP32是项目基线，不能概括成“官方优化内核全部启用”。Softmax/门控的exp/tanh仍标量libm且计入窗口。
+
+同ELF两条路径分别首次+3次steady、交替顺序，fence+mcycle只计内核。输入生成、初始化、host装载和结果检查在窗外；空边界单列不扣。FP32固定atol2e-5/rtol2e-4，对独立参考；INT8 raw INT32精确核对，权重不取-128。检查真实输入/输出、guards/未使用尾区、自然halt/无fault/status3、调用计数、canary。不得放宽容差或删除开销来制造加速；RVV较慢也可正确通过。
+
+原始Cocotb测试体以AST保持，服务器仅白名单替换文件定位并换入口；Bazel不会在服务器启动。WAVES/GUI必须unset，字符串`0`仍可能触发trace；原模型无trace支持。不要把此运行环境和VCS的系统GCC4.8/新DPI G++组合混用。
+
+## 7. 接手第一步：只读确认是否已启动21例
+
+先向用户索取本次`LLM_CONSOLE_LOG`和**新的**`LLM_SERVER_JOB_DIRECTORY`。只读日志通常数秒返回，不运行新仿真。若路径暂未知，可在服务器执行：
+
+```bash
+(
+set -eo pipefail
+llm_state=/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime
+find "$llm_state/jobs" -mindepth 2 -maxdepth 2 -type f -name job.json -print
+ps -u "$(id -u)" -o pid,ppid,etime,pcpu,stat,args | \
+  grep -E '[s]erver_ops.py|[s]imv|[V]meCoreMini_ITCM256KB_DTCM512KBAxi' || true
+)
+```
+
+这些是当前用户匹配结果，不自动证明每行属于本job；结合命令路径、job.json和日志核对。历史PID不能用于kill，不停止他人的任务。不要`tail -f`后误以为它会启动/推进仿真；本脚本只在case开始/结束写主控制台，长时间无新行不等于卡死。
+
+## 8. 确认没有重复任务后：21例前台入口
+
+预计墙钟**1～3小时，低置信度粗估，不含编译**；约2800～3000周期/秒来自此前服务器负载，非本轮FP32实测，exp/tanh及共享负载有不确定性。每例5400秒为上限，不能当总耗时。以下命令会新建job并重新跑4例INT8+17例FP32，不接续pilot单例计划。
 
 ```bash
 (
 set -eo pipefail
 source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
 conda activate coral-verilator
-export CC="$(command -v gcc)"
-export CXX="$(command -v g++)"
-unset COCOTB_ENABLE_PROFILING WAVES GUI
-
-if pgrep -a -u "$(id -u)" -x simv; then
-    echo '自己的VCS仍在运行，稍后再测速；未停止任何进程。'
-    exit 1
-fi
-
-tcm_adapter=/home2/lqq/coral_vcs_tools/verilator_trace_fix.S7nNd7/verilator_workset.py
-printf '%s  %s\n' \
-    9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855 \
-    "$tcm_adapter" | sha256sum -c -
-tcm_package=/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1
-tcm_reference="${tcm_package}_runtime/runs/t384_r0.pyg9qm5e/_test.log"
-test -f "$tcm_reference"
-tcm_console=$(mktemp "$HOME/coral_vcs_tools/verilator_t384.XXXXXX.log")
-echo "[VERILATOR_T384_CONSOLE_LOG] $tcm_console"
-"$CONDA_PREFIX/bin/python" -B "$tcm_adapter" --package "$tcm_package" run \
-    --tiles 384 --delay 0 --timeout 86400 --reference-log "$tcm_reference" \
-    2>&1 | tee "$tcm_console"
+unset WAVES GUI COCOTB_ENABLE_PROFILING
+export CC="$CONDA_PREFIX/bin/gcc"
+export CXX="$CONDA_PREFIX/bin/g++"
+export PYTHONDONTWRITEBYTECODE=1
+cd /data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1
+tcm_rtl=/data/home2/lqq/Desktop/coral_person_packages/pool_7c8e0fe5/coral_person_vme_pool_i256_d512_v1
+tcm_probe="${tcm_rtl}_verilator_runtime/runs/probe.46bl5uqr"
+llm_console=$(mktemp "$HOME/coral_vcs_tools/llm_ops_all.XXXXXX.log")
+printf '[LLM_CONSOLE_LOG] %s\n' "$llm_console"
+python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
+  all --probe-run "$tcm_probe" --timeout 5400 2>&1 | tee "$llm_console"
 )
 ```
 
-完成需回传两条SUMMARY、REFERENCE_MATCH、RUN_PASS及新目录；T384的NPU周期若与既有VCS记录不同，必须排查，不只凭输出PASS接受速度排名。其他容量仍需自己的独立模型和T12，不能用本次1MiB前置证明解锁2/4MiB。
+每例`CASE_START/PASS`，失败立即停止。只有新的`LLM_SERVER_JOB_PASS cases=21`才是整套验收入口；还需保留summary、rawlog/XML/退出状态和原包身份，不能只留终端行。不在本次文档整理中启动/停止远程仿真。
+
+## 9. 失败后如何继续，而不是再盲目all
+
+1. 保存job路径、停止输出、出错attempt的`_test.log`、`_test-status.json`、`results.xml`及已有summary，不删除旧attempt。
+2. 包/环境/构建身份失败先排查路径、工具和旧包是否改变；不要手改哈希或重编后冒充同一模型。
+3. 数值/越界/fault失败先定位算子和实际输出，不能反复重跑求偶然PASS。需要改内核则做新版本、新身份，不覆盖封存包。
+4. 外部中断且身份未变，可在同样环境、PWD和`tcm_rtl/tcm_probe`设置下执行：
+
+```bash
+python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
+  resume --probe-run "$tcm_probe" --job /替换为实际21例job目录 --timeout 5400
+```
+
+续测预计耗时应根据剩余case及已完成实际墙钟重新估计；没有已完成时间时沿用1～3小时粗估而不承诺缩短。恢复只跳过原始证据重验完整的PASS，未完成case从固件入口另建attempt重跑，不是CPU checkpoint。不能使用只有`cases=1`的pilot job恢复成21例。
+
+## 10. 接手材料与验收清单
+
+- 个人仓库当前工具/文档及commit，锁定官方源/实验补丁；不是clone最新版上游重做。
+- 实际小包归档+SHA和两ELF资源报告；保留导出时host/build原始日志和源快照。
+- 服务器原Pool封存包、整个已验证模型build目录、current_build记录、probe.46bl5uqr完整证据及对应Conda环境。原路径先保持。
+- pilot job和后续21例job的job.json、completed索引、summary.md/json、每attempt原始日志/XML/退出状态/结果，包含失败记录。
+- 若SoC/综合同学需要RTL/门仿，另交对应配置的生成RTL/参数/源版本和测试报告；本小固件包没有RTL，也不含完整测试报告。历史[8/32KiB交付说明](HANDOFF-simulated-rtl.md)不能直接代表256/512KiB当前模型。
+- 接手成功的最小判据：能解释当前范围，定位原包/模型/probe/pilot证据，区分`READY`、链接审计、`cases=1`、`cases=21`和完整模型；能只读查看现有job，确认未运行时才启动/续测，能据summary追到每项原始证据。
+
+尚缺：FP32 RTL正确性/周期、21例完整报告、完整LLM/block/权重/tokenizer/持续KV、LLM VME与BF16/INT4/AXI流式性能、真实宏面积/功耗/200MHz STA及门仿签核。旧默认Person单图PASS和VME/Pool短测不能替代这些。
+
+## 11. 历史与专题导航（不自动继续旧计划）
+
+| 内容 | 文档 |
+|---|---|
+| 最新进度/证据与待办 | [PROGRESS-current.md](PROGRESS-current.md) |
+| 全过程、失败、旧比较和提交 | [WORKLOG-and-handover.md](WORKLOG-and-handover.md)，最新第29节 |
+| 当前小包/服务器工具说明 | [LLM SERVER.md](google_llm_ops/server/SERVER.md) |
+| 21例详细语义及旧VM备选 | [TOMORROW.md](google_llm_ops/TOMORROW.md) |
+| 默认完整MobileNet、VME/Pool、Conv | [Person](google_person_detect/README.md)、[Pool](google_person_pool/README.md)、[Conv](google_person_conv/README.md) |
+| 旧TCM性能结果 | [WORKSET-results.md](google_tcm_capacity/WORKSET-results.md) |
+| 历史交接全文 | [归档](HANDOFF-archive-before-llm-20261022.md)，保留原阶段命令与说明 |
 
 <a id="server-verilator-2m-pilot"></a>
+<a id="server-verilator-t384"></a>
 
-### 9.5 当前下一步：服务器2MiB独立Verilator模型及T12
-
-2MiB包已传输且VCS T12已PASS，可使用其已保存的`.../t12_r0.e0u9djj4/_test.log`作参考；不要求先补跑2MiB T384。以下会**新建2MiB模型并前台跑T12**，不会覆盖1MiB模型或改变两档不可变包。仍只用已通过的固定入口，暂不在同一命令中自动接T768或4MiB。
-
-```bash
-(
-set -eo pipefail
-source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
-conda activate coral-verilator
-export CC="$(command -v gcc)"
-export CXX="$(command -v g++)"
-unset COCOTB_ENABLE_PROFILING WAVES GUI
-
-if pgrep -a -u "$(id -u)" -x simv; then
-    echo '自己的VCS仍在运行，先确认任务状态；未停止任何进程。'
-    exit 1
-fi
-
-tcm_adapter=/home2/lqq/coral_vcs_tools/verilator_trace_fix.S7nNd7/verilator_workset.py
-printf '%s  %s\n' \
-    9031f22eadbfc75d308f2bcd67bde9b943b06822ccbbe8da702b821112273855 \
-    "$tcm_adapter" | sha256sum -c -
-tcm_package=/home2/lqq/Desktop/coral_tcm_vcs_packages/d2048_499a7c31/coral_tcm_vcs_d2048
-tcm_reference="${tcm_package}_runtime/runs/t12_r0.e0u9djj4/_test.log"
-test -f "$tcm_reference"
-tcm_console=$(mktemp "$HOME/coral_vcs_tools/verilator_d2048_pilot.XXXXXX.log")
-echo "[VERILATOR_2M_CONSOLE_LOG] $tcm_console"
-for tcm_phase in verify check build; do
-    echo "[VERILATOR_2M_STAGE] $tcm_phase"
-    "$CONDA_PREFIX/bin/python" -B "$tcm_adapter" --package "$tcm_package" \
-        "$tcm_phase" --jobs 2 2>&1 | tee -a "$tcm_console"
-done
-"$CONDA_PREFIX/bin/python" -B "$tcm_adapter" --package "$tcm_package" run \
-    --tiles 12 --delay 0 --timeout 21600 --reference-log "$tcm_reference" \
-    2>&1 | tee -a "$tcm_console"
-)
-```
-
-只有2MiB自己的REFERENCE_MATCH/RUN_PASS后再安排其T768；4MiB仍先核对传输、包、编译及自己的T12，再做同T768/延迟下的容量配对。不要把1MiB后端速度比较误当新的DTCM扩容收益，也不从T384全驻留结果推断4MiB价值。
-
-## 10. 后续执行入口与运行安排
-
-### 10.1 Ubuntu只读重查T384配对
-
-不重跑RTL，可对已有完整日志重新执行比较器；所有路径以实际存在为准：
-
-```bash
-(
-set -eo pipefail
-source "$HOME/miniforge3/etc/profile.d/conda.sh"
-conda activate coral-matrix
-cd "$HOME/桌面/Coral_matrix"
-python -B verification/google_tcm_capacity/prepare_workset.py compare --logs \
-    "$HOME/coral_tcm_capacity_8e4_v1/workset_d1024_t384_r0.AMFGqg/test.log" \
-    "$HOME/coral_tcm_capacity_8e4_v1/workset_d2048_t384_r0.xymg0S/test.log"
-)
-```
-
-若需新实验，正常入口为`bash verification/google_tcm_capacity/run_workset.sh <DTCM_KiB> <T> <delay>`；尖括号为说明，不原样执行。T384/T768应明确墙钟保护，例如在同一子终端设置`TCM_WORKSET_TEST_TIMEOUT_SECONDS=86400`；默认21600秒，既不是预计耗时，也不保证一定足够。一次一档，保留cache，安静进度输出；不在source任务进行中pull或安装新包。
-
-### 10.2 服务器VCS已有模型的入口
-
-保留原编译器隔离策略，包外ANSI安全入口的固定SHA是`e2668cd25e690177dea89087f4804b7fb4a426c8c9e8a2a2d19c9effb04999f0`。以下是已有1MiB入口的环境检查，不启动新仿真：
-
-```bash
-(
-set -eo pipefail
-source "$HOME/coral_vcs_tools/miniforge3/etc/profile.d/conda.sh"
-conda activate coral-vcs
-tcm_python="$CONDA_PREFIX/bin/python"
-export TCM_DPI_CXX="$(command -v g++)"
-export PATH="/usr/bin:/bin:$PATH"
-export CC=/bin/gcc CXX=/bin/g++
-export TCM_VCS_CC=/bin/gcc TCM_VCS_CXX=/bin/g++
-unset COCOTB_ENABLE_PROFILING
-tcm_adapter=/home2/lqq/coral_vcs_tools/ansi_fix_v2.bzKDlm/vcs_workset.py
-printf '%s  %s\n' \
-    e2668cd25e690177dea89087f4804b7fb4a426c8c9e8a2a2d19c9effb04999f0 \
-    "$tcm_adapter" | sha256sum -c -
-tcm_package=/home2/lqq/Desktop/coral_tcm_vcs_packages/d1024_0e969183/coral_tcm_vcs_d1024_svaext_v1
-"$tcm_python" -B "$tcm_adapter" --package "$tcm_package" check
-)
-```
-
-真正新增运行用同样隔离环境下的`run --tiles ... --delay ... --timeout ...`；不得把参数中的不同容量包混用。没有必要为了本次文档整理再次复测已经通过的VCS T12。
-
-### 10.3 网络恢复
-
-Windows PowerShell保持反向SSH窗口运行；本地Clash7908须开启。服务器17908是代理端口，22是SSH，3390是远程桌面：
-
-```powershell
-ssh -N -T -p 22 -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R 127.0.0.1:17908:127.0.0.1:7908 lqq@172.27.127.152
-```
-
-端口占用报错先在服务器只读检查`ss -lntpe`、自身sshd，确认为自己的旧转发且不是当前会话才TERM对应PID。不要直接复制历史PID32796/189931，不killall sshd。代理能下载不等于远程桌面剪贴板已恢复，两者分开排查。
-
-团队私有Git采用本人SSH key/ssh-agent及scoped GIT_SSH_COMMAND；不要把私钥/token放仓库、命令URL或交接文档。提示私钥passphrase时填创建该密钥时设置的口令；未知口令不能由本助手猜出，不能拿服务器密码替代。
-
-## 11. 仿真速度结论与成本边界
-
-| 场景 | 已测墙钟 |
-| --- | ---: |
-| VM Verilator 1MiB/T12 | Bazel test292.4秒 |
-| Server VCS 1MiB/T12 | wrapper1178.5秒、cocotb1172.38秒 |
-| VM Verilator 1MiB/T384 | Bazel test6736.5秒 |
-| VM Verilator 2MiB/T384 | Bazel test8789.0秒 |
-| Server VCS 1MiB/T384 | wrapper37619.46秒、cocotb37605.01秒 |
-| Server VCS 2MiB/T12 | wrapper1187.676秒 |
-| Server独立Verilator 1MiB/T12 | 429.077秒；编译434.214秒另计，复用模型 |
-| Server独立Verilator 1MiB/T384 | 13979.842秒，约3h53m；复用同模型，VCS参考EXACT |
-
-不同主机/编译器/边界下不把约5.58倍T384观察差异写成纯模拟器差异。VCS profiling的638658902次调用、433.861秒profile、百万到千万级VPI/时钟/观察器回调显示平台有成本，但累计时间嵌套不能相加，wrapper减profile不等于精确RTL时间；profile运行1403.893秒不作基线。
-
-VCS debug/ACC可见性、Python逐周期时钟/AXI观察、CPU单线程和编译器都值得查，不等于已量化根因。保持原检查/时钟/SRAM，当前T12的服务器Verilator/VCS流程比为2.74659，T384为2.69098（Verilator墙钟少62.8388%）；不宣称纯内核或所有工作集比。相同1MiB/T384下VM的6736.5秒比服务器Verilator13979.842秒观察快2.07524倍，边界/主机/负载不同。T384/T12墙钟增长32.5812倍，但不能保证T768或新容量线性。
-
-## 12. ITCM与完整模型：暂缓但不要丢失判断依据
-
-ITCM工具新增时DTCM固定2MiB、ITCM8/16/32/64/128KiB。只测核停止状态的地址/掩码，不测取指执行，更没有性能阶段；14项本地测试不是RTL PASS。用户目前选择回DTCM，未执行新ITCM扫描。
-
-现workset指令装载段1664字节，8KiB对于这份微基准足够，即使DTCM4MiB也不必等比扩ITCM。完整AI软件不同：固定`8e4df09b`的官方`run_full_mobilenet_v1_binary`示例BUILD设ITCM/DTCM各1MiB，但它依赖dummy模型，不是用户提出的1001分类模型，更不是1MiB最低需求证明。
-
-官方默认linker把`.rodata`和初始化段也放ITCM，const模型数组若未显式放外部段可能占ITCM。应先拿实际tflite、算子实现/编译选项生成ELF/map，分别算代码/常量、栈、arena、外部段，再定容量。不能承诺所有模型8KiB够，也不能一概说1MiB无必要。
-
-## 13. 下一步清单、交接材料与验收
-
-### 13.1 待办优先级
-
-1. 保存现有Linux完整证据，核对服务器2MiB/T384最终状态。
-2. 保留已经通过的1MiB Server Verilator T12目录`.../runs/t12_r0.fmvgge7f`和修复入口，不重跑旧失败或伪造重编。
-3. 保存已经通过的1MiB Server Verilator T384及VCS精确参考，不重复1MiB。按第9.5节先新建2MiB模型、用既有VCS2MiB T12参考验收；不把1MiB前置用于2/4MiB。
-4. T768做2/4MiB配对；2MiB先自己的Verilator T12，4MiB先核对/传输原归档、编译和自己的T12。各前置通过后再安排大运行；记录磁盘/队列，不承诺一夜完成。
-5. 再讨论延迟8、真实SoC外存带宽/仲裁、备选调度和实际模型；ITCM等用户另排期。
-6. SRAM宏、200MHz、DC/STA/GLS、四NPU竞争交给团队明确配置和责任，再安排验证。当前没有网表/SDF/库返回证据。
-
-### 13.2 交给下一位的实际材料
-
-- 本个人工具仓库及本说明；记录实际`git rev-parse HEAD`、工作树和本次所用入口固定版本。
-- Ubuntu实验`source/`中的三个阶段manifest及已应用补丁/参数，现有Bazel9.1.0/cache位置；不要只复制一个bazel-bin symlink。
-- 已PASS和失败的独立运行目录：原始test日志、summary、命令、开始/结束时间、退出状态、参数头、RTL/ELF/hash、向量manifest；后台任务console和profiling文件分开列。
-- 1/2/4MiB不可变源码归档及SHA文件；服务器实际升级副本、外部适配器、构建记录/模型二进制仅在兼容环境内使用，不跨系统当可移植物。
-- 用户/团队批准的访问权限；私钥、token、license、PDK模型另按安全渠道，不提交公开Git。
-- 10月4日docs_v2综合包若还需历史综合复核，应独立发送原包和hash，不混入本轮MiB目录、不改旧包内说明来“更新历史”。
-
-### 13.3 接手验收
-
-- [ ] 知道官方已选定，fork工作只保留历史。
-- [ ] 知道本轮是一个NPU、ITCM8KiB、2/4MiB指DTCM，实验地址不等于SoC地址。
-- [ ] 区分两个上游基线、五种版本身份、VCS与Verilator的编译器/状态目录。
-- [ ] 找到并备份Ubuntu1/2MiB T384完整日志及比较器结果，知道17.07%结论的固定调度边界。
-- [ ] 查明VCS2MiB T384当前真实状态；不把启动输出、过时PID或别人simv当自己的运行。
-- [x] 1MiB Server Verilator T12已回传REFERENCE_MATCH/RUN_PASS，429.077秒；原始文件在服务器，接手仍需核对/备份。
-- [x] Server Verilator1MiB/T384已回传REFERENCE_MATCH/RUN_PASS，13979.842秒，实际目录`t384_r0._66rc55e`。
-- [ ] 2/4MiB各自Verilator T12及T768配对完成，目前没有这些后端/容量的完成结果。
-- [ ] 知道4MiB仅导出、T768和延迟8未完成，ITCM已暂停，完整模型/200MHz/门仿均缺本轮证据。
-- [ ] 没有清除旧结果、篡改manifest、放宽golden/重复/AXI/周期判据，且接手材料不含凭据或商业库。
-
-以后每份结果同时记录：机器、源/工具版本、包及RTL/ELF身份、输入/golden、容量/T/延迟、完整次数/输出数、端点定义、原始日志/状态/墙钟、PASS/FAIL/INCOMPLETE及遗留问题。只更新仓库外层记录，不重写不可变包内导出声明。
+旧文档链接到上述TCM命令锚点时，请转到[历史交接相应章节](HANDOFF-archive-before-llm-20261022.md#server-verilator-2m-pilot)或[旧T384入口](HANDOFF-archive-before-llm-20261022.md#server-verilator-t384)。它们不是当前下一步；DTCM已按面积约束暂定512KiB，不自动恢复2/4MiB扫描。

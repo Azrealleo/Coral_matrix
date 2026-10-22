@@ -1,5 +1,7 @@
 # 未优化算子第一步：RVV AveragePool 独立候选
 
+**2026-10-22范围覆盖：** Pool短硬件probe已通过，原编译模型现在被LLM算子小包只读复用。用户已暂停完整优化模型长测试并转向LLM算子；下方“当前下一步合并版整网”是旧计划，不自动执行。Depthwise保持官方原注册，不改动。最新见[进度快照](../PROGRESS-current.md)。
+
 **2026-10-21最新实际进度：** VM独立包已导出，归档SHA `7c8e0fe5121c0aeb37d9e8a54983dd7fe64603bf5de964b718aac4cd4b3076eb`。服务器`pool_7c8e0fe5/..._verilator_runtime/runs/probe.46bl5uqr`实际RVV Pool短测8组/659项/0错误/62向量块/签名642806987通过，256826周期自然halt、无fault、canary完好，执行85.614秒、总97.463秒；不是整网推理。默认参考完整模型的单有人图也已实际通过（Invoke190673191周期）。**当前下一步是[合并版完整模型校验](MODEL.md)**：包外新入口只读复用已编译模型，不改包、不重编；先validate有人图再决定fast/无人图。新入口7项本地合成检查通过；优化整网服务器实际运行尚未回传。以下导出/短测章节保留为复现流程。
 
 2026-10-21。用户要求 Depthwise 暂时不要改动、使用官方实现，先处理没有现成优化的其他算子。本轮只新增 AveragePool 优化；不修改 Depthwise 源码，也不切换它的注册方式。当前仍是此前v1固件采用的官方默认 `tflite::Register_DEPTHWISE_CONV_2D_INT8()`，**不是宣称已启用官方RVV Depthwise**。

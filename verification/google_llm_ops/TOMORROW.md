@@ -1,22 +1,23 @@
-# 明日执行入口：单NPU Transformer/LLM算子测试
+# Transformer/LLM算子覆盖说明与历史VM执行备选
 
-**最新覆盖（用户确认）：只把仿真移到服务器，VM仍可构建。** 请优先按 [server/SERVER.md](server/SERVER.md) 执行：VM运行 `export_server.sh`，仅native参考/两ELF链接/审计/导出；服务器使用不含RTL的小包和原Pool已验证模型，先单例、再串行21例。无需服务器Bazel、不重新编译大RTL，不修改旧候选。下面VM `run_all.sh` 流程保留作备选，不是当前默认执行方式；新增FP32官方完整链接与RTL仍未收到实际结果。
+**最新覆盖：VM只构建，服务器仿真。** 两份ELF官方完整链接/资源审计和小包导出已完成，服务器INT8 case0也通过；17例FP32仍未收到硬件结果。21例服务器串行命令已给出，未确认启动/完成，不重复发任务；最新统一状态见[进度快照](../PROGRESS-current.md)与[服务器入口](server/SERVER.md)。下面VM `run_all.sh` 仅为历史备选，不是当前默认。
 
-准备日期：2026-10-22。范围仍是**算子性能与数值验证，不是完整LLM推理/聊天**。今晚不启动远程仿真；此文件给出明天的明确执行流程。单NPU、ITCM256KiB/DTCM512KiB、Ubuntu VM、Verilator，复用已经通过INT8测试的同一个RTL模型，不换RAM，不动旧实验。
+准备日期：2026-10-22。范围仍是**算子性能与数值验证，不是完整LLM推理/聊天**。当前固定单NPU、ITCM256KiB/DTCM512KiB、服务器Verilator复用原模型。本文件保留最初“次日VM集中验证”的操作作为备选，不能将其命令直接搬到无Bazel的服务器。
 
 ## 当前证据
 
 | 内容 | 状态 |
 |---|---|
-| INT8 decode_tiny M1/K32/N32 | 真实RTL通过；标量10563、RVV263周期，40.16倍 |
+| INT8 decode_tiny M1/K32/N32 | 原VM和新小包服务器pilot均通过；标量10563、RVV263周期，40.16倍 |
 | INT8 prefill_tiny M16/K32/N32 | 真实RTL通过；标量168618、RVV4110周期，41.03倍 |
 | INT8 K64/N64两例 | 已准备，尚未收到实际结果 |
-| 新增17例FP32算子 | 本地主机参考/目标文件编译已检查，**官方完整链接/真实RVV执行仍待明天** |
+| 新增17例FP32算子 | 主机参考、实际完整链接/资源审计已过；真实RVV/NPU运行待回传 |
+| 服务器完整21例 | 命令已提供，未收到新job/结果，不是已经启动或整套PASS |
 | 完整Transformer block、预训练LLM、多token生成 | 尚未实现/运行，不因本套件通过而标成完成 |
 
 本地准备检查：新增16项工具测试通过，包含实际17例native对FP64 gold、4份RV32对象编译/反汇编、真实fixtures表几何/无动态初始化、因果mask反例、内存/数值/日志拒绝及prepare-only→续测→21例汇总的**合成控制流**检查。旧INT8的10项与旧Person/Conv/Pool/VME的82项回归通过，合计108项工具测试；不是108个RTL用例。Bash和生成BUILD/Python语法通过。未启动远程RTL，不提前验收新增算子。
 
-## 一条命令启动全部测试（前台、串行）
+## 历史VM备选命令（不是当前服务器入口）
 
 ```bash
 (
@@ -25,6 +26,7 @@ source "$HOME/miniforge3/etc/profile.d/conda.sh"
 conda activate coral-matrix
 cd "$HOME/桌面/Coral_matrix"
 git pull --ff-only origin main
+python -B verification/google_llm_ops/transformer/repair_host_build.py
 bash verification/google_llm_ops/run_all.sh --mode all
 )
 ```

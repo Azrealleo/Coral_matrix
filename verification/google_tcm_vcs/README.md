@@ -1,5 +1,7 @@
 # 官方单NPU：Ubuntu导出，CentOS7独立VCS运行
 
+**2026-10-22范围覆盖：** 本专题为TCM阶段历史，VCS结果/包不改、不自动继续旧容量长任务。当前LLM使用服务器Verilator，只读复用原Pool256/512KiB模型，不是此处1/2/4MiB模型。最新见[进度快照](../PROGRESS-current.md)，旧“当前下一步”不是现行安排。
+
 ## 最新状态与接手入口（2026-10-19）
 
 1/2/4MiB包已在Ubuntu导出并核对RTL/固件；服务器1/2MiB均已传输和编译，1MiB T12/T384、2MiB T12完整PASS。服务器2MiB/T384只有启动回传，4MiB服务器运行未确认。Ubuntu的1/2MiB T384亦完整PASS并比较，同prefix策略2MiB少17.07%周期/40.92%权重字节。

@@ -1,5 +1,7 @@
 # 官方单核 ITCM/DTCM 容量实验（2026-10-14）
 
+**2026-10-22当前范围覆盖：** 团队按面积预算暂定DTCM512KiB，当前ITCM256KiB用于模型/LLM算子；旧8KiB ITCM、2/4MiB扩容和T768为保留阶段实验，不自动继续。本专题下方“当前/下一步”按当时语境理解。统一当前进度和接手入口见[PROGRESS-current.md](../PROGRESS-current.md)、[HANDOFF-current.md](../HANDOFF-current.md)。
+
 团队已选官方矩阵版本，不再运行fork对比。单位固定为KiB/MiB；本轮2M/4M分别是每个DTCM的2MiB/4MiB。先固定ITCM=8KiB，DTCM扫描32/128/512/1024/2048/4096KiB；不测试4核SoC，不修改团队已通过的单核SoC基线。
 
 ## 最新接手状态（2026-10-19）

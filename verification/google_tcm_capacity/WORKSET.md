@@ -1,5 +1,7 @@
 # 阶段2b：固定调度下的数据驻留与外部搬运
 
+**2026-10-22范围覆盖：** 下方为历史容量实验设计/待办，原结果保留；2/4MiB和T768不自动继续。当前单NPU固定ITCM256KiB/DTCM512KiB，已转LLM算子，见[最新进度](../PROGRESS-current.md)。旧工作集固定ITCM8KiB不能直接代表当前固件需求。
+
 ## 当前状态
 
 最新回传：Ubuntu1/2MiB T384完整配对PASS，同prefix策略少17.07%周期/40.92%权重外读；VCS1MiB/T384及2MiB/T12亦PASS。服务器独立Verilator1MiB/T12、T384均正式PASS、精确匹配VCS，耗时429.077/13979.842秒。VCS2MiB/T384最终状态仍待回传，下一步准备2/4MiB T768及各自的Verilator T12。ITCM仍8KiB，延迟8和真实模型没有完整结果。早期失败保留，最新数字见[结果记录](WORKSET-results.md)，续接见[交接指南](../HANDOFF-current.md)。

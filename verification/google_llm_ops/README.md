@@ -1,8 +1,10 @@
 # 单NPU：先测LLM算子，不加载完整模型
 
+**2026-10-22当前进度：VM两ELF链接/审计、小包导出及服务器INT8 case0均已通过。** 服务器pilot `operators._jxei5s3`，标量四次10563、RVV四次263周期，40.163498倍，匹配原VM周期；最终`cases=1`，不是21例PASS。完整21例命令已给出，但未收到启动job/结果，不能写为正在运行或已通过。新FP32已链接，尚无RTL执行结果。统一最新表见[PROGRESS-current.md](../PROGRESS-current.md)，接手见[HANDOFF-current.md](../HANDOFF-current.md)。
+
 **构建修复提示：** 旧FP32 native `cc_test`错误使用`hdrs`，现已将头文件列入`srcs`；内核/bench/fixtures不改。已经安装旧包的VM在pull后先运行 `python -B verification/google_llm_ops/transformer/repair_host_build.py`，精确核验并备份后只修复BUILD和manifest，再执行导出。不要手改生成文件或删manifest绕过一致性检查，详见下方SERVER.md。
 
-**最新执行分工：VM只构建/导出，仿真全部放服务器。** 用户已确认VM可短时间编译但不跑仿真。入口 [server/SERVER.md](server/SERVER.md)，VM执行 `bash verification/google_llm_ops/export_server.sh`；只做native参考、两份ELF实际链接/资源审计及小包导出，不构建Verilator模型。服务器无Bazel，严格只读复用原Pool已验证256/512KiB编译模型，先单例再串行21例，支持证据复核续测。原候选源码/已测包不改。新增FP32的实际官方链接与服务器仿真仍待用户运行，不提前报PASS。
+**最新执行分工：VM只构建/导出，仿真全部放服务器。** 入口 [server/SERVER.md](server/SERVER.md)。VM导出已完成，实际包`fab74b4f…`、210545字节，不需为了文档更新再构建。服务器严格只读复用原Pool已验证256/512KiB模型，无需Bazel。算子/bench/旧包不改；BUILD修复已完成。21例整套仍待实际验收，先确认是否已启动，不发重复任务。
 
 原VM统一入口保留：[TOMORROW.md](TOMORROW.md)。`run_all.sh --mode all` 是旧的VM全流程，**不是当前服务器命令**。新增算子并非全部官方优化实现；来源、混合标量exp/tanh、数值容差及未覆盖项见说明。下方保留已实测INT8记录。
 
@@ -13,9 +15,11 @@
 | decode_tiny | 1/32/32 | 10563 | 263 | 40.163498 |
 | prefill_tiny | 16/32/32 | 168618 | 4110 | 41.026277 |
 
-实际run分别为 `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c0.brMbDF` 和 `llm_linear_c1.Ye75FC`。空边界3周期均未扣除，不是整网/完整decode/prefill/VME性能。M增16倍时RVV周期增约15.63倍，基本线性；与官方matmul逐行调用gemv的实现一致，不能据此宣称跨token权重复用或架构极限。用户尚未回传实际ELF审计行和仿真wall time，不补造哈希或耗时。下一步复用模型，分别测试case2/3的K64/N64。
+原VM run分别为 `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c0.brMbDF` 和 `llm_linear_c1.Ye75FC`。空边界3周期均未扣除，不是整网/完整decode/prefill/VME性能。M增16倍时RVV周期增约15.63倍，基本线性，符合官方逐行gemv实现，不能据此宣称跨token权重复用或架构极限。旧两次ELF哈希/wall time未回传；此次新链接INT8 SHA为`17b3e2b6…`，由服务器pilot重新执行验证，不能自动倒填到旧VM二进制身份。下一步在服务器21例计划中覆盖K64/N64和FP32。
 
-后续再逐项加入RMSNorm、因果Attention/Softmax与其他激活，不将现成无掩码Attention测试直接冒充自回归模型测试。
+RMSNorm、因果Attention/Softmax与其他激活已纳入17例FP32准备/链接，真实硬件尚待验证；不将现成无掩码Attention直接冒充自回归模型测试。
+
+本次21例预计1～3小时（低置信度粗估，不含编译），4例INT8粗约20～30分钟；FP32首次、标量libm及服务器共享负载使时间不确定。`5400秒`是每例上限，不是总耗时。用户要求今后每次发仿真命令先给这种说明；收到实测更新预测。
 
 ## 本轮实际比较
 
@@ -39,7 +43,7 @@ M=1/16只是模拟decode/prefill中线性层的矩阵形状，不代表执行了
 - 所有数据驻留DTCM，只测resident计算。不能据此给出外部AXI权重流式读取速度、tokens/s或完整LLM推理时间。
 - 每次逐项比较标量与RVV，最终再用独立Python整数golden经AXI读回两份完整输出、实际输入/权重、越界guard和栈底64字节canary。必须自然halt、status3、0错误、4次真实RVV调用；超时/故障/错误输出不标PASS。栈底canary不是完整水位测量。
 
-## Ubuntu VM前台只跑最小case0
+## 历史备选：Ubuntu VM前台只跑最小case0（不是当前下一步）
 
 ```bash
 (
@@ -54,7 +58,7 @@ bash verification/google_llm_ops/run.sh 0
 
 不下载语言模型，不需要PyTorch/Transformers，不使用VCS。脚本先native标量参考与独立Python核对（不是RVV执行），再链接新ELF、生成并核对256/512KiB参数，最后显式前台运行一个Verilator测试。没有后台任务或全部用例自动排队。Bazel进度刷屏已关闭，日志保存在 `$HOME/coral_tcm_capacity_8e4_v1/llm_linear_c0.*`。
 
-首次需编译新的仿真模型，可能要几分钟或更久；这部分与实际测试运行时间分开。case0的2百万周期、5400秒测试超时仅为停止上限，不是预计耗时。尚无本轮实测，不能承诺具体完成时间。后续case1/2/3按需单独运行同脚本，复用同一个已编译模型，第一例通过后再启动。
+上述为原VM独立流程，首次模型编译另计；当前已转服务器，不默认执行它。case0的2百万周期、5400秒超时只作上限。已有case0/1实测周期，但其旧VM wall time未回传，不能补造VM速度或和服务器作精确快慢比较。
 
 成功必须同时有 `LLM_LINEAR_OBSERVATION`、Cocotb `TESTS=1 PASS=1 FAIL=0`、`LLM_LINEAR_SUMMARY`、最终 `LLM_LINEAR_PASS`。请回传ELF审计和SUMMARY。若Bazel或测试出错，保留整个run目录；不要改官方内核或关闭检查来获得PASS。
 
@@ -62,4 +66,4 @@ bash verification/google_llm_ops/run.sh 0
 
 旧Conv11项、Pool19项、VME18项、默认Person34项工具回归均通过，合计82项；这些旧回归不算新LLM硬件验证。
 
-case0/1已由用户回传真实VM流水PASS，case2/3仍待执行。后两例在同一Ubuntu环境分别运行 `bash verification/google_llm_ops/run.sh 2` 和 `bash verification/google_llm_ops/run.sh 3`；每次只执行所选case，失败即停止，不自动切换完整网络。完成后回传ELF审计与SUMMARY。最终出现的 `LLM_LINEAR_PREPARED ... RTL=NOT_RUN` 只是生成器重新核验源码的标记，并非否定前面的RTL测试；真实运行结论以同一run的Cocotb结果、SUMMARY与LLM_LINEAR_PASS为准。
+case0/1真实VM流水PASS，case2/3未收到结果；当前后两例由服务器21例计划覆盖，不默认返回VM。最终出现的 `LLM_LINEAR_PREPARED ... RTL=NOT_RUN` 只是生成器复核标记，不否定前面同run实际RTL结果；同理服务器`READY cases=21 simulation=NOT_RUN`不代表21例执行。

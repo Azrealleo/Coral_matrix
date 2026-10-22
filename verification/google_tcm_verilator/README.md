@@ -1,5 +1,7 @@
 # 服务器独立Verilator：原封不动读取已校验的TCM RTL包
 
+**2026-10-22范围覆盖：** 下方TCM后端结果及命令保留为历史；不自动恢复2/4MiB T768或重编已验证模型。当前LLM算子使用另一份固定256/512KiB Pool模型及小固件包，见[最新进度](../PROGRESS-current.md)和[LLM服务器入口](../google_llm_ops/server/SERVER.md)。不能混用两套构建身份。
+
 状态：2026-10-19已收到服务器1MiB/T12完整RTL PASS及与VCS参考的精确比对PASS，实际运行429.077秒；复用了434.214秒编译通过的原模型。首次trace启动失败保留，修复后的新运行另存，不覆盖失败证据。环境为Python3.11.17、Verilator5.052、Conda GCC15.3、glibc2.17。
 
 后续1MiB/T384亦已完整PASS、精确匹配VCS，13979.842秒，继续复用原模型。这个后端交叉验证已完成，不再重复跑1MiB；当前转向2/4MiB的T768准备，先为每个新容量完成自己的T12。服务器2MiB包已落盘，可按[当前交接指南](../HANDOFF-current.md#server-verilator-2m-pilot)建立独立模型及pilot；4MiB传输/运行尚未确认。只更新外层说明，不修改已导出包或原证据。
