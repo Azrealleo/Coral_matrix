@@ -7,7 +7,7 @@
 - 团队已确定使用官方CoralNPU，Yangg152比较暂停并保留历史。
 - 当前只测一个NPU的Transformer/LLM算子，固定ITCM256KiB、DTCM512KiB。不是完整语言模型/文本生成。
 - VM只进行Bazel/Chisel生成、主机参考和交叉链接/导出；RTL仿真转EDA152服务器Verilator。
-- 本机未登录服务器启动或实时监控任务。已提供21例前台串行命令，**尚未收到整套启动目录或完成结果，不能写为“正在跑”或“全部通过”**。
+- 用户已回传**21例整套真实RTL PASS**（4例INT8+17例FP32），job为`operators.cgtja4_x`。本机未登录服务器或独立复跑；已核对回传摘要完整性，原始日志仍在服务器。
 - 完整MobileNet优化版、Conv RVV新实现、TCM扩容及ITCM扫描均不自动继续；Depthwise遵守用户要求不改动。
 
 ## 2. 本轮完成/待验证表
@@ -16,17 +16,19 @@
 |---|---|---|
 | VM INT8 decode_tiny，M1/K32/N32 | `llm_linear_c0.brMbDF`，流水PASS | 标量10563、RVV263周期/调用，40.163498倍 |
 | VM INT8 prefill_tiny，M16/K32/N32 | `llm_linear_c1.Ye75FC`，流水PASS | 标量168618、RVV4110周期/调用，41.026277倍 |
-| INT8 K64/N64 decode/prefill | 固件已链接，已纳入21例 | 尚无实际RTL结果回传 |
+| INT8 K64/N64 decode/prefill | 服务器整套CASE_PASS | 标量41571/664746、RVV577/9134周期；72.046794/72.777097倍 |
 | 17例FP32主机参考 | 本地及导出时的native参考检查 | 不是RVV/NPU执行 |
 | FP32 RISC-V完整链接/资源审计 | `llm_server_export.HJkCC5`，实际ELF审计输出 | 已完成，不再写“待完整链接” |
 | 不含RTL的服务器小包 | 210545字节，SHA见第3节 | 已实际导出并在服务器单例使用 |
 | 原Pool模型复用check | `LLM_SERVER_READY cases=21` | 已确认可复用；该标记自身不运行21例 |
 | 服务器INT8 case0 | `LLM_SERVER_JOB_PASS cases=1` | 真实RTL通过，周期与旧VM结果一致 |
-| 服务器21例完整套件 | 已给出`all`命令，未收到后续结果 | 待确认启动/执行/验收，不是21例PASS |
-| FP32硬件数值与性能 | 只有准备和链接证据 | 尚未收到真实FP32 RTL结果 |
+| 服务器21例完整套件 | `operators.cgtja4_x`，最终`JOB_PASS cases=21` | 完成；完整周期表见[实际结果](google_llm_ops/RESULTS-20261022.md) |
+| FP32硬件数值与性能 | 17条CASE_PASS，误差/周期摘要完整 | 首次真实RTL通过，最大报告绝对误差4.76837158203125e-7 |
 | 完整Transformer block/LLM、多token生成 | 无模型图/权重/tokenizer/生成流程验收 | 未完成，不能给tokens/s |
 
 两种INT8微基准比较朴素标量与固定官方RVV实现，不是VME；速度比为原始内核mcycle之比，空边界3周期单列未扣除。不能将上述40倍外推为模型或架构峰值加速。
+
+本轮实测范围：INT8 40.16～72.78倍、FP32矩阵乘12.52～28.74倍、RMSNorm2.26～2.83倍、RoPE4.97～6.46倍、因果Attention1.67～1.75倍；Softmax约1.12倍，SwiGLU/GEGLU约1.01倍。后两组仍有标量libm，收益有限；不是完整LLM加速比。
 
 ## 3. 实际固件和归档身份
 
@@ -45,7 +47,7 @@ VM job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5`。
 - 服务器包目录：`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1`。
 - 包中无新RTL、无模型权重。现有封存包不因仓库文档更新而重打包/覆盖。
 
-## 4. 服务器单例的真实断点
+## 4. 服务器已完成单例和整套的位置
 
 原模型（只读复用）：
 
@@ -71,6 +73,14 @@ VM job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5`。
 
 用户未回传该pilot墙钟耗时，不补造时间。单例job不改计划成为21例；完整套件应有新的job，不能拿此`cases=1`当整套验收。
 
+**后续完整21例已通过**，控制台`/home2/lqq/coral_vcs_tools/llm_ops_all.mXLd8a.log`，新job：
+
+```text
+/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x
+```
+
+有21条CASE_PASS和最终JOB_PASS cases=21；每路径四次样本均一致。附件摘要独立核对见[结果报告](google_llm_ops/RESULTS-20261022.md)，不等于本机已获取所有远程XML/日志。当前只需回收summary/计时及证据，不重复跑整套。
+
 ## 5. 21例覆盖及软件来源
 
 | 组别 | 数量 | 形状/验证重点 | 优化实现来源 |
@@ -95,6 +105,8 @@ VM job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5`。
 
 当前已给21例的估算为1～3小时、建议预留3小时，复用模型所以不含编译。估算基于此前同服务器Person等负载约2800～3000 NPU周期/秒以及本轮规模；4例INT8粗估20～30分钟，17例FP32尚无真实时间，尤其标量libm exp/tanh有不确定性。是低置信度粗估，不是本轮实测或完成承诺，也不是芯片执行时间。
 
+21例已完成，但回传主控制台没有wall time/起止时间；实际总耗时仍未知，不将1～3小时改写成实测。需读取该job的summary.md/json获取每case耗时，并注明子进程耗时之和不含case间核验开销。
+
 `--timeout 5400`表示每例90分钟墙钟上限，不是整套90分钟。每例预算INT8 case0为200万周期，其余1000万周期，是停止上限而非必须跑满；故障/数值失败会提前停止。收到新case实际耗时后应修正预测，不把超过估计直接判死锁，也不盲目重跑。
 
 ## 7. 其他阶段的保留结论
@@ -111,10 +123,10 @@ VM job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5`。
 
 ## 8. 当前下一步和交回内容
 
-1. 先确认用户是否已启动21例，不再额外发第二个`all`；取实际`LLM_CONSOLE_LOG`和新`LLM_SERVER_JOB_DIRECTORY`。
-2. 已在运行则只读查看日志，不能为查看进度再启动仿真，不按过期PID操作进程。
-3. 停止时保存`LLM_SERVER_STOP`、case的`_test.log`、XML、退出状态和job目录；分析原因后再选择resume或新版本，不关校验来通过。
-4. 全部验收需新的`LLM_SERVER_JOB_PASS cases=21`及`summary.md/json`；收集原始文件，不只保存终端PASS行。
-5. 更新每算子首/稳态周期、数值误差和实际墙钟，识别瓶颈，再讨论VME或完整block/小模型。当前未授权自动扩成完整LLM长任务。
+1. 已有完整21例PASS，不再发第二个`all`。只读回收`operators.cgtja4_x/summary.md/json`及原始证据，确认每case实际墙钟。
+2. 保存控制台`llm_ops_all.mXLd8a.log`、job.json、completed及attempts日志/XML/状态/result，不只保存终端行。
+3. 保留完整周期表和误差结果；Softmax/门控收益有限，先依据源码和后续profiling定位，不臆造libm时间占比。
+4. 后续由用户选择代表性尺寸/尾部/范围扫描、继续优化或VME对照；当前没有自动启动新仿真。
+5. 完整LLM、模型权重/tokenizer、持续KV/AXI流式及PPA/门仿仍未完成；单算子PASS不能替代。
 
 不要改已导出包、旧RTL模型或审计身份，不删除失败日志，不停止其他人的仿真。后续完整可执行命令及接手材料见[HANDOFF-current.md](HANDOFF-current.md)。

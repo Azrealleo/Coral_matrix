@@ -1,10 +1,10 @@
 # 单NPU：先测LLM算子，不加载完整模型
 
-**2026-10-22当前进度：VM两ELF链接/审计、小包导出及服务器INT8 case0均已通过。** 服务器pilot `operators._jxei5s3`，标量四次10563、RVV四次263周期，40.163498倍，匹配原VM周期；最终`cases=1`，不是21例PASS。完整21例命令已给出，但未收到启动job/结果，不能写为正在运行或已通过。新FP32已链接，尚无RTL执行结果。统一最新表见[PROGRESS-current.md](../PROGRESS-current.md)，接手见[HANDOFF-current.md](../HANDOFF-current.md)。
+**2026-10-22当前进度：服务器完整21例（4 INT8+17 FP32）真实RTL全部通过。** job `operators.cgtja4_x`，最终`LLM_SERVER_JOB_PASS cases=21 full_model=NOT_RUN VME=NOT_RUN`。完整周期表/误差/范围见[本轮结果](RESULTS-20261022.md)，统一状态见[进度快照](../PROGRESS-current.md)，接手见[交接指南](../HANDOFF-current.md)。当前只读回收报告和实际wall time，不重跑整套；此前pilot `cases=1`另存。
 
 **构建修复提示：** 旧FP32 native `cc_test`错误使用`hdrs`，现已将头文件列入`srcs`；内核/bench/fixtures不改。已经安装旧包的VM在pull后先运行 `python -B verification/google_llm_ops/transformer/repair_host_build.py`，精确核验并备份后只修复BUILD和manifest，再执行导出。不要手改生成文件或删manifest绕过一致性检查，详见下方SERVER.md。
 
-**最新执行分工：VM只构建/导出，仿真全部放服务器。** 入口 [server/SERVER.md](server/SERVER.md)。VM导出已完成，实际包`fab74b4f…`、210545字节，不需为了文档更新再构建。服务器严格只读复用原Pool已验证256/512KiB模型，无需Bazel。算子/bench/旧包不改；BUILD修复已完成。21例整套仍待实际验收，先确认是否已启动，不发重复任务。
+**执行分工：VM只构建/导出，仿真全部放服务器。** 入口 [server/SERVER.md](server/SERVER.md)。实际包`fab74b4f…`、210545字节和原Pool256/512KiB模型只读复用；21例已验收。文档更新不修改算子/bench/封存包，不启动新任务。
 
 原VM统一入口保留：[TOMORROW.md](TOMORROW.md)。`run_all.sh --mode all` 是旧的VM全流程，**不是当前服务器命令**。新增算子并非全部官方优化实现；来源、混合标量exp/tanh、数值容差及未覆盖项见说明。下方保留已实测INT8记录。
 
@@ -15,9 +15,9 @@
 | decode_tiny | 1/32/32 | 10563 | 263 | 40.163498 |
 | prefill_tiny | 16/32/32 | 168618 | 4110 | 41.026277 |
 
-原VM run分别为 `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c0.brMbDF` 和 `llm_linear_c1.Ye75FC`。空边界3周期均未扣除，不是整网/完整decode/prefill/VME性能。M增16倍时RVV周期增约15.63倍，基本线性，符合官方逐行gemv实现，不能据此宣称跨token权重复用或架构极限。旧两次ELF哈希/wall time未回传；此次新链接INT8 SHA为`17b3e2b6…`，由服务器pilot重新执行验证，不能自动倒填到旧VM二进制身份。下一步在服务器21例计划中覆盖K64/N64和FP32。
+原VM run分别为 `/home/lqq/coral_tcm_capacity_8e4_v1/llm_linear_c0.brMbDF` 和 `llm_linear_c1.Ye75FC`。空边界3周期均未扣除，不是整网/完整decode/prefill/VME性能。M增16倍时RVV周期增约15.63倍，基本线性，符合官方逐行gemv实现，不能据此宣称跨token权重复用或架构极限。旧两次ELF哈希/wall time未回传；此次新链接INT8 SHA为`17b3e2b6…`，由服务器重新执行验证，不能倒填到旧VM二进制身份。K64/N64及17例FP32已由新整套覆盖。
 
-RMSNorm、因果Attention/Softmax与其他激活已纳入17例FP32准备/链接，真实硬件尚待验证；不将现成无掩码Attention直接冒充自回归模型测试。
+17例FP32已真实RTL通过：矩阵乘12.52～28.74倍、RMSNorm2.26～2.83倍、RoPE4.97～6.46倍、因果Attention1.67～1.75倍；Softmax约1.12倍、SwiGLU/GEGLU约1.01倍。除矩阵乘外为项目基线，不将现成无掩码Attention冒充自回归模型测试，不据此宣称完整LLM通过。
 
 本次21例预计1～3小时（低置信度粗估，不含编译），4例INT8粗约20～30分钟；FP32首次、标量libm及服务器共享负载使时间不确定。`5400秒`是每例上限，不是总耗时。用户要求今后每次发仿真命令先给这种说明；收到实测更新预测。
 
@@ -66,4 +66,4 @@ bash verification/google_llm_ops/run.sh 0
 
 旧Conv11项、Pool19项、VME18项、默认Person34项工具回归均通过，合计82项；这些旧回归不算新LLM硬件验证。
 
-case0/1真实VM流水PASS，case2/3未收到结果；当前后两例由服务器21例计划覆盖，不默认返回VM。最终出现的 `LLM_LINEAR_PREPARED ... RTL=NOT_RUN` 只是生成器复核标记，不否定前面同run实际RTL结果；同理服务器`READY cases=21 simulation=NOT_RUN`不代表21例执行。
+case0/1真实VM流水PASS，case2/3已在服务器21例中通过，分别72.046794和72.777097倍。`LLM_LINEAR_PREPARED ... RTL=NOT_RUN`只是生成器复核标记；`READY cases=21 simulation=NOT_RUN`也不是执行结果。本次有另一个完整job的最终JOB_PASS cases=21，二者不能混淆。

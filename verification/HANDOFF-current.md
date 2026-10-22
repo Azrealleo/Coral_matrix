@@ -7,8 +7,8 @@
 1. 团队已确定官方CoralNPU，单NPU SoC集成测试由用户告知已通过，4核集成由团队继续；本人当前不验证4核互连。
 2. 当前只测Transformer/LLM算子，不是预训练LLM或文本生成。固定单核ITCM256KiB/DTCM512KiB，优先Verilator。
 3. Windows维护代码和记录，VM只做Bazel/Chisel、native参考、固件交叉链接/导出，服务器执行RTL仿真，不在旧CentOS7上强行运行当前Bazel。
-4. INT8 case0/1原VM真实RTL通过；本次新小包的服务器case0也通过，周期完全一致。新增FP32已实际链接，**尚无FP32 RTL结果回传**。
-5. 已给服务器21例串行命令，但没有收到该整套的启动目录或结束结果；**不确认它正在运行，不重启第二份任务**。只确认pilot `cases=1`，不是21例PASS。
+4. INT8 case0/1原VM及服务器pilot通过后，用户已回传完整**21例RTL PASS（4 INT8+17 FP32）**；新FP32现在有真实硬件结果，不能再写待执行。
+5. 整套job为`operators.cgtja4_x`，不是旧pilot `operators._jxei5s3`。当前只读归档结果/实际计时，不重复运行`all`。完整周期与证据边界见[结果报告](google_llm_ops/RESULTS-20261022.md)。
 6. 每次给新仿真命令先说明预计墙钟、是否含编译、估算依据/不确定性；`5400秒`是每例超时而非预计耗时。目前21例低置信度粗估1～3小时，不含编译，收到实测应更新。
 
 ## 2. 当前固定身份，不能相互替代
@@ -71,6 +71,7 @@
 - 原模型已验证短probe：同一`_verilator_runtime/runs/probe.46bl5uqr/`。
 - 最新LLM pilot job：`llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators._jxei5s3/`。
 - pilot原始日志：上述job的`attempts/int8_0.g3eqoi8b/_test.log`；旁边应有XML、退出状态及result.json。job保存计划/身份及summary.md/json。
+- **完整21例job**：`llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x/`，控制台`/home2/lqq/coral_vcs_tools/llm_ops_all.mXLd8a.log`。每case四次样本一致，21条CASE_PASS和最终JOB_PASS cases=21；回传摘要没有wall time，需只读回收summary。
 - VM导出源job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5/`，保存两ELF、host/build日志和审计；归档名`coral_llm_ops_i256_d512_v1.tar.gz`。
 
 新包依赖旧Pool编译状态和probe证据，不能只拷210KB小包到一台干净服务器就执行。读模型时核对原producer/环境/配方/二进制/短probe，持原状态锁；任何不一致即停，不修改manifest/current_build绕过检查。暂不要移动原模型路径，绝对路径属于身份记录的一部分。
@@ -85,9 +86,20 @@ pilot的四次标量均10563、四次RVV均263周期，空边界3；与旧VM cas
 
 原始Cocotb测试体以AST保持，服务器仅白名单替换文件定位并换入口；Bazel不会在服务器启动。WAVES/GUI必须unset，字符串`0`仍可能触发trace；原模型无trace支持。不要把此运行环境和VCS的系统GCC4.8/新DPI G++组合混用。
 
-## 7. 接手第一步：只读确认是否已启动21例
+## 7. 接手第一步：只读回收已通过21例的结果
 
-先向用户索取本次`LLM_CONSOLE_LOG`和**新的**`LLM_SERVER_JOB_DIRECTORY`。只读日志通常数秒返回，不运行新仿真。若路径暂未知，可在服务器执行：
+完整21例已通过；当前只读操作预计数秒返回，不运行新仿真。在服务器执行下列命令可显示报告并检查成功索引条数：
+
+```bash
+(
+set -eo pipefail
+llm_job=/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x
+cat "$llm_job/summary.md"
+find "$llm_job/completed" -maxdepth 1 -type f -name '*.json' | wc -l
+)
+```
+
+summary.md包含每case子进程秒数；其和不是严格套件总墙钟，不含case间校验。完整job.json/summary.json和所有attempt原始文件应单独归档，不能只看计数21就重新验收。若日后调查未知任务，可用以下通用只读命令；不表示这次整套仍在运行：
 
 ```bash
 (
@@ -101,7 +113,7 @@ ps -u "$(id -u)" -o pid,ppid,etime,pcpu,stat,args | \
 
 这些是当前用户匹配结果，不自动证明每行属于本job；结合命令路径、job.json和日志核对。历史PID不能用于kill，不停止他人的任务。不要`tail -f`后误以为它会启动/推进仿真；本脚本只在case开始/结束写主控制台，长时间无新行不等于卡死。
 
-## 8. 确认没有重复任务后：21例前台入口
+## 8. 历史复现入口：21例前台运行（已通过，不默认重跑）
 
 预计墙钟**1～3小时，低置信度粗估，不含编译**；约2800～3000周期/秒来自此前服务器负载，非本轮FP32实测，exp/tanh及共享负载有不确定性。每例5400秒为上限，不能当总耗时。以下命令会新建job并重新跑4例INT8+17例FP32，不接续pilot单例计划。
 
@@ -149,7 +161,7 @@ python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
 - 若SoC/综合同学需要RTL/门仿，另交对应配置的生成RTL/参数/源版本和测试报告；本小固件包没有RTL，也不含完整测试报告。历史[8/32KiB交付说明](HANDOFF-simulated-rtl.md)不能直接代表256/512KiB当前模型。
 - 接手成功的最小判据：能解释当前范围，定位原包/模型/probe/pilot证据，区分`READY`、链接审计、`cases=1`、`cases=21`和完整模型；能只读查看现有job，确认未运行时才启动/续测，能据summary追到每项原始证据。
 
-尚缺：FP32 RTL正确性/周期、21例完整报告、完整LLM/block/权重/tokenizer/持续KV、LLM VME与BF16/INT4/AXI流式性能、真实宏面积/功耗/200MHz STA及门仿签核。旧默认Person单图PASS和VME/Pool短测不能替代这些。
+尚缺：将服务器summary/原始证据和实际墙钟回收归档、更多尺寸/边界/真实输入覆盖、完整LLM/block/权重/tokenizer/持续KV、LLM VME与BF16/INT4/AXI流式性能、真实宏面积/功耗/200MHz STA及门仿签核。**当前21例及FP32真实RTL已经通过，不再列为未运行。** 旧默认Person单图PASS和VME/Pool短测不能替代上述未覆盖项。
 
 ## 11. 历史与专题导航（不自动继续旧计划）
 

@@ -1,6 +1,6 @@
 # Transformer/LLM算子覆盖说明与历史VM执行备选
 
-**最新覆盖：VM只构建，服务器仿真。** 两份ELF官方完整链接/资源审计和小包导出已完成，服务器INT8 case0也通过；17例FP32仍未收到硬件结果。21例服务器串行命令已给出，未确认启动/完成，不重复发任务；最新统一状态见[进度快照](../PROGRESS-current.md)与[服务器入口](server/SERVER.md)。下面VM `run_all.sh` 仅为历史备选，不是当前默认。
+**最新覆盖：服务器21例已完整通过（4 INT8+17 FP32）。** job `operators.cgtja4_x`，最终JOB_PASS cases=21；完整周期/误差见[结果报告](RESULTS-20261022.md)。当前只读回收summary/实际墙钟/原始证据，不重复发任务。下面VM `run_all.sh` 仅历史备选，不是当前默认；最新统一状态见[进度快照](../PROGRESS-current.md)。
 
 准备日期：2026-10-22。范围仍是**算子性能与数值验证，不是完整LLM推理/聊天**。当前固定单NPU、ITCM256KiB/DTCM512KiB、服务器Verilator复用原模型。本文件保留最初“次日VM集中验证”的操作作为备选，不能将其命令直接搬到无Bazel的服务器。
 
@@ -10,9 +10,9 @@
 |---|---|
 | INT8 decode_tiny M1/K32/N32 | 原VM和新小包服务器pilot均通过；标量10563、RVV263周期，40.16倍 |
 | INT8 prefill_tiny M16/K32/N32 | 真实RTL通过；标量168618、RVV4110周期，41.03倍 |
-| INT8 K64/N64两例 | 已准备，尚未收到实际结果 |
-| 新增17例FP32算子 | 主机参考、实际完整链接/资源审计已过；真实RVV/NPU运行待回传 |
-| 服务器完整21例 | 命令已提供，未收到新job/结果，不是已经启动或整套PASS |
+| INT8 K64/N64两例 | 服务器真实RTL通过，标量/RVV为72.046794、72.777097倍 |
+| 新增17例FP32算子 | 首次真实RTL全部通过，最大报告绝对误差4.76837158203125e-7 |
+| 服务器完整21例 | `operators.cgtja4_x`，已回传21条CASE_PASS和最终JOB_PASS cases=21 |
 | 完整Transformer block、预训练LLM、多token生成 | 尚未实现/运行，不因本套件通过而标成完成 |
 
 本地准备检查：新增16项工具测试通过，包含实际17例native对FP64 gold、4份RV32对象编译/反汇编、真实fixtures表几何/无动态初始化、因果mask反例、内存/数值/日志拒绝及prepare-only→续测→21例汇总的**合成控制流**检查。旧INT8的10项与旧Person/Conv/Pool/VME的82项回归通过，合计108项工具测试；不是108个RTL用例。Bash和生成BUILD/Python语法通过。未启动远程RTL，不提前验收新增算子。

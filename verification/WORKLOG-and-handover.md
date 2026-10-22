@@ -4,9 +4,9 @@
 
 本记录汇总从两套工程下载、跨平台同步、网络与工具环境搭建，到矩阵功能测试、整核性能比较、团队候选仓库和 RTL 综合交付的工作。目标是让接手人不依赖聊天上下文也能继续。它不是流片签核报告，也不把未执行的工作写成已完成。
 
-初版整理时工具基线为`e3046dc`，10月19日核对到`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`；本次文档整理基于`105b70d`及用户最新服务器pilot回传。工具commit不代替硬件源码、RTL、ELF或归档哈希。本次仅整理文档，不修改封存包或启动远程任务。
+初版整理时工具基线为`e3046dc`，10月19日核对到`c0b4b76098a88d5bace3c3fbdcef318c10e924f7`；本次结果整理基于`8c99fde`及用户回传的服务器21例整套控制台。工具commit不代替硬件源码、RTL、ELF或归档哈希。本次仅记录/分析结果，不修改封存包或启动远程任务。
 
-**当前主线：单NPU Transformer/LLM算子微基准，ITCM256KiB/DTCM512KiB，VM只构建导出、服务器Verilator仿真。** 团队已选官方，默认Person单图完整推理及Conv片段已完成；优化整网、Conv RVV新实现及旧2/4MiB/ITCM扫描暂停。LLM两ELF已真实链接/审计，服务器INT8 case0 pilot已通过；21例命令已给出但未收到该整套的新job/结果，不标成正在运行或ALL_PASS。FP32硬件/完整LLM仍待验证。接手先读[进度快照](PROGRESS-current.md)、[当前交接指南](HANDOFF-current.md)和本文第29节；原交接全文已保留[历史附件](HANDOFF-archive-before-llm-20261022.md)。
+**当前主线：单NPU Transformer/LLM算子微基准，ITCM256KiB/DTCM512KiB，VM只构建导出、服务器Verilator仿真。** 用户已回传完整21例真实RTL PASS（4 INT8+17 FP32），job `operators.cgtja4_x`；下一步只读回收报告/原始证据和实际墙钟，不重复运行整套。完整LLM/模型权重/tokenizer/多token仍未验证。团队已选官方，默认Person单图及Conv片段完成，优化整网/旧容量扫描暂停。接手先读[进度](PROGRESS-current.md)、[交接](HANDOFF-current.md)、[21例结果](google_llm_ops/RESULTS-20261022.md)及第29.5节；原交接完整保留为历史附件。
 
 本文按阶段保留曾经的“当前/下一步/未完成”，第1～28节的这类说法均按当时语境理解；最新进度以上述入口和第29节为准。不能据旧段落自动恢复TCM扫描、默认模型长任务或重跑已完成pilot。用户报告团队SoC单NPU集成通过、后续4核，不等于本人已复跑SoC/完成PPA门仿。
 
@@ -2052,7 +2052,7 @@ run.sh是VM前台单例流水：验证原capacity实验完整性，独立安装l
 
 <a id="section-29"></a>
 
-## 29. 当前断点：服务器LLM单例通过，21例整套结果待回传（2026-10-22）
+## 29. 服务器LLM算子进度：完整21例已通过（2026-10-22，第29.5节为最新）
 
 ### 29.1 新小包的服务器RTL pilot实际通过
 
@@ -2087,3 +2087,17 @@ attempt为`attempts/int8_0.g3eqoi8b`，原始`_test.log`及XML/退出状态/resu
 本次只编辑文档，不启动/监控/停止远程仿真，不改RTL、ELF、内核、计时或验收工具，也不访问服务器完整日志；所有“运行状态”来自用户回传而非实时发现。未相关用户工作区修改保留，个人仓库同步不涉及团队SoC库。
 
 完成后校验16份本轮文档的134个本地链接/显式历史锚点，确认原交接正文完整保留；当前交接和LLM操作页的Bash代码块通过bash -n语法检查（未执行）。核对最新pilot路径/两ELF/包SHA及周期，git diff --check通过。未重跑122/45项工具测试或任何RTL；本次只作文档链接、语法和证据一致性核对，不能标成新增仿真通过。
+
+### 29.5 用户回传完整21例RTL PASS，首次FP32硬件结果成立
+
+用户提供完整控制台`/home2/lqq/coral_vcs_tools/llm_ops_all.mXLd8a.log`，job为`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x`。包含21个CASE_START、4例INT8+17例FP32的21条CASE_PASS，最终LLM_SERVER_JOB_PASS cases=21 full_model=NOT_RUN VME=NOT_RUN。原Pool模型7a54106b3148.z558xni8继续只读复用，小包/两ELF/RTL身份不变。不是旧pilot cases=1，前面29.2待回传状态已成为历史。
+
+本机独立解析附件，核对所有名称/次序/ID/形状、四次样本、比值和FP32误差摘要，均一致且无遗漏/重复/STOP。附件字节SHA d4a5d8e5e20d69a95bfdd7147322cd6444fdd0961c63f8e9fae66f5d821669de；该哈希只标识用户提供的控制台，不替代服务器原始XML/test.log证据。本机没有登录服务器或独立复跑，不能将摘要核对描述为另一次完整数值/guard验收；工具打印PASS前已按其封存程序验收，原始材料需后续备份。
+
+所有case每路径首次+3次steady的周期均相同，空边界3周期未扣。INT8四例：10563/263=40.163498倍、168618/4110=41.026277倍、41571/577=72.046794倍、664746/9134=72.777097倍，后两例现在有首次硬件结果。FP32矩阵乘6574/525=12.521905倍、26008/905=28.738122倍；RMSNorm2.259608～2.829279倍、RoPE4.972973～6.460094倍、残差5.956714倍、KV追加4.264706倍、因果GQA Attention1.674249～1.750141倍。Softmax1.120948～1.125964倍，SwiGLU1.010291、GEGLU1.008415倍。逐例完整数据见google_llm_ops/RESULTS-20261022.md。
+
+FP32最大报告绝对误差4.76837158203125e-7，通过固定atol2e-5/rtol2e-4；部分误差0不推广到任意输入逐位一致。首token与future-poison因果对照均通过，仅限当前fixture/位置覆盖。矩阵乘是原样官方实现，其余项目基线仍含标量libm；Softmax/门控收益有限与该源码相符，但没有逐函数profiling，不虚构具体libm时间占比。不能平均21种不同比值称为LLM加速，更不能把72倍外推到整网、VME或tokens/s。
+
+本次控制台没有逐case/总墙钟或起止时间，实际总耗时未知；此前1～3小时仍为粗估，不改写成“实测已用”。当前下一步只读回收summary.md/json、job.json、completed与attempts原始日志/XML/退出状态。summary每case timing.elapsed_seconds可求子进程墙钟和，但不含case间核验开销，不能当严格套件总时间。接手指南已改成先读取完成job，不重复启动all；不为测耗时再跑一遍。
+
+同步更新进度/交接/LLM入口，保留旧阶段说明为历史。下一项实验由用户决定：代表性规模/尾部/数据范围、混合libm瓶颈优化或VME/RVV对照；完整block/预训练LLM、权重/tokenizer/持续KV、AXI流式/低比特、SoC/PPA/门仿仍未完成。本轮不改工具/内核/固件/RTL，不启动任何新仿真。

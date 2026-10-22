@@ -1,6 +1,6 @@
 # 单NPU LLM算子：VM构建，服务器仿真
 
-**当前断点：两ELF已链接、小包已导出/传服务器，INT8 case0 pilot真实RTL通过。** job `operators._jxei5s3`，四次标量10563/RVV263周期，最终`cases=1`。本页VM构建、传包、check/pilot步骤保留供复现，当前不必重做。21例命令已给出，未收到其新job/结果；先确认是否启动，不发重复任务。统一状态/路径与证据等级见[PROGRESS-current.md](../../PROGRESS-current.md)，操作见[HANDOFF-current.md](../../HANDOFF-current.md)。
+**当前断点：完整21例真实RTL已通过，job `operators.cgtja4_x`。** 最终JOB_PASS cases=21，4例INT8+17例FP32，完整周期/误差表见[实际结果](../RESULTS-20261022.md)。本页构建/传包/pilot/all命令保留为复现，当前不重做、不发重复任务；只读回收summary和原始证据/实际墙钟。统一入口见[进度](../../PROGRESS-current.md)和[交接](../../HANDOFF-current.md)。
 
 2026-10-22最新分工：VM只做native参考、两份RISC-V固件完整链接、内存审计及小包导出；不运行RTL仿真，不编译Verilator大模型。服务器使用原有coral-verilator环境和**已通过Pool probe的256/512KiB模型**，不需要Bazel，不重新编译或改写原模型。
 
@@ -54,7 +54,7 @@ python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
 
 读原producer构建配方、环境、二进制哈希和原probe的XML/原始日志证据，核验通过才复用。环境不一致、包被改或原模型锁忙则停止；不要手改manifest/current_build，不杀他人的任务。运行期间持原模型锁，不能与使用同一私有状态的旧脚本并行。
 
-## 3. 串行21例及恢复
+## 3. 历史复现：串行21例及恢复（当前已通过，不默认重跑）
 
 单例正常后：
 
@@ -79,8 +79,8 @@ python -u -B server_ops.py --packet "$PWD" --rtl-package "$tcm_rtl" \
 
 用户已回传VM `llm_server_export.HJkCC5`实际链接/资源审计和小包导出成功。INT8 ELF SHA `17b3e2b6a5c208f638db2d7b85f4ddc5f8f64c336290093a9a11ce06a3dd072d`，ITCM占用2976、DTCM静态13536、heap494368字节；FP32 ELF SHA `ab1c95f0398f1e1ee43a0bc7b94677daebe21fdb4ff359046ce7eecf2c81f312`，对应10992/59808/448096字节。均是LINK/AUDIT，不是RTL执行PASS。
 
-实际归档`coral_llm_ops_i256_d512_v1.tar.gz`，210545字节，SHA `fab74b4ff7ff643474d10f6b5d6513100e11d66cc8b291c9aca5abe7d2805b25`。服务器包位于`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1`，check及INT8 case0 pilot已实际通过，原模型`7a54106b3148.z558xni8`只读复用。下一步确认/收集21例套件结果，不再重复传包或编译；当前无整套结果。
+实际归档`coral_llm_ops_i256_d512_v1.tar.gz`，210545字节，SHA `fab74b4ff7ff643474d10f6b5d6513100e11d66cc8b291c9aca5abe7d2805b25`。服务器包位于`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1`，check/pilot及后续21例均通过，原模型`7a54106b3148.z558xni8`只读复用。下一步回收已完成job的summary/墙钟/原始证据，不重复传包、编译或all。
 
 实际pilot job为`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators._jxei5s3`，attempt `int8_0.g3eqoi8b`。用户回传scalar=[10563,10563,10563,10563]、rvv=[263,263,263,263]、边界3、比40.163498；最后`JOB_PASS cases=1 full_model=NOT_RUN VME=NOT_RUN`。pilot实际墙钟未回传，不补造；新21例应另有job。
 
-旧VM INT8 case0/1真实RTL通过，分别10563/263和168618/4110周期；不补造其旧ELF哈希，也不把此次导出的ELF自动标成旧实测同字节身份。FP32真实RVV/NPU执行仍待服务器。原Person/Pool/VME/Conv包和所有已测ELF/RTL保持不变。
+旧VM INT8 case0/1真实RTL通过，分别10563/263和168618/4110周期；新服务器整套周期一致，不补造旧ELF哈希。17例FP32现在有真实NPU执行，最大报告绝对误差4.76837158203125e-7。完整job为`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x`，主控制台`/home2/lqq/coral_vcs_tools/llm_ops_all.mXLd8a.log`。附件没有wall time，1～3小时仍为此前粗估，不是本次实际耗时。原Person/Pool/VME/Conv包和所有已测ELF/RTL保持不变。
