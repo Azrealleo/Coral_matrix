@@ -11,7 +11,7 @@ export PYTHONDONTWRITEBYTECODE=1
 pair_job=$(mktemp -d "$pair_study/llm_vme_pair.XXXXXX")
 printf '[LLM_VME_PAIR_JOB_DIRECTORY] %s\n' "$pair_job"
 python3 -B "$pair_here/materialize.py" --output "$pair_job/tools"
-pair_tools="$pair_job/tools/verification/google_llm_vme_pair_v1"
+pair_tools="$pair_job/tools/verification/google_llm_vme_pair_v2"
 bash "$pair_tools/prepare_tomorrow.sh" "$pair_study" "$pair_job/prepared"
 [[ "$pair_mode" != prepare ]] || exit 0
 printf '[LLM_VME_PAIR_PLAN_ETA] quick 25-65min; all 80-180min; excludes preparation/first compilation; needs pair candidate calibration\n'

@@ -1,10 +1,12 @@
 """Local native, real RV32 static and mocked fail-closed checks; NEVER RTL."""
 import ast
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 import materialize as gen
 
@@ -63,7 +65,7 @@ for node in ast.walk(ast.parse(build)):
         assert 'hdrs' not in fields
         if fields['name']=='host_reference_test':assert 'qualified_core.h' in fields['srcs']
         for h in ('hoisted_loop.h','pair_loop.h','pair_tile.h'):assert h in fields['srcs']
-assert s.PACKAGE=='tests/cocotb/llm_vme_pair_v1'
+assert s.PACKAGE=='tests/cocotb/llm_vme_pair_v2'
 assert len(s.CASES)==6 and s.PROBE_INDEX==6 and len(s.PROBE_SHAPES)==13
 assert 'paired_mt0_mt4' in s.SCOPE
 assert s.RTL_SHA=='477aa4d097b1ac7c35f98cb95fe9ba841082a8a10afde6f39dea70959300bfe2'
@@ -73,6 +75,67 @@ assert "sequence=(spec.PROBE_INDEX,5)" in (root/'vm.py').read_text()
 assert 'opt_cases=(5);' in (root/'run_server.sh').read_text()
 assert 'Configure-once VME complete' in (root/'summarize.py').read_text()
 ''' % (str(self.tools),str(gen.REPO/'.upstream-git/coralnpu-google.git')))
+
+    def test_v2_kernel_sources_are_byte_identical_to_failed_v1(self):
+        revision='c9edb85cc8c16f79469deeeb2e3b7c5dc6a556c9'
+        class PriorPath:
+            def __init__(self,path):self.path=path
+            def __truediv__(self,name):return PriorPath(self.path+'/'+name)
+            def read_bytes(self):return subprocess.check_output(['git','-C',str(gen.REPO),'show',revision+':'+self.path])
+            def read_text(self):return self.read_bytes().decode()
+        raw=subprocess.check_output(['git','-C',str(gen.REPO),'show',
+            revision+':verification/google_llm_vme_pair/materialize.py'])
+        old=types.ModuleType('_failed_v1');old.__file__=str(gen.HERE/'materialize.py')
+        exec(compile(raw,old.__file__,'exec'),old.__dict__)
+        old.HERE=PriorPath('verification/google_llm_vme_pair')
+        before,_=old.sources(gen.REPO);after,_=gen.sources(gen.REPO)
+        kernel=lambda files,prefix:{Path(n).name:b for n,b in files.items()
+            if n.startswith(prefix+'/') and n.endswith(('.cc','.h'))}
+        self.assertEqual(kernel(before,old.GENERATED),kernel(after,gen.GENERATED))
+        self.assertIn('pair_tile.h',kernel(after,gen.GENERATED))
+
+    def test_vm_machine_code_constant_shift_regression_and_fail_closed_cases(self):
+        fixture=json.loads((gen.HERE/'selector_fixture.json').read_text())
+        self.assertEqual(fixture['elf_sha256'],'03d464f6dc77b986585516f0335c2082885c806730a7a68b69a2f7ebf0976874')
+        self.child('''
+import lv_audit as a
+fixture=%r;raw=bytes.fromhex(fixture['bytes_hex'])
+assert len(raw)==464
+assert 0x20000537 not in a.words(raw),'Fixture must reproduce the old false rejection'
+producers=a.pair_tile_constant_producers(raw)
+assert any(p['instruction']=='0x01949e93' for p in producers),producers
+class Symbol(dict):
+    name=fixture['symbol']
+class Section:
+    def __getitem__(self,key):assert key=='sh_addr';return fixture['address']
+    def data(self):return raw
+class Table:
+    def iter_symbols(self):return [Symbol(st_size=len(raw),st_info={'type':'STT_FUNC'},st_shndx=1,st_value=fixture['address'])]
+class Elf:
+    def get_section_by_name(self,name):assert name=='.symtab';return Table()
+    def get_section(self,index):assert index==1;return Section()
+report=a.audit_pair_tile_selector(Elf())
+assert report['tile4_tss_constant']=='0x20000000' and report['dynamic_selection_proof'] is False
+bad=bytearray(raw)
+for offset in range(0,len(raw),4):
+    w=int.from_bytes(raw[offset:offset+4],'little')
+    if w&127==0x13 and (w>>12)&7==1 and w>>25==0 and (w>>20)&31==25:
+        bad[offset:offset+4]=((w&~(31<<20))|(23<<20)).to_bytes(4,'little')
+assert not a.pair_tile_constant_producers(bytes(bad)),'mt1 shift was accepted as mt4'
+def code(*ws):return b''.join(w.to_bytes(4,'little') for w in ws)
+li=0x01000493;slli=0x01949e93
+assert a.pair_tile_constant_producers(code(li,slli))
+assert a.pair_tile_constant_producers(code(0x20000eb7))  # same constant in t4, not fixed a0
+for bad in (code(0x00400493,slli),code(slli),code(li,0x00052483,slli),
+            code(li,0x0000006f,slli),code(li,0x00000063,slli),
+            code(li)+bytes.fromhex('8144')+code(slli),
+            code(0x01000013,0x01901e93)):
+    assert not a.pair_tile_constant_producers(bad),bad.hex()
+for bad in (b'\\x03',b'\\x03\\x00',b'\\x1f\\x00\\x00\\x00'):
+    try:a.pair_tile_constant_producers(bad)
+    except ValueError:pass
+    else:raise AssertionError('Truncated/unsupported encoding accepted')
+''' % fixture)
 
     def test_shell_and_default_prepare_never_launch_rtl(self):
         shell=os.environ.get('LLM_TEST_BASH')

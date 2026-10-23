@@ -11,7 +11,7 @@ sys.dont_write_bytecode=True
 HERE=Path(__file__).resolve().parent
 REPO=HERE.parent.parent
 PIN='6ee7fd65f44288a8a6271493acfd98397ff2c67e'
-GENERATED='verification/google_llm_vme_pair_v1'
+GENERATED='verification/google_llm_vme_pair_v2'
 PROBES=((1,3,1),(16,4,16),(1,17,33),(16,17,33),(16,32,32),
         (1,64,64),(7,7,15),(15,63,47),(2,7,32),(4,17,48),
         (8,32,64),(12,63,63),(16,64,64))
@@ -35,7 +35,8 @@ def pinned(repo=REPO):
 
 
 def transform(name,text,r):
-    text=text.replace('llm_vme_mature_v1','llm_vme_pair_v1').replace('llm_vme_mature_','llm_vme_pair_')
+    text=text.replace('llm_vme_mature_v1','llm_vme_pair_v2').replace('llm_vme_mature_','llm_vme_pair_')
+    text=text.replace('coral_llm_vme_pair_i256_d512_v1','coral_llm_vme_pair_i256_d512_v2')
     text=text.replace('LLM_VME_MATURE','LLM_VME_PAIR')
     if name=='optimized_core.h':
         text=r(text,'struct OptimizationCounts {uint32_t fast_tiles=0,fallback_tiles=0;};',
@@ -141,12 +142,13 @@ def sources(repo=REPO):
     files[GENERATED+'/qualified_core.h']=baseline
     for name in ('pair_loop.h','pair_tile.h','README.md','SOURCES.md'):
         files[GENERATED+'/'+name]=(HERE/name).read_bytes()
-    return files,dict(parent_revision=PIN,parent_generator_sha256=digest,parent_provenance=provenance)
+    return files,dict(parent_revision=PIN,parent_generator_sha256=digest,parent_provenance=provenance,
+        pair_revision=2,change='compiler_compatible_static_selector_audit_no_kernel_changes')
 
 
 def expected(repo=REPO):
     files,provenance=sources(repo)
-    return files,dict(schema=1,kind='llm_vme_paired_accumulators_v1',simulation='NOT_RUN',
+    return files,dict(schema=1,kind='llm_vme_paired_accumulators_v2',simulation='NOT_RUN',
         generator_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         pair_audit_sha256=hashlib.sha256((HERE/'pair_audit.py').read_bytes()).hexdigest(),
         provenance=provenance,probe_shapes=[list(s) for s in PROBES],

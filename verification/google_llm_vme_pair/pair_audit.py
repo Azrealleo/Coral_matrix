@@ -52,16 +52,70 @@ def audit_pair_loops(elf):
     return reports
 
 
+def pair_tile_constant_producers(raw):
+    """Find actual scalar mt4 constants within basic blocks, not byte patterns.
+
+    Some compilers emit LUI, others shift a known block index (16 << 25).
+    Unknown instructions and control transfers discard facts. Compressed
+    instructions conservatively discard facts too: this is not an emulator.
+    Finding a producer is NOT proof of its use or dynamic tile association.
+    """
+    words(raw)  # Reject truncated/unsupported instruction encodings first.
+    known={0:0};producers=[];offset=0
+    while offset<len(raw):
+        half=int.from_bytes(raw[offset:offset+2],'little')
+        if half&3!=3:
+            known={0:0};offset+=2;continue
+        w=int.from_bytes(raw[offset:offset+4],'little');op=w&127
+        rd=(w>>7)&31;rs1=(w>>15)&31;rs2=(w>>20)&31;f3=(w>>12)&7;f7=w>>25
+        value=None;writes=False
+        if op==0x37:  # lui
+            value=w&0xfffff000;writes=True
+        elif op==0x13:
+            writes=True;a=known.get(rs1);imm=(w>>20)-4096 if w>>31 else w>>20
+            if a is not None:
+                if f3==0:value=a+imm  # addi / mv / li
+                elif f3==1 and f7==0:value=a<<rs2  # slli
+                elif f3==5 and f7==0:value=a>>rs2
+                elif f3==6:value=a|imm
+                elif f3==7:value=a&imm
+                elif f3==4:value=a^imm
+        elif op==0x33:
+            writes=True;a=known.get(rs1);b=known.get(rs2)
+            if a is not None and b is not None and f7==0:
+                if f3==0:value=a+b
+                elif f3==6:value=a|b
+                elif f3==7:value=a&b
+                elif f3==4:value=a^b
+                elif f3==1:value=a<<(b&31)
+                elif f3==5:value=a>>(b&31)
+        elif op in (0x03,0x17,0x73):  # load / pc-relative / CSR destination unknown
+            writes=True
+        elif op in (0x63,0x67,0x6f):
+            known={0:0}  # Never propagate through a branch, jump or call.
+        elif op==0x57 and f3==7:
+            writes=True  # mset / vset can write a scalar result.
+        elif op not in (0x07,0x0f,0x23,0x27,0x57,0x77):
+            known={0:0}
+        if writes and rd:
+            if value is None:known.pop(rd,None)
+            else:
+                value&=0xffffffff;known[rd]=value
+                if value==0x20000000:
+                    producers.append(dict(offset=offset,register=rd,instruction=f'0x{w:08x}'))
+        offset+=4
+    return producers
+
+
 def audit_pair_tile_selector(elf):
     """Constant presence guard only, NOT a proof of dynamic TSS selection."""
     functions=[]
     for symbol in elf.get_section_by_name('.symtab').iter_symbols():
         if 'PairTileToRowMajor' not in symbol.name or not symbol['st_size'] or symbol['st_info']['type']!='STT_FUNC':continue
         section=elf.get_section(symbol['st_shndx']);start=int(symbol['st_value'])-int(section['sh_addr'])
-        code=words(section.data()[start:start+int(symbol['st_size'])])
-        # TSS(tile4,row0) = 4<<27. The fixed a0 register is consumed by the
-        # explicit tile-move opcodes; actual row association needs the RTL probe.
-        if 0x20000537 not in code:raise ValueError('Missing mt4 TSS selector constant in paired tile path')
-        functions.append(symbol.name)
+        code=section.data()[start:start+int(symbol['st_size'])]
+        producers=pair_tile_constant_producers(code)
+        if not producers:raise ValueError('Missing mt4 TSS selector constant in paired tile path')
+        functions.append(dict(symbol=symbol.name,tile4_constant_producers=producers))
     if len(functions)!=1:raise ValueError('Need one paired tile move function')
-    return dict(symbol=functions[0],tile4_tss_constant='0x20000000',dynamic_selection_proof=False)
+    return dict(**functions[0],tile4_tss_constant='0x20000000',dynamic_selection_proof=False)
