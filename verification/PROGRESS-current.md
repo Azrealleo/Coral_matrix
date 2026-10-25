@@ -1,136 +1,122 @@
-# CoralNPU进度快照：单NPU Transformer/LLM算子
+# CoralNPU 当前进度：算子优化与 Transformer 子模块
 
-更新日期：2026-10-22（香港时间）。依据用户回传日志和已核对的本地工具；没有直接登录Linux核查实时进程或完整日志。本文是当前状态，历史过程见[全程记录](WORKLOG-and-handover.md)，接手操作见[当前交接](HANDOFF-current.md)。
+更新：2026-10-25（香港时间）。最近代码提交 `445c3d8`。本次通过SSH只读复核VM证据，未新增仿真、未修改内核/RTL/封存包。10个作业的36条性能记录通过冻结收集器校验；其中旧官方GELU三条仅为算法诊断，不能写成“36个严格数学PASS”或“36个完整模型”。
 
-## 1. 当前任务与范围
+入口：[当前交接](HANDOFF-current.md)、[全程记录第30节](WORKLOG-and-handover.md#section-30)、[机器可读证据索引](EVIDENCE-current.json)。[10月22日进度](PROGRESS-archive-20261022.md)只保留当时状态。
 
-- 团队已确定使用官方CoralNPU，Yangg152比较暂停并保留历史。
-- 当前只测一个NPU的Transformer/LLM算子，固定ITCM256KiB、DTCM512KiB。不是完整语言模型/文本生成。
-- **下一阶段已获用户批准并完成工具准备：RVV与VME直接对比。** 新入口[google_llm_vme](google_llm_vme/README.md)，只沿用现有4例INT8形状；包含完整打包调用、预打包复用边际值及计入一次性成本的结果。尚未正式VM链接/导出或新RTL执行，没有VME提速结论。
-- VM只进行Bazel/Chisel生成、主机参考和交叉链接/导出；RTL仿真转EDA152服务器Verilator。
-- 用户已回传**21例整套真实RTL PASS**（4例INT8+17例FP32），job为`operators.cgtja4_x`。本机未登录服务器或独立复跑；已核对回传摘要完整性，原始日志仍在服务器。
-- 完整MobileNet优化版、Conv RVV新实现、TCM扩容及ITCM扫描均不自动继续；Depthwise遵守用户要求不改动。
+## 1. 当前方向与准确断点
 
-## 2. 本轮完成/待验证表
+- 团队已选官方CoralNPU；Yangg152比较保留为历史，不恢复选型。
+- 单NPU固定 **ITCM256KiB / DTCM512KiB**，官方源 `8e4df09b4ea7e065e02d14ce3ae033d40dfd973a`；没有升级RTL/ISA。
+- 已从单算子推进到三算子链、小型GEGLU FFN、单头Attention的prefill→一次decode。
+- **Attention和FFN分别通过，尚未接成同一层Transformer。下一步是组合验证。**
+- 未加载预训练LLM、权重/tokenizer，没有完整模型、长序列生成或tokens/s结果。
+- 本机现可SSH直连VM，预计一小时内的仿真可在VM进行；服务器保留长任务备选。“VM只构建、必须服务器仿真”是旧分工。
+- Depthwise保持官方实现；Person优化整网、Conv RVV比较、TCM/ITCM扫描不自动恢复。
 
-| 项目 | 已有证据 | 当前结论 |
+## 2. 本次核实的完成范围
+
+比例表示该作业的已验收性能例/计划性能例，均另有候选自己的探针。各作业是不同ELF/基线，不能拼接周期。目录均在 `/home/lqq/coral_tcm_capacity_8e4_v1/` 下。
+
+| 阶段 | VM作业短名 | 完成 | 当前结论 |
+|---|---|---:|---|
+| RVV打包、补偿、直接写回VME | `llm_vme_opt_session.cjfZc9` | 4/4 | 四种INT8形状通过，最初快路径限M1/16 |
+| M维度直接写回扫描 | `llm_vme_m_sweep.AahVsZ` | 6/6 | K=N64，M1/2/4/8/12/16通过 |
+| 更大K/N、M分块 | `llm_vme_large.UDDMQw` | 1/8 | 只验收case0控制及新探针，另7例未完成 |
+| configure-once K循环 | `llm_vme_mature.sdcZkW` | 4/6 | M1/8/12/16通过，M2/4未验收 |
+| mt0/mt4共享输入 | `llm_vme_pair.kudXJL` | 3/6 | M8/12/16通过，M1/2/4未验收 |
+| 原样官方RVV直接调用 | `official_rvv.aI9wIK` | 6/6 | Residual/RMS三例严格PASS，GELU三例仅算法诊断 |
+| 独立高精度RVV GELU | `gelu_rvv_mlas_v2.4yHOrK` | 3/3 | 三例严格PASS，未改官方低精度实现 |
+| RMSNorm→GELU×Up→Residual | `transformer_chain_v2.33mKyq` | 3/3 | 三阶段严格PASS |
+| 含三次Linear的GEGLU FFN | `ffn.DkKE4z` | 3/3 | 六阶段严格PASS |
+| 单头Attention+KV复用 | `attention.iMVr0T` | 3/3 | 13张量、因果关系、KV保留及硬件bulk对照通过 |
+
+这只证明已测形状/输入/身份，不证明任意形状或完整模型。某些旧候选README仍写“尚未RTL”，那是参与冻结身份的准备时文字；以本表及原证据为准，不为改状态去编辑冻结输入。
+
+## 3. VME优化结果与冷启动边界
+
+原始四例VME已经真实RTL通过，但慢于官方RVV。分段profile显示打包、累加器初始化、输出布局的软件成本较大；后续依次实现RVV打包/补偿、直接写回、全M快路径、configure-once K循环、双累加器共享输入。借鉴成熟内核调度，不直接移植Arm指令、不改变旧矩阵编码。
+
+最新pair-v2同一ELF，K=N64：
+
+| M | RVV | 单tile完整/复用 | pair完整/复用 | RVV/pair复用 | 四次含一次预打包的pair总成本 |
+|---|---:|---:|---:|---:|---:|
+| 8 | 4605 | 7254 / 4766 | 6596 / 4103 | 1.1223× | 18855（RVV18420） |
+| 12 | 6873 | 7830 / 5342 | 7172 / 4679 | 1.4689× | 21159（RVV27492） |
+| 16 | 9141 | 8051 / 5563 | 7380 / 4887 | 1.8705× | 21991（RVV36564） |
+
+pair一次权重预打包实测2443周期。复用列排除该成本，不是冷启动收益；M8四次含预打包仍稍慢，M12完整调用仍略慢，M16本作业完整调用已快于RVV。只读[摊销分析](google_llm_vme_analysis/README.md)不是额外RTL测量。不得插值宣称通用M切换阈值。
+
+INT8仍为X[-128,127]、W[-127,127]到raw INT32，不含量化、激活或外存。large剩余形状没有被case0控制自动覆盖。
+
+## 4. 官方FP32算子与新组合结果
+
+### 4.1 原样官方RVV的实际效果
+
+| 用例 | 原项目RVV | 官方RVV | 项目/官方 | 数学质量 |
+|---|---:|---:|---:|---|
+| residual256 | 598 | 280 | 2.1357× | 严格PASS |
+| RMSNorm 1×64 | 620 | 308 | 2.0130× | 严格PASS |
+| RMSNorm 3×37 | 1269 | 788 | 1.6104× | 严格PASS |
+| GELU×Up32 | 11205 | 287 | 39.0418× | 严格FAIL，仅算法诊断 |
+| GELU×Up37 | 13367 | 411 | 32.5231× | 严格FAIL，仅算法诊断 |
+| GELU×Up256 | 89755 | 1771 | 50.6804× | 严格FAIL，仅算法诊断 |
+
+官方GELU最大绝对误差约0.034～0.041，未放宽门限。[只读归因](google_official_rvv_analysis/README.md)表明当前输入未触发clamp，主要误差来自低阶有理函数，系数舍入影响不超过约5.96e-8。失败元素数不是数据集分类准确率。
+
+### 4.2 已严格验收的新候选
+
+每行均在同一新ELF内比较原项目RVV和候选；原项目门控的tanh仍为标量libm，不是任意RVV数学库的通用速度排名。
+
+| 模块/形状 | 原项目RVV→候选周期 | 比率 | 精度 |
+|---|---|---|---|
+| 高精度GELU 32/37/256元素 | 11178→434；13338→571；89559→2828 | 25.76 / 23.36 / 31.67× | 3/3严格PASS |
+| 三算子链1×32/1×37/4×64 | 11698→746；13577→938；91960→4154 | 15.68 / 14.47 / 22.14× | 三阶段PASS |
+| FFN M/H/F=1/8/16、3/7/13、4/8/32 | 5807→1151；13554→2578；40132→4592 | 5.05 / 5.26 / 8.74× | 六阶段PASS |
+| Attention P/H=1/4、3/6、4/8 | 7384→6557；13690→12867；18258→17453 | 1.13 / 1.06 / 1.05× | 13张量PASS |
+
+高精度GELU采用固定ONNX Runtime MLAS高阶tanh方案的独立RVV移植，保留MIT许可，不是原样官方内核。主机81925点有界数值检查和三例RTL分开报告，不保证任意FP32/NaN/Inf。
+
+三算子链没有投影；FFN有Gate/Up/Down三投影；Attention有QKV/O四投影。两条RVV路径的Linear相同，均为官方实现。Attention/RoPE主体仍为原项目RVV，exp仍标量libm，没有声称新增Attention核心优化。
+
+Attention在一次调用内先prefill再追加一个decode；旧KV逐位保留、未来槽毒化不泄漏，并有独立FP64参考与额外整段硬件对照。其周期含缓存快照、软件计数和保护检查，不是去掉诊断后的生产内核周期。
+
+详细报告：[GELU](google_gelu_rvv_mlas/RESULTS.md)、[三算子链](google_transformer_chain/RESULTS.md)、[FFN](google_ffn/RESULTS.md)、[Attention](google_attention/RESULTS.md)。
+
+<a id="5-21例覆盖及软件来源"></a>
+
+## 5. 历史基础与仍保留的边界
+
+旧21例来源/形状的逐项表保留在[10月22日快照第5节](PROGRESS-archive-20261022.md#5-21例覆盖及软件来源)，上述兼容锚点供旧链接跳转。
+
+| 阶段 | 已完成 | 不升级成什么结论 |
 |---|---|---|
-| VM INT8 decode_tiny，M1/K32/N32 | `llm_linear_c0.brMbDF`，流水PASS | 标量10563、RVV263周期/调用，40.163498倍 |
-| VM INT8 prefill_tiny，M16/K32/N32 | `llm_linear_c1.Ye75FC`，流水PASS | 标量168618、RVV4110周期/调用，41.026277倍 |
-| INT8 K64/N64 decode/prefill | 服务器整套CASE_PASS | 标量41571/664746、RVV577/9134周期；72.046794/72.777097倍 |
-| 17例FP32主机参考 | 本地及导出时的native参考检查 | 不是RVV/NPU执行 |
-| FP32 RISC-V完整链接/资源审计 | `llm_server_export.HJkCC5`，实际ELF审计输出 | 已完成，不再写“待完整链接” |
-| 不含RTL的服务器小包 | 210545字节，SHA见第3节 | 已实际导出并在服务器单例使用 |
-| 原Pool模型复用check | `LLM_SERVER_READY cases=21` | 已确认可复用；该标记自身不运行21例 |
-| 服务器INT8 case0 | `LLM_SERVER_JOB_PASS cases=1` | 真实RTL通过，周期与旧VM结果一致 |
-| 服务器21例完整套件 | `operators.cgtja4_x`，最终`JOB_PASS cases=21` | 完成；完整周期表见[实际结果](google_llm_ops/RESULTS-20261022.md) |
-| FP32硬件数值与性能 | 17条CASE_PASS，误差/周期摘要完整 | 首次真实RTL通过，最大报告绝对误差4.76837158203125e-7 |
-| 完整Transformer block/LLM、多token生成 | 无模型图/权重/tokenizer/生成流程验收 | 未完成，不能给tokens/s |
-| 新RVV/VME INT8直接对比 | 新独立包/14项本地检查，4例native及735组边界模拟、真实RV32对象/本地合成ELF通过 | 正式VM链接与新RTL未跑；VM只执行build_export.sh，随后服务器先pilot |
+| 官方/Yangg152 | 功能、整核端点、共享权重批处理比较；团队选官方 | 不再作为当前选型，不等于PPA签核 |
+| TCM容量 | 六档32KiB～4MiB几何抽样、同ELF小工作集控制通过 | 4MiB几何PASS不等于完整模型/全部性能通过 |
+| 驻留收益 | T12 32→128KiB同策略1.41476×；T384 1→2MiB同策略1.205785× | 固定调度/外存代理，不是实际DDR或阵列峰值 |
+| VCS/Verilator | 服务器1MiB/T384结果EXACT，37619.46s vs13979.842s | 不外推所有机器/负载 |
+| 默认二分类MobileNetV1 | person单图RTL PASS，Invoke190673191周期，分数[-113,113]，约18.3h | 不是两图/数据集准确率，优化整网无完成验收 |
+| Conv/VME和RVV Pool | 各自短硬件probe通过；Conv片段默认91475 vs VME42713 | 2.14×的对象是默认实现，不是RVV Conv |
+| 原21例LLM算子 | 4 INT8+17 FP32服务器PASS，子进程和3136.512s | 用户回传的历史证据，不是本次重新登录服务器验收 |
+| SoC/PPA | 用户告知团队单NPU SoC已跑通，4核由团队负责 | 本工作没有4核、200MHz STA、工艺宏/PPA或门仿签核 |
 
-两种INT8微基准比较朴素标量与固定官方RVV实现，不是VME；速度比为原始内核mcycle之比，空边界3周期单列未扣除。不能将上述40倍外推为模型或架构峰值加速。
+原21例见[原结果表](google_llm_ops/RESULTS-20261022.md)。本次只直接核验了VM，未查询服务器当前进程，不把历史运行状态写成实时状态。
 
-本轮实测范围：INT8 40.16～72.78倍、FP32矩阵乘12.52～28.74倍、RMSNorm2.26～2.83倍、RoPE4.97～6.46倍、因果Attention1.67～1.75倍；Softmax约1.12倍，SwiGLU/GEGLU约1.01倍。后两组仍有标量libm，收益有限；不是完整LLM加速比。
+## 6. 身份、耗时和下一步
 
-## 3. 实际固件和归档身份
+上述10个VM作业均复用RTL SHA `477aa4d097b1ac7c35f98cb95fe9ba841082a8a10afde6f39dea70959300bfe2` 和Verilator可执行文件SHA `827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c`。这里的“模型二进制”是仿真器，不是神经网络权重。ELF各不相同，见证据索引与交接表。
 
-VM job：`/home/lqq/coral_tcm_capacity_8e4_v1/llm_server_export.HJkCC5`。
-
-| 固件 | ELF SHA256 | ITCM占用末端/字节 | DTCM静态范围/字节 | 堆剩余/字节 |
-|---|---|---:|---:|---:|
-| INT8 | `17b3e2b6a5c208f638db2d7b85f4ddc5f8f64c336290093a9a11ce06a3dd072d` | 2976 | 13536 | 494368 |
-| FP32 | `ab1c95f0398f1e1ee43a0bc7b94677daebe21fdb4ff359046ce7eecf2c81f312` | 10992 | 59808 | 448096 |
-
-这些是ELF静态审计，不是实际栈峰值/arena峰值；固定预留栈16KiB。两份新链接ELF身份已知，但旧VM两次运行未回传其旧ELF哈希，不能倒填为同一二进制的证明。
-
-- 归档：`coral_llm_ops_i256_d512_v1.tar.gz`。
-- 大小：210545字节。
-- SHA256：`fab74b4ff7ff643474d10f6b5d6513100e11d66cc8b291c9aca5abe7d2805b25`。
-- 服务器包目录：`/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1`。
-- 包中无新RTL、无模型权重。现有封存包不因仓库文档更新而重打包/覆盖。
-
-## 4. 服务器已完成单例和整套的位置
-
-原模型（只读复用）：
-
-```text
-/data/home2/lqq/Desktop/coral_person_packages/pool_7c8e0fe5/coral_person_vme_pool_i256_d512_v1_verilator_runtime/builds/7a54106b3148.z558xni8
-```
-
-本次单例job：
-
-```text
-/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators._jxei5s3
-```
-
-该job内实际attempt：`attempts/int8_0.g3eqoi8b/`，原始输出`_test.log`，配套`results.xml`、`_test-status.json`、`result.json`；job级`job.json`、`completed/int8_0.json`、`summary.md/json`。本机未直接取得这些完整文件，其路径依据工具命名和用户回传目录记录。
-
-`decode_tiny`每路径4次样本：
-
-- scalar_cycles：`[10563,10563,10563,10563]`。
-- rvv_cycles：`[263,263,263,263]`。
-- first/steady scalar_over_rvv：`40.163498098859314`。
-- useful_macs_per_call：1024；empty_boundary_cycles：3。
-- 最终标记：`LLM_SERVER_JOB_PASS cases=1 full_model=NOT_RUN VME=NOT_RUN`。
-
-用户未回传该pilot墙钟耗时，不补造时间。单例job不改计划成为21例；完整套件应有新的job，不能拿此`cases=1`当整套验收。
-
-**后续完整21例已通过**，控制台`/home2/lqq/coral_vcs_tools/llm_ops_all.mXLd8a.log`，新job：
-
-```text
-/data/home2/lqq/Desktop/coral_person_packages/llm_fab74b4f/coral_llm_ops_i256_d512_v1_server_runtime/jobs/operators.cgtja4_x
-```
-
-有21条CASE_PASS和最终JOB_PASS cases=21；每路径四次样本均一致。附件摘要独立核对见[结果报告](google_llm_ops/RESULTS-20261022.md)，不等于本机已获取所有远程XML/日志。当前只需回收summary/计时及证据，不重复跑整套。
-
-## 5. 21例覆盖及软件来源
-
-| 组别 | 数量 | 形状/验证重点 | 优化实现来源 |
-|---|---:|---|---|
-| INT8线性层 | 4 | M1/16，K/N32/64，INT8→INT32 | 原样官方`rvv_int8_matmul.cc` |
-| FP32矩阵乘 | 2 | M1/4，K16/N32 | 原样官方`rvv_matmul.cc` |
-| RMSNorm | 3 | decode/prefill、37维尾部，Gemma式`(1+w)` | 项目FP32 RVV基线 |
-| Softmax | 2 | 稳定减max、±1000输入、37维尾部 | 项目混合RVV，exp仍标量libm |
-| RoPE | 2 | split-half、预生成sin/cos | 项目FP32 RVV基线 |
-| SwiGLU/GEGLU | 2 | 256元素门控乘法，不是整个FFN | 项目混合RVV，exp/tanh仍标量libm |
-| 残差 | 1 | 512元素加法 | 项目FP32 RVV基线 |
-| KV追加 | 1 | 旧前缀保持，只计时追加 | 项目FP32 RVV基线 |
-| 因果GQA Attention | 4 | prefill/decode/首token/未来K/V毒化，2Q共享1KV | 项目小尺寸FP32基线 |
-
-每路径首次+3次steady，交替执行顺序；fence+mcycle只包围内核，不含host加载/生成/逐项检查。FP32对独立Python FP64参考舍入后的结果核对，atol=2e-5、rtol=2e-4，拒绝NaN/Inf。INT8权重[-127,127]、激活[-128,127]遵守官方输入限制。所有输入resident DTCM，不测试外部流式权重带宽。
-
-验收包括实际输入/两份输出前门读回、guard和未使用尾区、自然halt/status3/无fault/真实调用计数及栈底64字节canary。canary不是完整栈水位；较慢的RVV若正确仍是有效结果，不强迫比值大于1。
-
-## 6. 耗时预估与沟通约定
-
-用户要求：**以后每次给仿真命令，必须先给预计墙钟时间，说明是否包含编译、依据及不确定性；超时与预计分开。**
-
-当前已给21例的估算为1～3小时、建议预留3小时，复用模型所以不含编译。估算基于此前同服务器Person等负载约2800～3000 NPU周期/秒以及本轮规模；4例INT8粗估20～30分钟，17例FP32尚无真实时间，尤其标量libm exp/tanh有不确定性。是低置信度粗估，不是本轮实测或完成承诺，也不是芯片执行时间。
-
-用户已补充summary.md的21例实际子进程耗时：INT8合计1481.180秒（24分41秒），FP32合计1655.332秒（27分35秒），总计3136.512秒（约52分17秒），按显示3位小数求和。此和包含case内部加载/初始化/检查，不含case间校验/报告及编译，不是严格端到端套件总墙钟；独立pilot耗时仍未知。逐例时间见[结果报告](google_llm_ops/RESULTS-20261022.md)。
-
-相同服务器/配置/21例复跑可参考约1小时、保守预留1～1.5小时，不含编译；变更负载需另估。当前已通过，不因补齐计时而重跑。
-
-`--timeout 5400`表示每例90分钟墙钟上限，不是整套90分钟。每例预算INT8 case0为200万周期，其余1000万周期，是停止上限而非必须跑满；故障/数值失败会提前停止。收到新case实际耗时后应修正预测，不把超过估计直接判死锁，也不盲目重跑。
-
-## 7. 其他阶段的保留结论
-
-| 阶段 | 已完成的重要事实 | 仍不能声称的内容 |
+| 最新组 | 三例VM命令耗时（秒，含Bazel） | 合计，准备/探针另计 |
 |---|---|---|
-| 官方/Yangg152选型 | 功能/整核端点比较与限制已记录；团队确定官方 | 不继续把两版列为当前待选 |
-| TCM容量 | 32/128/512KiB及1/2/4MiB几何抽样、小resident同ELF控制通过；小工作集周期相同 | 4MiB几何PASS不等于4MiB完整模型/全部性能通过 |
-| DTCM驻留收益 | T12 32→128KiB同prefix比1.41476；T384 1→2MiB比1.205785 | 依赖固定调度/外存代理，不是阵列峰值或真实SoC带宽 |
-| 仿真后端 | 同服务器1MiB T384 VCS37619.46s、Verilator13979.842s，结果EXACT | 不外推所有负载或所有服务器/VM速度 |
-| 完整二分类MobileNetV1默认版 | 单person图真实RTL通过，Invoke190673191周期，分数[-113,113]，总65897.933s | 不是两图硬件验证、数据集准确率或VME整网通过 |
-| VME Conv/RVV Pool | 短硬件probe分别8组/840和8组/659项通过；Conv片段默认91475 vs VME42713，2.14162倍 | 不是VME对RVV Conv结果，优化整网尚无完成结果 |
-| SoC/综合 | 用户报告团队单NPU SoC集成测试通过，后续4核由团队负责 | 本人没有新增4核、DC/200MHz、网表/SDF门仿签核 |
+| 高精度GELU | 37.98 / 44.75 / 156.23 | 约3分59秒 |
+| 三算子链 | 64.00 / 69.05 / 272.15 | 约6分45秒 |
+| FFN | 54.21 / 74.91 / 161.71 | 约4分51秒 |
+| Attention | 64.26 / 101.68 / 143.92 | 约5分10秒 |
 
-## 8. 当前下一步和交回内容
+墙钟含各路径和检查，不是芯片时延；内部性能用同ELF的mcycle比。以后每次仿真先给ETA、编译是否另计、依据及不确定性；超时不是ETA。新整层尚未构建，不能把这些时间直接当其完成承诺。
 
-1. VM运行[新对比build_export.sh](google_llm_vme/README.md)，只做native/正式ELF/资源审计/不含RTL小包导出，回传实际ELF和归档SHA；不跑VM仿真。
-2. 传新包到服务器独立目录，沿用原Pool模型身份；先case0，粗估5～15分钟不含VM构建，首次路径无实测，完成后修正其余case耗时。
-3. 正确性和调用/命令计数全部通过才报告RVV/VME比；reuse分别看边际周期、首用和4次摊销，不把预打包成本隐去。
-4. 原21例已通过，不再重复all；只读备份完整原始证据。Softmax/门控、Depthwise、本轮RAM/RTL均不改，暂不扩大128/256尺寸或跑完整block。
-5. 新对比真实周期回传后再决定扩大形状或新优化；完整LLM、tokenizer/持续KV/AXI流式及PPA/门仿仍未完成。
+下一步：连接Attention残差输出与FFN输入，建立整层独立参考，保留prefill/decode KV状态、绝对RoPE位置及中间检查；先小形状和新探针，再按估时运行单例。真实权重/tokenizer、长序列、更大head_dim、BF16/INT4、AXI/DRAM、完整模型及PPA/门仿另立实验。
 
-不要改已导出包、旧RTL模型或审计身份，不删除失败日志，不停止其他人的仿真。后续完整可执行命令及接手材料见[HANDOFF-current.md](HANDOFF-current.md)。
+large的其余7例、mature的M2/4、pair的M1/2/4仍未完成，但不是默认待跑队列。只读归档现有PASS，不为补文档重跑，不改阈值/哈希或覆盖失败日志。
+
+约定：仅在用户明确要求时集中更新全局进度、工作记录与交接；日常候选证据独立保存。

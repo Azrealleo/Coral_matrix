@@ -1,0 +1,1476 @@
+{
+  "schema": 1,
+  "scope": "read_only_existing_evidence_no_simulation",
+  "jobs": [
+    {
+      "total": 4,
+      "verified": 4,
+      "scope": "resident_INT8_linear_RVV_old_VME_vs_RVV_packing_direct_writeback_candidate_not_model",
+      "elf_sha256": "1954df447b02436d91e42ee52406a8347cbfebc5f6bfb888d167f52147fc96b8",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "case_id": 0,
+            "case": "decode_tiny",
+            "M": 1,
+            "K": 32,
+            "N": 32,
+            "rvv_cycles": [
+              267,
+              267,
+              267,
+              267
+            ],
+            "complete_cycles": [
+              24862,
+              24862,
+              24862,
+              24862
+            ],
+            "reuse_cycles": [
+              11127,
+              11127,
+              11127,
+              11127
+            ],
+            "prepack_once_cycles": 13745,
+            "opt_complete_cycles": [
+              2788,
+              2788,
+              2788,
+              2788
+            ],
+            "opt_reuse_cycles": [
+              2077,
+              2077,
+              2077,
+              2077
+            ],
+            "opt_prepack_once_cycles": 658,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 0.12855079441502168,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 0.11911666294891814
+          },
+          "timing_seconds": 160.6295839020022,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_opt_session.cjfZc9/prepared/runs/case0.3vexy0mp"
+        },
+        {
+          "comparison": {
+            "case_id": 1,
+            "case": "prefill_tiny",
+            "M": 16,
+            "K": 32,
+            "N": 32,
+            "rvv_cycles": [
+              4100,
+              4100,
+              4100,
+              4100
+            ],
+            "complete_cycles": [
+              29036,
+              29036,
+              29036,
+              29036
+            ],
+            "reuse_cycles": [
+              15301,
+              15301,
+              15301,
+              15301
+            ],
+            "prepack_once_cycles": 13745,
+            "opt_complete_cycles": [
+              3317,
+              3317,
+              3317,
+              3317
+            ],
+            "opt_reuse_cycles": [
+              2606,
+              2606,
+              2606,
+              2606
+            ],
+            "opt_prepack_once_cycles": 658,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.5732924021488872,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 1.4798772784695904
+          },
+          "timing_seconds": 331.094223823995,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_opt_session.cjfZc9/prepared/runs/case1.79y6zpf7"
+        },
+        {
+          "comparison": {
+            "case_id": 2,
+            "case": "decode_small",
+            "M": 1,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              582,
+              582,
+              582,
+              582
+            ],
+            "complete_cycles": [
+              77586,
+              77586,
+              77586,
+              77586
+            ],
+            "reuse_cycles": [
+              23515,
+              23515,
+              23515,
+              23515
+            ],
+            "prepack_once_cycles": 54081,
+            "opt_complete_cycles": [
+              7686,
+              7686,
+              7686,
+              7686
+            ],
+            "opt_reuse_cycles": [
+              5191,
+              5191,
+              5191,
+              5191
+            ],
+            "opt_prepack_once_cycles": 2442,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 0.11211712579464457,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 0.10031888304748772
+          },
+          "timing_seconds": 194.6993878689973,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_opt_session.cjfZc9/prepared/runs/case2.ajgwiia_"
+        },
+        {
+          "comparison": {
+            "case_id": 3,
+            "case": "prefill_small",
+            "M": 16,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              9140,
+              9140,
+              9140,
+              9140
+            ],
+            "complete_cycles": [
+              85934,
+              85934,
+              85934,
+              85934
+            ],
+            "reuse_cycles": [
+              31863,
+              31863,
+              31863,
+              31863
+            ],
+            "prepack_once_cycles": 54081,
+            "opt_complete_cycles": [
+              8737,
+              8737,
+              8737,
+              8737
+            ],
+            "opt_reuse_cycles": [
+              6242,
+              6242,
+              6242,
+              6242
+            ],
+            "opt_prepack_once_cycles": 2442,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.4642742710669656,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 1.3338197738051807
+          },
+          "timing_seconds": 762.4062977330032,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_opt_session.cjfZc9/prepared/runs/case3.49ot_232"
+        }
+      ],
+      "job": "llm_vme_opt_session.cjfZc9",
+      "tools": "/home/lqq/桌面/Coral_matrix/verification/google_llm_vme_opt",
+      "revalidated": true
+    },
+    {
+      "total": 6,
+      "verified": 6,
+      "scope": "resident_INT8_M_sweep_same_ELF_RVV_old_VME_vs_all_M_direct_writeback_not_model",
+      "elf_sha256": "a174f5ac3220bdf02f24bd63452d5302915c7f77925298587a99bfbdf8e2c6e8",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "case_id": 0,
+            "case": "m1_k64_n64",
+            "M": 1,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              581,
+              581,
+              581,
+              581
+            ],
+            "complete_cycles": [
+              53825,
+              53825,
+              53825,
+              53825
+            ],
+            "reuse_cycles": [
+              24473,
+              24473,
+              24473,
+              24473
+            ],
+            "prepack_once_cycles": 29357,
+            "opt_complete_cycles": [
+              7654,
+              7654,
+              7654,
+              7654
+            ],
+            "opt_reuse_cycles": [
+              5160,
+              5160,
+              5160,
+              5160
+            ],
+            "opt_prepack_once_cycles": 2442,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 0.1125968992248062,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 0.10068451607313057
+          },
+          "timing_seconds": 177.78380499099148,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_m_sweep.AahVsZ/prepared/runs/case0.rcuyh1cy"
+        },
+        {
+          "comparison": {
+            "case_id": 1,
+            "case": "m2_k64_n64",
+            "M": 2,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              1202,
+              1202,
+              1202,
+              1202
+            ],
+            "complete_cycles": [
+              54309,
+              54309,
+              54309,
+              54309
+            ],
+            "reuse_cycles": [
+              24957,
+              24957,
+              24957,
+              24957
+            ],
+            "prepack_once_cycles": 29357,
+            "opt_complete_cycles": [
+              7238,
+              7238,
+              7238,
+              7238
+            ],
+            "opt_reuse_cycles": [
+              4744,
+              4744,
+              4744,
+              4744
+            ],
+            "opt_prepack_once_cycles": 2442,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 0.2533726812816189,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 0.22448407881221402
+          },
+          "timing_seconds": 212.9645353060041,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_m_sweep.AahVsZ/prepared/runs/case1.dq5yf3qe"
+        },
+        {
+          "comparison": {
+            "case_id": 2,
+            "case": "m4_k64_n64",
+            "M": 4,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              2336,
+              2336,
+              2336,
+              2336
+            ],
+            "complete_cycles": [
+              55277,
+              55277,
+              55277,
+              55277
+            ],
+            "reuse_cycles": [
+              25925,
+              25925,
+              25925,
+              25925
+            ],
+            "prepack_once_cycles": 29357,
+            "opt_complete_cycles": [
+              7426,
+              7426,
+              7426,
+              7426
+            ],
+            "opt_reuse_cycles": [
+              4932,
+              4932,
+              4932,
+              4932
+            ],
+            "opt_prepack_once_cycles": 2442,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 0.47364152473641524,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 0.4214704555705909
+          },
+          "timing_seconds": 283.5644036869926,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_m_sweep.AahVsZ/prepared/runs/case2.y_yramxt"
+        },
+        {
+          "comparison": {
+            "case_id": 3,
+            "case": "m8_k64_n64",
+            "M": 8,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              4604,
+              4604,
+              4604,
+              4604
+            ],
+            "complete_cycles": [
+              57213,
+              57213,
+              57213,
+              57213
+            ],
+            "reuse_cycles": [
+              27861,
+              27861,
+              27861,
+              27861
+            ],
+            "prepack_once_cycles": 29357,
+            "opt_complete_cycles": [
+              7934,
+              7934,
+              7934,
+              7934
+            ],
+            "opt_reuse_cycles": [
+              5440,
+              5440,
+              5440,
+              5440
+            ],
+            "opt_prepack_once_cycles": 2442,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 0.8463235294117647,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 0.7609288488554665
+          },
+          "timing_seconds": 451.5845345629932,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_m_sweep.AahVsZ/prepared/runs/case3.e5z7t1nl"
+        },
+        {
+          "comparison": {
+            "case_id": 4,
+            "case": "m12_k64_n64",
+            "M": 12,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              6872,
+              6872,
+              6872,
+              6872
+            ],
+            "complete_cycles": [
+              59149,
+              59149,
+              59149,
+              59149
+            ],
+            "reuse_cycles": [
+              29797,
+              29797,
+              29797,
+              29797
+            ],
+            "prepack_once_cycles": 29357,
+            "opt_complete_cycles": [
+              8510,
+              8510,
+              8510,
+              8510
+            ],
+            "opt_reuse_cycles": [
+              6016,
+              6016,
+              6016,
+              6016
+            ],
+            "opt_prepack_once_cycles": 2442,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.1422872340425532,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 1.0370482154983778
+          },
+          "timing_seconds": 584.7484253240109,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_m_sweep.AahVsZ/prepared/runs/case4.4u6k6fuw"
+        },
+        {
+          "comparison": {
+            "case_id": 5,
+            "case": "m16_k64_n64",
+            "M": 16,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              9140,
+              9140,
+              9140,
+              9140
+            ],
+            "complete_cycles": [
+              61213,
+              61213,
+              61213,
+              61213
+            ],
+            "reuse_cycles": [
+              31861,
+              31861,
+              31861,
+              31861
+            ],
+            "prepack_once_cycles": 29357,
+            "opt_complete_cycles": [
+              8700,
+              8700,
+              8700,
+              8700
+            ],
+            "opt_reuse_cycles": [
+              6206,
+              6206,
+              6206,
+              6206
+            ],
+            "opt_prepack_once_cycles": 2442,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.47276828875282,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 1.3408640798063522
+          },
+          "timing_seconds": 776.8086859650066,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_m_sweep.AahVsZ/prepared/runs/case5.jjqzx1_p"
+        }
+      ],
+      "job": "llm_vme_m_sweep.AahVsZ",
+      "tools": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_m_sweep.AahVsZ/tools/verification/google_llm_vme_sweep_v1",
+      "revalidated": true
+    },
+    {
+      "total": 8,
+      "verified": 1,
+      "scope": "resident_INT8_larger_KN_M_blocking_same_ELF_five_paths_not_model",
+      "elf_sha256": "2db84655d84b915e78bdff7846f0b9f60c37d57bd5b3300ab1e8d181cb01f1da",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "case_id": 0,
+            "case": "control_m16_k64_n64",
+            "M": 16,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              9141,
+              9141,
+              9141,
+              9141
+            ],
+            "complete_cycles": [
+              86067,
+              86067,
+              86067,
+              86067
+            ],
+            "reuse_cycles": [
+              31964,
+              31964,
+              31964,
+              31964
+            ],
+            "prepack_once_cycles": 54077,
+            "opt_complete_cycles": [
+              8829,
+              8829,
+              8829,
+              8829
+            ],
+            "opt_reuse_cycles": [
+              6309,
+              6309,
+              6309,
+              6309
+            ],
+            "opt_prepack_once_cycles": 2445,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.4488825487398953,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 1.3209060366316245
+          },
+          "timing_seconds": 1281.622663896007,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_large.UDDMQw/prepared/runs/case0.1vb4soa2"
+        }
+      ],
+      "job": "llm_vme_large.UDDMQw",
+      "tools": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_large.UDDMQw/tools/verification/google_llm_vme_large_v1",
+      "revalidated": true
+    },
+    {
+      "total": 6,
+      "verified": 4,
+      "scope": "resident_INT8_RVV_qualified_direct_VME_vs_configure_once_K_loop_not_model",
+      "elf_sha256": "92f33dbdb2361ec7c313d080e1b0f3f6b07ca28eedba1002ffccf8051bd5cb85",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "baseline_path": "qualified_direct_writeback_VME",
+            "candidate_path": "configure_once_K_loop",
+            "case_id": 0,
+            "case": "m1_k64_n64",
+            "M": 1,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              581,
+              581,
+              581,
+              581
+            ],
+            "complete_cycles": [
+              7654,
+              7654,
+              7654,
+              7654
+            ],
+            "reuse_cycles": [
+              5165,
+              5165,
+              5165,
+              5165
+            ],
+            "prepack_once_cycles": 2442,
+            "opt_complete_cycles": [
+              6970,
+              6970,
+              6970,
+              6970
+            ],
+            "opt_reuse_cycles": [
+              4475,
+              4475,
+              4475,
+              4475
+            ],
+            "opt_prepack_once_cycles": 2443,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 0.12983240223463688,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 0.11424077078110406
+          },
+          "timing_seconds": 139.87810942801298,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_mature.sdcZkW/prepared/runs/case0.xo141lm3"
+        },
+        {
+          "comparison": {
+            "baseline_path": "qualified_direct_writeback_VME",
+            "candidate_path": "configure_once_K_loop",
+            "case_id": 3,
+            "case": "m8_k64_n64",
+            "M": 8,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              4604,
+              4604,
+              4604,
+              4604
+            ],
+            "complete_cycles": [
+              7934,
+              7934,
+              7934,
+              7934
+            ],
+            "reuse_cycles": [
+              5445,
+              5445,
+              5445,
+              5445
+            ],
+            "prepack_once_cycles": 2442,
+            "opt_complete_cycles": [
+              7262,
+              7262,
+              7262,
+              7262
+            ],
+            "opt_reuse_cycles": [
+              4767,
+              4767,
+              4767,
+              4767
+            ],
+            "opt_prepack_once_cycles": 2443,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 0.9658065869519614,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 0.8561201245874204
+          },
+          "timing_seconds": 412.7994682069984,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_mature.sdcZkW/prepared/runs/case3.o2u8j3sb"
+        },
+        {
+          "comparison": {
+            "baseline_path": "qualified_direct_writeback_VME",
+            "candidate_path": "configure_once_K_loop",
+            "case_id": 4,
+            "case": "m12_k64_n64",
+            "M": 12,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              6872,
+              6872,
+              6872,
+              6872
+            ],
+            "complete_cycles": [
+              8510,
+              8510,
+              8510,
+              8510
+            ],
+            "reuse_cycles": [
+              6021,
+              6021,
+              6021,
+              6021
+            ],
+            "prepack_once_cycles": 2442,
+            "opt_complete_cycles": [
+              7838,
+              7838,
+              7838,
+              7838
+            ],
+            "opt_reuse_cycles": [
+              5343,
+              5343,
+              5343,
+              5343
+            ],
+            "opt_prepack_once_cycles": 2443,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.2861688190155343,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 1.154230526978795
+          },
+          "timing_seconds": 556.7364042389963,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_mature.sdcZkW/prepared/runs/case4.yc936vmb"
+        },
+        {
+          "comparison": {
+            "baseline_path": "qualified_direct_writeback_VME",
+            "candidate_path": "configure_once_K_loop",
+            "case_id": 5,
+            "case": "m16_k64_n64",
+            "M": 16,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              9140,
+              9140,
+              9140,
+              9140
+            ],
+            "complete_cycles": [
+              8699,
+              8699,
+              8699,
+              8699
+            ],
+            "reuse_cycles": [
+              6210,
+              6210,
+              6210,
+              6210
+            ],
+            "prepack_once_cycles": 2442,
+            "opt_complete_cycles": [
+              8040,
+              8040,
+              8040,
+              8040
+            ],
+            "opt_reuse_cycles": [
+              5545,
+              5545,
+              5545,
+              5545
+            ],
+            "opt_prepack_once_cycles": 2443,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.648331830477908,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 1.4847906428948543
+          },
+          "timing_seconds": 689.4224926720199,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_mature.sdcZkW/prepared/runs/case5.e1_nvb2u"
+        }
+      ],
+      "job": "llm_vme_mature.sdcZkW",
+      "tools": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_mature.sdcZkW/tools/verification/google_llm_vme_mature_v1",
+      "revalidated": true
+    },
+    {
+      "total": 6,
+      "verified": 3,
+      "scope": "resident_INT8_RVV_configure_once_single_VME_vs_paired_mt0_mt4_shared_input_not_model",
+      "elf_sha256": "d6cbcfd8477e72590c481490dac3e7aeba2d3c85894f2d96ae65aafdfcf4f0b6",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "baseline_path": "configure_once_single_tile_VME",
+            "candidate_path": "paired_mt0_mt4_shared_input",
+            "case_id": 3,
+            "case": "m8_k64_n64",
+            "M": 8,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              4605,
+              4605,
+              4605,
+              4605
+            ],
+            "complete_cycles": [
+              7254,
+              7254,
+              7254,
+              7254
+            ],
+            "reuse_cycles": [
+              4766,
+              4766,
+              4766,
+              4766
+            ],
+            "prepack_once_cycles": 2442,
+            "opt_complete_cycles": [
+              6596,
+              6596,
+              6596,
+              6596
+            ],
+            "opt_reuse_cycles": [
+              4103,
+              4103,
+              4103,
+              4103
+            ],
+            "opt_prepack_once_cycles": 2443,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.1223495003655861,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 0.9769291964996022
+          },
+          "timing_seconds": 415.27623967299587,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_pair.kudXJL/prepared/runs/case3.576akc5o"
+        },
+        {
+          "comparison": {
+            "baseline_path": "configure_once_single_tile_VME",
+            "candidate_path": "paired_mt0_mt4_shared_input",
+            "case_id": 4,
+            "case": "m12_k64_n64",
+            "M": 12,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              6873,
+              6873,
+              6873,
+              6873
+            ],
+            "complete_cycles": [
+              7830,
+              7830,
+              7830,
+              7830
+            ],
+            "reuse_cycles": [
+              5342,
+              5342,
+              5342,
+              5342
+            ],
+            "prepack_once_cycles": 2442,
+            "opt_complete_cycles": [
+              7172,
+              7172,
+              7172,
+              7172
+            ],
+            "opt_reuse_cycles": [
+              4679,
+              4679,
+              4679,
+              4679
+            ],
+            "opt_prepack_once_cycles": 2443,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.4689036118828809,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 1.299305260172976
+          },
+          "timing_seconds": 617.3427518460085,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_pair.kudXJL/prepared/runs/case4.l1mv78iw"
+        },
+        {
+          "comparison": {
+            "baseline_path": "configure_once_single_tile_VME",
+            "candidate_path": "paired_mt0_mt4_shared_input",
+            "case_id": 5,
+            "case": "m16_k64_n64",
+            "M": 16,
+            "K": 64,
+            "N": 64,
+            "rvv_cycles": [
+              9141,
+              9141,
+              9141,
+              9141
+            ],
+            "complete_cycles": [
+              8051,
+              8051,
+              8051,
+              8051
+            ],
+            "reuse_cycles": [
+              5563,
+              5563,
+              5563,
+              5563
+            ],
+            "prepack_once_cycles": 2442,
+            "opt_complete_cycles": [
+              7380,
+              7380,
+              7380,
+              7380
+            ],
+            "opt_reuse_cycles": [
+              4887,
+              4887,
+              4887,
+              4887
+            ],
+            "opt_prepack_once_cycles": 2443,
+            "steady_rvv_over_opt_reuse_excluding_prepack": 1.8704726826273788,
+            "rvv_over_opt_reuse_four_calls_including_prepack": 1.6626801873493702
+          },
+          "timing_seconds": 746.3097132910043,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_pair.kudXJL/prepared/runs/case5.s5xx58hn"
+        }
+      ],
+      "job": "llm_vme_pair.kudXJL",
+      "tools": "/home/lqq/coral_tcm_capacity_8e4_v1/llm_vme_pair.kudXJL/tools/verification/google_llm_vme_pair_v2",
+      "revalidated": true
+    },
+    {
+      "total": 6,
+      "verified": 6,
+      "scope": "resident_FP32_scalar_project_RVV_vs_unmodified_official_RVV_diagnostic_not_model",
+      "elf_sha256": "f9f269e96973198921a68bbfbfee1532e6d708bc2e3663dc92d39e51dfc7be87",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "case_id": 0,
+            "case": "residual256",
+            "scalar_cycles": [
+              3399,
+              3399,
+              3399,
+              3399
+            ],
+            "project_cycles": [
+              598,
+              598,
+              598,
+              598
+            ],
+            "official_cycles": [
+              280,
+              280,
+              280,
+              280
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 0,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 47.466031598014524,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/official_rvv.aI9wIK/prepared/runs/case0.v3ctg3ie"
+        },
+        {
+          "comparison": {
+            "case_id": 1,
+            "case": "rms64",
+            "scalar_cycles": [
+              1643,
+              1643,
+              1643,
+              1643
+            ],
+            "project_cycles": [
+              620,
+              620,
+              620,
+              620
+            ],
+            "official_cycles": [
+              308,
+              308,
+              308,
+              308
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 4.76837158203125e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 34.22549011700903,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/official_rvv.aI9wIK/prepared/runs/case1.s58e_eqi"
+        },
+        {
+          "comparison": {
+            "case_id": 2,
+            "case": "rms_tail37",
+            "scalar_cycles": [
+              2865,
+              2865,
+              2865,
+              2865
+            ],
+            "project_cycles": [
+              1269,
+              1269,
+              1269,
+              1269
+            ],
+            "official_cycles": [
+              788,
+              788,
+              788,
+              788
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 4.76837158203125e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 37.87067597202258,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/official_rvv.aI9wIK/prepared/runs/case2.kkosvwiu"
+        },
+        {
+          "comparison": {
+            "case_id": 3,
+            "case": "gelu32",
+            "scalar_cycles": [
+              11292,
+              11292,
+              11292,
+              11292
+            ],
+            "project_cycles": [
+              11205,
+              11205,
+              11205,
+              11205
+            ],
+            "official_cycles": [
+              287,
+              287,
+              287,
+              287
+            ],
+            "strict_math_quality_pass": false,
+            "official_max_math_abs_error": 0.0412287712097168,
+            "qualification": "ALGORITHM_DIAGNOSTIC_ONLY_NOT_STRICT_MATH_QUALIFIED"
+          },
+          "timing_seconds": 44.95330311800353,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/official_rvv.aI9wIK/prepared/runs/case3.prxx0203"
+        },
+        {
+          "comparison": {
+            "case_id": 4,
+            "case": "gelu_tail37",
+            "scalar_cycles": [
+              13450,
+              13450,
+              13450,
+              13450
+            ],
+            "project_cycles": [
+              13367,
+              13367,
+              13367,
+              13367
+            ],
+            "official_cycles": [
+              411,
+              411,
+              411,
+              411
+            ],
+            "strict_math_quality_pass": false,
+            "official_max_math_abs_error": 0.033787451684474945,
+            "qualification": "ALGORITHM_DIAGNOSTIC_ONLY_NOT_STRICT_MATH_QUALIFIED"
+          },
+          "timing_seconds": 47.346534134005196,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/official_rvv.aI9wIK/prepared/runs/case4.x8cfa5v0"
+        },
+        {
+          "comparison": {
+            "case_id": 5,
+            "case": "gelu256",
+            "scalar_cycles": [
+              90500,
+              90500,
+              90500,
+              90500
+            ],
+            "project_cycles": [
+              89755,
+              89755,
+              89755,
+              89755
+            ],
+            "official_cycles": [
+              1771,
+              1771,
+              1771,
+              1771
+            ],
+            "strict_math_quality_pass": false,
+            "official_max_math_abs_error": 0.04132843017578125,
+            "qualification": "ALGORITHM_DIAGNOSTIC_ONLY_NOT_STRICT_MATH_QUALIFIED"
+          },
+          "timing_seconds": 150.7845604000031,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/official_rvv.aI9wIK/prepared/runs/case5.tc60a6om"
+        }
+      ],
+      "job": "official_rvv.aI9wIK",
+      "tools": "/home/lqq/coral_tcm_capacity_8e4_v1/official_rvv.aI9wIK/tools/verification/google_official_rvv_v1",
+      "revalidated": true
+    },
+    {
+      "total": 3,
+      "verified": 3,
+      "scope": "resident_FP32_scalar_project_RVV_vs_MLAS_based_RVV_GELU_strict_not_model",
+      "elf_sha256": "0a9d427597056b709cb7362eaac7eae6be29ae8b996419c9f09b8402987b7d47",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "case_id": 0,
+            "case": "gelu32",
+            "scalar_cycles": [
+              11265,
+              11265,
+              11265,
+              11265
+            ],
+            "project_cycles": [
+              11178,
+              11178,
+              11178,
+              11178
+            ],
+            "candidate_cycles": [
+              434,
+              434,
+              434,
+              434
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 8.195638656616211e-8,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 37.97738352700253,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/gelu_rvv_mlas_v2.4yHOrK/prepared/runs/case0.zybppj9v"
+        },
+        {
+          "comparison": {
+            "case_id": 1,
+            "case": "gelu_tail37",
+            "scalar_cycles": [
+              13421,
+              13421,
+              13421,
+              13421
+            ],
+            "project_cycles": [
+              13338,
+              13338,
+              13338,
+              13338
+            ],
+            "candidate_cycles": [
+              571,
+              571,
+              571,
+              571
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 1.1920928955078125e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 44.74845849801204,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/gelu_rvv_mlas_v2.4yHOrK/prepared/runs/case1.07uc_qig"
+        },
+        {
+          "comparison": {
+            "case_id": 2,
+            "case": "gelu256",
+            "scalar_cycles": [
+              90304,
+              90304,
+              90304,
+              90304
+            ],
+            "project_cycles": [
+              89559,
+              89559,
+              89559,
+              89559
+            ],
+            "candidate_cycles": [
+              2828,
+              2828,
+              2828,
+              2828
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 2.384185791015625e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 156.22580967500107,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/gelu_rvv_mlas_v2.4yHOrK/prepared/runs/case2.qfb7re71"
+        }
+      ],
+      "job": "gelu_rvv_mlas_v2.4yHOrK",
+      "tools": "/home/lqq/coral_tcm_capacity_8e4_v1/gelu_rvv_mlas_v2.4yHOrK/tools/verification/google_gelu_rvv_mlas_v2",
+      "revalidated": true
+    },
+    {
+      "total": 3,
+      "verified": 3,
+      "scope": "resident_FP32_RMSNorm_GELUxUp_Residual_chain_scalar_project_vs_qualified_RVV_not_Transformer_model",
+      "elf_sha256": "69cc3f8316715fce915af0a57ad56ec7d588d9ca74cac881b57e8856c827e955",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "case_id": 0,
+            "case": "chain_decode32",
+            "scalar_cycles": [
+              12655,
+              12655,
+              12655,
+              12655
+            ],
+            "project_cycles": [
+              11698,
+              11698,
+              11698,
+              11698
+            ],
+            "candidate_cycles": [
+              746,
+              746,
+              746,
+              746
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 2.384185791015625e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 63.99909010500414,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/transformer_chain_v2.33mKyq/prepared/runs/case0.67skppwj"
+        },
+        {
+          "comparison": {
+            "case_id": 1,
+            "case": "chain_tail37",
+            "scalar_cycles": [
+              14579,
+              14579,
+              14579,
+              14579
+            ],
+            "project_cycles": [
+              13577,
+              13577,
+              13577,
+              13577
+            ],
+            "candidate_cycles": [
+              938,
+              938,
+              938,
+              938
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 2.384185791015625e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 69.05475294898497,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/transformer_chain_v2.33mKyq/prepared/runs/case1.3k592no5"
+        },
+        {
+          "comparison": {
+            "case_id": 2,
+            "case": "chain_prefill4x64",
+            "scalar_cycles": [
+              99535,
+              99535,
+              99535,
+              99535
+            ],
+            "project_cycles": [
+              91960,
+              91960,
+              91960,
+              91960
+            ],
+            "candidate_cycles": [
+              4154,
+              4154,
+              4154,
+              4154
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 4.76837158203125e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 272.15058989598765,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/transformer_chain_v2.33mKyq/prepared/runs/case2.gdiwxck6"
+        }
+      ],
+      "job": "transformer_chain_v2.33mKyq",
+      "tools": "/home/lqq/coral_tcm_capacity_8e4_v1/transformer_chain_v2.33mKyq/tools/verification/google_transformer_chain_v2",
+      "revalidated": true
+    },
+    {
+      "total": 3,
+      "verified": 3,
+      "scope": "resident_synthetic_FP32_pre_norm_GEGLU_FFN_with_three_Linear_scalar_project_vs_qualified_RVV_not_model",
+      "elf_sha256": "bf4040b8888d5250f294377caa9e0886e455e1e88899ac93c79c6f08b8a9501b",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "case_id": 0,
+            "case": "ffn_decode",
+            "scalar_cycles": [
+              10724,
+              10724,
+              10724,
+              10724
+            ],
+            "project_cycles": [
+              5807,
+              5807,
+              5807,
+              5807
+            ],
+            "candidate_cycles": [
+              1151,
+              1151,
+              1151,
+              1151
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 2.384185791015625e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 54.21468364298926,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/ffn.DkKE4z/prepared/runs/case0.haqj125h"
+        },
+        {
+          "comparison": {
+            "case_id": 1,
+            "case": "ffn_tail",
+            "scalar_cycles": [
+              23978,
+              23978,
+              23978,
+              23978
+            ],
+            "project_cycles": [
+              13554,
+              13554,
+              13554,
+              13554
+            ],
+            "candidate_cycles": [
+              2578,
+              2578,
+              2578,
+              2578
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 1.1920928955078125e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 74.91272511100397,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/ffn.DkKE4z/prepared/runs/case1.d7bjm2n1"
+        },
+        {
+          "comparison": {
+            "case_id": 2,
+            "case": "ffn_prefill",
+            "scalar_cycles": [
+              79347,
+              79347,
+              79347,
+              79347
+            ],
+            "project_cycles": [
+              40132,
+              40132,
+              40132,
+              40132
+            ],
+            "candidate_cycles": [
+              4592,
+              4592,
+              4592,
+              4592
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 1.1920928955078125e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 161.7078025350056,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/ffn.DkKE4z/prepared/runs/case2.3ume305b"
+        }
+      ],
+      "job": "ffn.DkKE4z",
+      "tools": "/home/lqq/coral_tcm_capacity_8e4_v1/ffn.DkKE4z/tools/verification/google_ffn_v1",
+      "revalidated": true
+    },
+    {
+      "total": 3,
+      "verified": 3,
+      "scope": "resident_FP32_single_head_causal_Attention_prefill_then_decode_scalar_project_vs_official_RMS_Linear_residual_not_model",
+      "elf_sha256": "4bca2e8f0229e5830d6cff0b64fd0ba9d73b296a294c6c32c9a40706f516526b",
+      "model_sha256": "827680a52a5d3107cfaa3d123af533b9e9d208acf1b44d23a880833bbb09de6c",
+      "rows": [
+        {
+          "comparison": {
+            "case_id": 0,
+            "case": "attention_decode",
+            "scalar_cycles": [
+              9466,
+              9466,
+              9466,
+              9466
+            ],
+            "project_cycles": [
+              7384,
+              7384,
+              7384,
+              7384
+            ],
+            "candidate_cycles": [
+              6557,
+              6557,
+              6557,
+              6557
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 1.1920928955078125e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 64.25965114799328,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/attention.iMVr0T/prepared/runs/case0.6m84kfjn"
+        },
+        {
+          "comparison": {
+            "case_id": 1,
+            "case": "attention_tail",
+            "scalar_cycles": [
+              22898,
+              22898,
+              22898,
+              22898
+            ],
+            "project_cycles": [
+              13690,
+              13690,
+              13690,
+              13690
+            ],
+            "candidate_cycles": [
+              12867,
+              12867,
+              12867,
+              12867
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 2.384185791015625e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 101.68143238199991,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/attention.iMVr0T/prepared/runs/case1.dhhqoj9q"
+        },
+        {
+          "comparison": {
+            "case_id": 2,
+            "case": "attention_prefill",
+            "scalar_cycles": [
+              38918,
+              38918,
+              38918,
+              38918
+            ],
+            "project_cycles": [
+              18258,
+              18258,
+              18258,
+              18258
+            ],
+            "candidate_cycles": [
+              17453,
+              17453,
+              17453,
+              17453
+            ],
+            "strict_math_quality_pass": true,
+            "official_max_math_abs_error": 1.1920928955078125e-7,
+            "qualification": "STRICT_MATH_PASS"
+          },
+          "timing_seconds": 143.9206698590133,
+          "directory": "/home/lqq/coral_tcm_capacity_8e4_v1/attention.iMVr0T/prepared/runs/case2.zwpqiuuy"
+        }
+      ],
+      "job": "attention.iMVr0T",
+      "tools": "/home/lqq/coral_tcm_capacity_8e4_v1/attention.iMVr0T/tools/verification/google_attention_v1",
+      "revalidated": true
+    }
+  ],
+  "reviewed_on": "2026-10-25",
+  "code_revision": "445c3d838e0ea857a90c21a49918ab10c776dc62",
+  "method": "Frozen collect_vm(partial=True), fresh Python process per job, no main(), no Bazel/build/simulation, no remote writes.",
+  "limits": "Metadata index, not raw proof replacement. 36 accepted performance records across 10 different ELF experiments; three original official GELU records are algorithm diagnostics, not strict math passes. Missing cases remain unverified."
+}

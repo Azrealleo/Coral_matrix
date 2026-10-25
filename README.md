@@ -9,17 +9,26 @@ the Yangg152 comparison is historical, not the current workstream.
 
 ## Work record and handoff
 
-Current task (2026-10-19): one NPU with **512 KiB DTCM**, a complete pretrained
-**two-class MobileNetV1 person-detection** model, and ITCM assessed from firmware
-up to 512 KiB. See the [active model and firmware-resource step](verification/google_person_detect/README.md).
-The original model has a desktop LiteRT metadata-compatibility failure; the
-pinned native TFLM host test and firmware link/audit are the next VM commands,
-not completed passes. The [1001-output model and host golden](verification/google_mobilenet_v1/README.md)
-are preserved for later. No NPU model-inference or accuracy pass is claimed.
-The capacity sweeps below remain historical, not the default next run.
+Current task (2026-10-25): one official NPU with **256 KiB ITCM / 512 KiB DTCM**,
+progressing from operator tests to synthetic Transformer submodules. The strict
+RVV GELU candidate, a three-operator chain, a projected GEGLU FFN, and single-head
+causal Attention with prefill/decode KV reuse have passed their scoped RTL tests.
+Attention and FFN have **not yet been joined into one Transformer layer**. No
+pretrained LLM, tokenizer, long-sequence generation or tokens/s result is claimed.
+
+The [current progress](verification/PROGRESS-current.md) lists accepted and missing
+cases, performance boundaries and the next step. The [evidence index](verification/EVIDENCE-current.json)
+records the read-only revalidation of 36 performance records across 10 VM jobs;
+three original official GELU records remain algorithm diagnostics, not strict
+math passes. Existing candidate READMEs may retain their immutable preparation-time
+status; do not edit sealed inputs to update a PASS label.
+
+The default two-class MobileNetV1 person image has separately passed NPU RTL
+inference; the optimized whole model and the [1001-output model](verification/google_mobilenet_v1/README.md)
+remain historical/pending, not the default next run. Capacity sweeps are paused.
 
 Start with the Chinese [current handoff guide](verification/HANDOFF-current.md),
-updated through 2026-10-19. It identifies the exact resumption point, environments,
+updated through 2026-10-25. It identifies the exact resumption point, environments,
 immutable packages, accepted results, pending runs, and safe commands.
 The detailed Chinese [full work record](verification/WORKLOG-and-handover.md)
 covers environment setup, Git/proxy workflows, functional failures and passes,
@@ -29,7 +38,7 @@ For the historical 2026-10-04 synthesis package, use the
 and 8/32 KiB configuration are distinct from the newer TCM experiment; do not
 substitute the `prod` package with different instruction-fetch settings.
 
-## Official single-NPU memory study
+## Historical official single-NPU memory study
 
 The [ITCM/DTCM capacity experiment](verification/google_tcm_capacity/README.md)
 uses the team's newer pinned official source and generation fixes. Stage 1
@@ -63,13 +72,13 @@ The earlier trace-launch failure is retained separately. Server Verilator 1 MiB
 T384 has now also passed with exact VCS-reference agreement in 13979.842 seconds
 (about 3h53m). The earlier server VCS run took 37619.46 seconds, while the VM's
 Verilator Bazel test took 6736.5 seconds. These are observed workflow timings,
-not isolated CPU/engine benchmarks. Next: qualify each new capacity's own model
-and T12 before the 2/4 MiB T768 pair. Compilation or local tool tests alone are
+not isolated CPU/engine benchmarks. Further capacity qualification and the
+2/4 MiB T768 pair are paused, not the current next task. Compilation or local tool tests alone are
 still not RTL simulation passes.
 The separate [ITCM sweep tools](verification/google_itcm_capacity/README.md) are
-prepared but paused, with no reported RTL pass. The current DTCM runs keep ITCM
-at 8 KiB. Real-model, physical SRAM timing, 200 MHz and gate-level validation
-remain outside the completed evidence.
+prepared but paused, with no reported RTL pass. Those historical DTCM sweeps kept
+ITCM at 8 KiB; current operator/submodule tests use 256 KiB. Full LLM inference,
+physical SRAM timing, 200 MHz and gate-level signoff remain unverified.
 
 ## Windows compatibility
 
